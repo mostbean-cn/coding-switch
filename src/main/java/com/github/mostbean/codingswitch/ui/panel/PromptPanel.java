@@ -47,7 +47,7 @@ public class PromptPanel extends JPanel {
 
     private JPanel createToolbar() {
         JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        toolbar.add(new JBLabel("Filter by CLI: "));
+        toolbar.add(new JBLabel("按 CLI 筛选: "));
         for (CliType cli : CliType.values()) {
             filterCombo.addItem(cli);
         }
@@ -63,13 +63,13 @@ public class PromptPanel extends JPanel {
         // 左侧：预设列表 (配合 ToolbarDecorator)
         presetList.setCellRenderer(new PresetCellRenderer());
         presetList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        presetList.getEmptyText().setText("No presets for this CLI");
+        presetList.getEmptyText().setText("暂无预设，点击 '+' 新增");
 
         ToolbarDecorator listDecorator = ToolbarDecorator.createDecorator(presetList)
                 .setAddAction(button -> onAdd())
                 .setRemoveAction(button -> onDelete())
                 .addExtraAction(
-                        new AnAction("Activate", "Activate this preset to live config", AllIcons.Actions.Execute) {
+                        new AnAction("启用", "将此预设写入对应 CLI 的配置文件", AllIcons.Actions.Execute) {
                             @Override
                             public void actionPerformed(@NotNull AnActionEvent e) {
                                 onActivate();
@@ -132,7 +132,7 @@ public class PromptPanel extends JPanel {
     }
 
     private void onAdd() {
-        String name = Messages.showInputDialog("Preset name:", "New Prompt Preset",
+        String name = Messages.showInputDialog("预设名称:", "新增提示词预设",
                 Messages.getQuestionIcon());
         if (name != null && !name.isBlank()) {
             CliType cli = (CliType) filterCombo.getSelectedItem();
@@ -145,12 +145,23 @@ public class PromptPanel extends JPanel {
     private void onSave() {
         PromptPreset selected = presetList.getSelectedValue();
         if (selected == null) {
-            Messages.showWarningDialog("Please select a preset first.", "No Selection");
+            Messages.showWarningDialog("请先选择一个预设。", "未选择");
             return;
         }
         selected.setContent(editorArea.getText());
         PromptService.getInstance().updatePreset(selected);
-        Messages.showInfoMessage("Preset content saved.", "Success");
+
+        // 如果当前预设已启用，自动同步到 CLI 配置文件
+        if (selected.isActive()) {
+            try {
+                PromptService.getInstance().activatePreset(selected.getId());
+                Messages.showInfoMessage("预设内容已保存并同步到 " + selected.getTargetCli().getDisplayName() + "。", "保存成功");
+            } catch (IOException ex) {
+                Messages.showErrorDialog("内容已保存，但同步到配置文件失败: " + ex.getMessage(), "同步失败");
+            }
+        } else {
+            Messages.showInfoMessage("预设内容已保存。", "保存成功");
+        }
     }
 
     private void onDelete() {
@@ -158,8 +169,8 @@ public class PromptPanel extends JPanel {
         if (selected == null)
             return;
         int result = Messages.showYesNoDialog(
-                "Delete preset \"" + selected.getName() + "\"?",
-                "Confirm Delete", Messages.getWarningIcon());
+                "确定删除预设 \"" + selected.getName() + "\" 吗？",
+                "确认删除", Messages.getWarningIcon());
         if (result == Messages.YES) {
             PromptService.getInstance().removePreset(selected.getId());
             editorArea.setText("");
@@ -170,14 +181,17 @@ public class PromptPanel extends JPanel {
         PromptPreset selected = presetList.getSelectedValue();
         if (selected == null)
             return;
+        // 先将编辑器中的内容保存到 preset，避免旧内容覆盖用户编辑
+        selected.setContent(editorArea.getText());
+        PromptService.getInstance().updatePreset(selected);
         try {
             PromptService.getInstance().activatePreset(selected.getId());
             Messages.showInfoMessage(
-                    "Preset \"" + selected.getName() + "\" activated for "
-                            + selected.getTargetCli().getDisplayName() + ".",
-                    "Activated");
+                    "预设 \"" + selected.getName() + "\" 已启用到 "
+                            + selected.getTargetCli().getDisplayName() + "。",
+                    "启用成功");
         } catch (IOException ex) {
-            Messages.showErrorDialog("Failed to activate: " + ex.getMessage(), "Error");
+            Messages.showErrorDialog("启用失败: " + ex.getMessage(), "错误");
         }
     }
 
@@ -186,8 +200,8 @@ public class PromptPanel extends JPanel {
         if (cli == null)
             return;
         int result = Messages.showYesNoDialog(
-                "Loading live config will overwrite editor content.\nContinue?",
-                "Confirm Load", Messages.getQuestionIcon());
+                "加载当前配置将覆盖编辑器内容。\n确定继续吗？",
+                "确认加载", Messages.getQuestionIcon());
         if (result == Messages.YES) {
             String content = PromptService.getInstance().readCurrentPrompt(cli);
             editorArea.setText(content);
@@ -226,7 +240,7 @@ public class PromptPanel extends JPanel {
             append(preset.getName());
 
             if (preset.isActive()) {
-                append("  (Active)", new SimpleTextAttributes(SimpleTextAttributes.STYLE_BOLD,
+                append("  (已启用)", new SimpleTextAttributes(SimpleTextAttributes.STYLE_BOLD,
                         new Color(66, 160, 83)));
             }
 

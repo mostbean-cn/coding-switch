@@ -126,7 +126,8 @@ public final class PromptService implements PersistentStateComponent<PromptServi
         CliType cliType = target.getTargetCli();
 
         // 回填保护：将当前文件内容保存回之前的 active 预设
-        backfillCurrentContent(presets, cliType, configService);
+        // 但如果目标就是当前已激活的预设，则跳过回填（用户已显式编辑了内容）
+        backfillCurrentContent(presets, cliType, configService, presetId);
 
         // 同一 CLI 类型下只能有一个 active
         for (PromptPreset p : presets) {
@@ -163,10 +164,16 @@ public final class PromptService implements PersistentStateComponent<PromptServi
 
     /**
      * 回填保护：将当前文件内容保存回之前 active 的预设。
+     * 如果 excludePresetId 非空且与当前 active 预设相同，则跳过回填（用户已显式编辑了内容）。
      */
-    private void backfillCurrentContent(List<PromptPreset> presets, CliType cliType, ConfigFileService svc) {
+    private void backfillCurrentContent(List<PromptPreset> presets, CliType cliType,
+            ConfigFileService svc, String excludePresetId) {
         for (PromptPreset p : presets) {
             if (p.getTargetCli() == cliType && p.isActive()) {
+                // 如果要激活的就是当前 active 的预设，跳过回填
+                if (p.getId().equals(excludePresetId)) {
+                    break;
+                }
                 String currentContent = readCurrentPrompt(cliType);
                 if (!currentContent.isBlank()) {
                     p.setContent(currentContent);

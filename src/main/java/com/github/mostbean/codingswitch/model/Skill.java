@@ -1,5 +1,7 @@
 package com.github.mostbean.codingswitch.model;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -17,8 +19,17 @@ public class Skill {
     private boolean installed;
     private String localPath;
 
+    /** 该 Skill 同步到哪些 CLI（目前只有 Claude 真正支持） */
+    private Map<CliType, Boolean> syncTargets;
+
     public Skill() {
         this.id = UUID.randomUUID().toString();
+        this.syncTargets = new HashMap<>();
+        // 默认仅 Claude 启用
+        syncTargets.put(CliType.CLAUDE, true);
+        syncTargets.put(CliType.CODEX, false);
+        syncTargets.put(CliType.GEMINI, false);
+        syncTargets.put(CliType.OPENCODE, false);
     }
 
     public Skill(String name, String description, String repository, String path) {
@@ -85,6 +96,24 @@ public class Skill {
 
     public void setLocalPath(String localPath) {
         this.localPath = localPath;
+    }
+
+    public Map<CliType, Boolean> getSyncTargets() {
+        return syncTargets;
+    }
+
+    public void setSyncTargets(Map<CliType, Boolean> syncTargets) {
+        this.syncTargets = syncTargets;
+    }
+
+    public boolean isSyncedTo(CliType cliType) {
+        return syncTargets != null && Boolean.TRUE.equals(syncTargets.get(cliType));
+    }
+
+    public void setSyncedTo(CliType cliType, boolean synced) {
+        if (syncTargets == null)
+            syncTargets = new HashMap<>();
+        syncTargets.put(cliType, synced);
     }
 
     @Override

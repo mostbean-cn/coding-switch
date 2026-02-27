@@ -143,6 +143,73 @@ public final class SkillService implements PersistentStateComponent<SkillService
         Files.deleteIfExists(path);
     }
 
+    public void updateSkill(Skill skill) {
+        List<Skill> skills = new ArrayList<>(getSkills());
+        boolean found = false;
+        for (int i = 0; i < skills.size(); i++) {
+            if (skills.get(i).getId().equals(skill.getId())) {
+                skills.set(i, skill);
+                found = true;
+                break;
+            }
+        }
+        // 对于通过点击发现直接修改的对象
+        if (!found) {
+            for (int i = 0; i < skills.size(); i++) {
+                if (skills.get(i).getName().equals(skill.getName())) {
+                    skills.set(i, skill);
+                    found = true;
+                    break;
+                }
+            }
+        }
+        if (!found) {
+            skills.add(skill);
+        }
+        saveSkills(skills);
+    }
+
+    public boolean syncLocalSkills(List<Skill> localSkills) {
+        List<Skill> saved = new ArrayList<>(getSkills());
+        boolean changed = false;
+
+        for (Skill local : localSkills) {
+            boolean found = false;
+            for (Skill ext : saved) {
+                if (ext.getName().equals(local.getName())) {
+                    ext.setInstalled(true);
+                    ext.setLocalPath(local.getLocalPath());
+                    if (ext.getDescription() == null || ext.getDescription().isBlank()) {
+                        ext.setDescription(local.getDescription());
+                    }
+                    found = true;
+                    changed = true;
+                    break;
+                }
+            }
+            if (!found) {
+                saved.add(local);
+                changed = true;
+            }
+        }
+
+        for (Skill ext : saved) {
+            if (ext.isInstalled()) {
+                boolean stillThere = localSkills.stream().anyMatch(l -> l.getName().equals(ext.getName()));
+                if (!stillThere) {
+                    ext.setInstalled(false);
+                    ext.setLocalPath(null);
+                    changed = true;
+                }
+            }
+        }
+
+        if (changed) {
+            saveSkills(saved);
+        }
+        return changed;
+    }
+
     // =====================================================================
     // 自定义仓库管理
     // =====================================================================

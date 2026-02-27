@@ -72,29 +72,29 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
         List<McpServer> servers = new ArrayList<>(getServers());
         servers.add(server);
         saveServers(servers);
+        trySyncAllSafe();
     }
 
     public void updateServer(McpServer server) {
         List<McpServer> servers = new ArrayList<>(getServers());
         servers.replaceAll(s -> s.getId().equals(server.getId()) ? server : s);
         saveServers(servers);
+        trySyncAllSafe();
     }
 
     public void removeServer(String serverId) {
         List<McpServer> servers = new ArrayList<>(getServers());
         servers.removeIf(s -> s.getId().equals(serverId));
         saveServers(servers);
+        trySyncAllSafe();
     }
 
-    public void toggleServer(String serverId) {
-        List<McpServer> servers = new ArrayList<>(getServers());
-        for (McpServer s : servers) {
-            if (s.getId().equals(serverId)) {
-                s.setEnabled(!s.isEnabled());
-                break;
-            }
+    private void trySyncAllSafe() {
+        try {
+            syncToAllConfigs();
+        } catch (IOException e) {
+            LOG.warn("Failed to sync MCP configs after update", e);
         }
-        saveServers(servers);
     }
 
     // =====================================================================
@@ -202,7 +202,9 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
     // =====================================================================
 
     /**
-     * 扫描所有 CLI 的配置文件，导入已有的 MCP 服务器（去重）。
+     * 扫描所有 CLI 的配置文件，导入已有的 MCP 服务器。
+     * <p>
+     * 去重策略：已存在的同名 MCP 仅合并来源 CLI 开关，不覆盖其他字段。
      *
      * @return 新导入的服务器数量
      */
@@ -210,7 +212,9 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
         ConfigFileService configService = ConfigFileService.getInstance();
         List<McpServer> existing = new ArrayList<>(getServers());
         int importedCount = 0;
+        boolean changed = false;
 
+        // JSON 格式 CLI：Claude / Gemini / OpenCode
         for (CliType cli : new CliType[] { CliType.CLAUDE, CliType.GEMINI, CliType.OPENCODE }) {
             try {
                 var path = configService.getMcpConfigPath(cli);
@@ -220,9 +224,16 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
 
                 JsonObject mcpServers = root.getAsJsonObject("mcpServers");
                 for (String serverName : mcpServers.keySet()) {
-                    // 去重：按名称判断
-                    if (existing.stream().anyMatch(s -> s.getName().equals(serverName)))
+                    // 去重：按名称判断——已存在则仅合并 CLI 开关
+                    McpServer existingServer = existing.stream()
+                            .filter(s -> s.getName().equals(serverName)).findFirst().orElse(null);
+                    if (existingServer != null) {
+                        if (!existingServer.isSyncedTo(cli)) {
+                            existingServer.setSyncedTo(cli, true);
+                            changed = true;
+                        }
                         continue;
+                    }
 
                     JsonObject serverJson = mcpServers.getAsJsonObject(serverName);
                     McpServer server = parseMcpServerFromJson(serverName, serverJson, cli);
@@ -236,10 +247,148 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
             }
         }
 
-        if (importedCount > 0) {
+        // TOML 格式 CLI：Codex
+        try {
+            int codexCount = importFromCodexToml(existing);
+            importedCount += codexCount;
+            if (codexCount > 0)
+                changed = true;
+        } catch (Exception e) {
+            LOG.info("Failed to import MCP from Codex: " + e.getMessage());
+        }
+
+        if (importedCount > 0 || changed) {
             saveServers(existing);
         }
         return importedCount;
+    }
+
+    /**
+     * 从 Codex 的 TOML 配置文件导入 MCP 服务器。
+     * 解析 ~/.codex/config.toml 中 [mcp_servers.xxx] 段。
+     */
+    private int importFromCodexToml(List<McpServer> existing) {
+        ConfigFileService configService = ConfigFileService.getInstance();
+        var path = configService.getMcpConfigPath(CliType.CODEX);
+        String content = configService.readFile(path);
+        if (content.isBlank())
+            return 0;
+
+        int importedCount = 0;
+        String currentSection = null;
+        String currentCommand = null;
+        String currentUrl = null;
+        List<String> currentArgs = new ArrayList<>();
+        java.util.Map<String, String> currentEnv = new java.util.HashMap<>();
+        String currentType = "stdio";
+
+        for (String rawLine : content.split("\n")) {
+            String line = rawLine.trim();
+            if (line.isEmpty() || line.startsWith("#"))
+                continue;
+
+            // 检测段头：[mcp_servers.xxx]
+            if (line.startsWith("[") && line.endsWith("]")) {
+                // 先保存上一个段
+                if (currentSection != null) {
+                    importedCount += saveCodexSection(existing, currentSection,
+                            currentType, currentCommand, currentArgs, currentUrl, currentEnv);
+                }
+                String sectionName = line.substring(1, line.length() - 1).trim();
+                if (sectionName.startsWith("mcp_servers.")) {
+                    currentSection = sectionName.substring("mcp_servers.".length());
+                } else {
+                    currentSection = null; // 非 MCP 段，跳过
+                }
+                currentCommand = null;
+                currentUrl = null;
+                currentArgs = new ArrayList<>();
+                currentEnv = new java.util.HashMap<>();
+                currentType = "stdio";
+                continue;
+            }
+
+            if (currentSection == null)
+                continue;
+
+            // 解析 key = value
+            int eq = line.indexOf('=');
+            if (eq < 0)
+                continue;
+            String key = line.substring(0, eq).trim();
+            String value = line.substring(eq + 1).trim();
+
+            switch (key) {
+                case "type" -> currentType = stripQuotes(value);
+                case "command" -> currentCommand = stripQuotes(value);
+                case "url" -> currentUrl = stripQuotes(value);
+                case "args" -> currentArgs = parseTomlArray(value);
+            }
+        }
+
+        // 保存最后一个段
+        if (currentSection != null) {
+            importedCount += saveCodexSection(existing, currentSection,
+                    currentType, currentCommand, currentArgs, currentUrl, currentEnv);
+        }
+
+        return importedCount;
+    }
+
+    private int saveCodexSection(List<McpServer> existing, String name,
+            String type, String command, List<String> args, String url,
+            java.util.Map<String, String> env) {
+        // 去重：已存在则仅合并 Codex CLI 开关
+        McpServer existingServer = existing.stream()
+                .filter(s -> s.getName().equals(name)).findFirst().orElse(null);
+        if (existingServer != null) {
+            if (!existingServer.isSyncedTo(CliType.CODEX)) {
+                existingServer.setSyncedTo(CliType.CODEX, true);
+            }
+            return 0;
+        }
+
+        McpServer server = new McpServer();
+        server.setName(name);
+        server.setEnabled(true);
+        server.setSyncedTo(CliType.CODEX, true);
+
+        if ("stdio".equals(type) && command != null) {
+            server.setTransportType(McpServer.TransportType.STDIO);
+            server.setCommand(command);
+            server.setArgs(args.toArray(new String[0]));
+        } else if (("http".equals(type) || "sse".equals(type)) && url != null) {
+            server.setTransportType("sse".equals(type) ? McpServer.TransportType.SSE : McpServer.TransportType.HTTP);
+            server.setUrl(url);
+        } else {
+            return 0; // 无法识别
+        }
+
+        if (!env.isEmpty())
+            server.setEnv(env);
+        existing.add(server);
+        return 1;
+    }
+
+    private static String stripQuotes(String value) {
+        if (value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
+            return value.substring(1, value.length() - 1);
+        }
+        return value;
+    }
+
+    private static List<String> parseTomlArray(String value) {
+        List<String> result = new ArrayList<>();
+        // 简单解析 ["a", "b", "c"] 格式
+        if (value.startsWith("[") && value.endsWith("]")) {
+            String inner = value.substring(1, value.length() - 1);
+            for (String item : inner.split(",")) {
+                String trimmed = stripQuotes(item.trim());
+                if (!trimmed.isEmpty())
+                    result.add(trimmed);
+            }
+        }
+        return result;
     }
 
     /**
@@ -249,10 +398,8 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
         McpServer server = new McpServer();
         server.setName(name);
         server.setEnabled(true);
-        // 默认同步到所有 CLI
-        for (CliType cli : CliType.values()) {
-            server.setSyncedTo(cli, true);
-        }
+        // 只启用来源 CLI，而非全部
+        server.setSyncedTo(source, true);
 
         if (json.has("command")) {
             // STDIO 模式

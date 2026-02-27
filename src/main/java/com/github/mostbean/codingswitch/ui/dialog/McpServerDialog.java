@@ -86,6 +86,28 @@ public class McpServerDialog extends DialogWrapper {
             }
         }
 
+        // 自动提取名称事件
+        java.awt.event.FocusAdapter autoNameListener = new java.awt.event.FocusAdapter() {
+            @Override
+            public void focusLost(java.awt.event.FocusEvent e) {
+                if (nameField.getText().trim().isEmpty()) {
+                    McpServer.TransportType type = (McpServer.TransportType) transportCombo.getSelectedItem();
+                    String extracted = null;
+                    if (type == McpServer.TransportType.STDIO) {
+                        extracted = extractMcpName(commandField.getText(), argsField.getText());
+                    } else {
+                        extracted = extractMcpName(null, urlField.getText());
+                    }
+                    if (extracted != null && !extracted.isEmpty()) {
+                        nameField.setText(extracted);
+                    }
+                }
+            }
+        };
+        commandField.addFocusListener(autoNameListener);
+        argsField.addFocusListener(autoNameListener);
+        urlField.addFocusListener(autoNameListener);
+
         init();
 
         McpServer.TransportType initial = (McpServer.TransportType) transportCombo.getSelectedItem();
@@ -286,7 +308,19 @@ public class McpServerDialog extends DialogWrapper {
 
         // 判断：如果有 command/url 字段 → 单个无名服务器
         if (root.has("command") || root.has("url")) {
-            McpServer s = parseOneServer("imported-server", root);
+            String command = root.has("command") ? root.get("command").getAsString() : null;
+            String argsStr = null;
+            if (root.has("args") && root.get("args").isJsonArray()) {
+                List<String> argsList = new ArrayList<>();
+                root.getAsJsonArray("args").forEach(e -> argsList.add(e.getAsString()));
+                argsStr = String.join(" ", argsList);
+            }
+            String url = root.has("url") ? root.get("url").getAsString() : null;
+
+            String extName = extractMcpName(command, url != null ? url : argsStr);
+            String name = (extName != null && !extName.isEmpty()) ? extName : "imported-server";
+
+            McpServer s = parseOneServer(name, root);
             parsedServers.add(s);
             return;
         }
@@ -339,5 +373,61 @@ public class McpServerDialog extends DialogWrapper {
         }
 
         return s;
+    }
+
+    /**
+     * 根据 command 和 args/url 尝试智能提取有意义的名称。
+     * 规则优先：
+     * 1. 匹配类似 @owner/package-name (如 @mostbean/database-mcp, @upstash/context7-mcp)
+     * 2. 匹配 github.com/owner/repo
+     * 3. 取最后一截可读文本
+     */
+    private String extractMcpName(String command, String targetStr) {
+        if (targetStr == null)
+            targetStr = "";
+        String fullInput = (command != null ? command + " " : "") + targetStr;
+        if (fullInput.trim().isEmpty())
+            return null;
+
+        // 1. 匹配 @xxx/yyy 格式
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("@([a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+)")
+                .matcher(fullInput);
+        if (m.find()) {
+            return m.group(1).replace("/", "-"); // e.g. mostbean-database-mcp
+        }
+
+        // 2. 匹配 github.com/owner/repo
+        m = java.util.regex.Pattern.compile("github\\.com/([a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+)").matcher(fullInput);
+        if (m.find()) {
+            return m.group(1).replace("/", "-");
+        }
+
+        // 3. Fallback: 提取可读的文件名或服务名
+        String[] parts = fullInput.split("\\s+");
+        String lastPart = parts[parts.length - 1]; // 通常是目标
+        if (lastPart.contains("/")) {
+            lastPart = lastPart.substring(lastPart.lastIndexOf('/') + 1);
+        }
+        if (lastPart.contains("\\")) {
+            lastPart = lastPart.substring(lastPart.lastIndexOf('\\') + 1);
+        }
+
+        lastPart = lastPart.replace(".js", "").replace(".ts", "").replace(".exe", "");
+
+        // 过滤无意义名字或保留字
+        if (lastPart.equals("npx") || lastPart.equals("node") || lastPart.equals("python") || lastPart.equals("npm")) {
+            return null;
+        }
+
+        // url 提取 host
+        if (lastPart.startsWith("http")) {
+            try {
+                java.net.URI u = new java.net.URI(lastPart);
+                return u.getHost().replace(".", "-");
+            } catch (Exception ignored) {
+            }
+        }
+
+        return lastPart.isEmpty() ? null : lastPart;
     }
 }
