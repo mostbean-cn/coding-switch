@@ -1,0 +1,32 @@
+<!-- Plugin Configuration File -->
+<idea-plugin>
+    <id>com.github.mostbean.codingswitch</id>
+    <name>Coding Switch</name>
+    <vendor>mostbean</vendor>
+
+    <description><![CDATA[
+    <h2>Coding Switch</h2>
+    <p>All-in-One configuration manager for AI Coding CLI tools (Claude Code, Codex, Gemini CLI, OpenCode).</p>
+    ]]>    </description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- Tool Window -->
+        <toolWindow id="Coding Switch" anchor="right" icon="/icons/codingSwitch.svg" factoryClass="com.github.mostbean.codingswitch.ui.toolwindow.CodingSwitchToolWindowFactory"/>
+
+        <!-- Application-level Services -->
+        <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.ProviderService"/>
+        <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.McpService"/>
+        <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.SkillService"/>
+        <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.PromptService"/>
+        <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.ConfigFileService"/>
+        <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.CliVersionService"/>
+        <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.PluginSettings"/>
+        <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.AccountService"/>
+        <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.QuotaService"/>
+
+        <!-- Notification Group -->
+        <notificationGroup id="Coding Switch" displayType="BALLOON" toolWindowId="Coding Switch"/>
+    </extensions>
+</idea-plugin>

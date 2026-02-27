@@ -1,0 +1,28 @@
+# JetBrains IDEs
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
+# Compiled class files
+*.class
+
+# Log files
+*.log
+
+# Windows thumbnail cache files
+Thumbs.db
+ehthumbs.db
+ehthumbs_vista.db
+
+# macOS System Files
+.DS_Store
+
+# IntelliJ Platform Plugin temporary directories
+.intellijPlatform/

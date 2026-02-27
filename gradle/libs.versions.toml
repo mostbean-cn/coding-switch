@@ -1,0 +1,18 @@
+[versions]
+# libraries
+junit = "4.13.2"
+gson = "2.11.0"
+toml4j = "0.7.2"
+sqlite = "3.49.1.0"
+
+# plugins
+intelliJPlatform = "2.11.0"
+
+[libraries]
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
+toml4j = { group = "com.moandjiezana.toml", name = "toml4j", version.ref = "toml4j" }
+sqlite = { group = "org.xerial", name = "sqlite-jdbc", version.ref = "sqlite" }
+
+[plugins]
+intelliJPlatform = { id = "org.jetbrains.intellij.platform", version.ref = "intelliJPlatform" }
