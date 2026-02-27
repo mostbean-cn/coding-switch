@@ -38,7 +38,8 @@ public final class ProviderPresets {
                 presets.add(claudePreset("DeepSeek",
                                 "https://api.deepseek.com/anthropic", "DeepSeek-V3.2"));
                 presets.add(claudePreset("智谱 GLM",
-                                "https://open.bigmodel.cn/api/anthropic", "GLM-5"));
+                                "https://open.bigmodel.cn/api/anthropic", "glm-5",
+                                "glm-4.5-air", "glm-4.7", "glm-5"));
                 presets.add(claudePreset("MiniMax",
                                 "https://api.minimaxi.com/anthropic", "MiniMax-M2.5"));
                 presets.add(claudePreset("Kimi",
@@ -52,19 +53,23 @@ public final class ProviderPresets {
                 presets.add(codexPreset("DeepSeek",
                                 "https://api.deepseek.com/v1", "DeepSeek-V3.2"));
                 presets.add(codexPreset("智谱 GLM",
-                                "https://open.bigmodel.cn/api/paas/v4", "GLM-5"));
+                                "https://open.bigmodel.cn/api/coding/paas/v4", "glm-5"));
                 presets.add(codexPreset("Kimi",
                                 "https://api.moonshot.cn/v1", "kimi-for-coding"));
+                presets.add(codexPreset("阿里 Plan",
+                                "https://coding.dashscope.aliyuncs.com/v1", "qwen3.5-plus"));
 
                 // ===== OpenCode 国产供应商预设 =====
                 presets.add(opencodePreset("DeepSeek",
                                 "https://api.deepseek.com/v1", "DeepSeek-V3.2"));
                 presets.add(opencodePreset("智谱 GLM",
-                                "https://open.bigmodel.cn/api/paas/v4", "GLM-5"));
+                                "https://open.bigmodel.cn/api/coding/paas/v4", "glm-5"));
                 presets.add(opencodePreset("MiniMax",
                                 "https://api.minimaxi.com/v1", "MiniMax-M2.5"));
                 presets.add(opencodePreset("Kimi",
                                 "https://api.moonshot.cn/v1", "kimi-for-coding"));
+                presets.add(opencodePreset("阿里 Plan",
+                                "https://coding.dashscope.aliyuncs.com/v1", "qwen3.5-plus"));
 
                 return presets;
         }
@@ -90,11 +95,25 @@ public final class ProviderPresets {
         // =====================================================================
 
         private static Preset claudePreset(String name, String baseUrl, String model) {
+                return claudePreset(name, baseUrl, model, null, null, null);
+        }
+
+        private static Preset claudePreset(String name, String baseUrl, String model,
+                        String haikuModel, String sonnetModel, String opusModel) {
                 JsonObject config = new JsonObject();
                 JsonObject env = new JsonObject();
                 env.addProperty("ANTHROPIC_BASE_URL", baseUrl);
                 env.addProperty("ANTHROPIC_AUTH_TOKEN", ""); // 占位，用户需要填写
                 env.addProperty("ANTHROPIC_MODEL", model);
+                if (haikuModel != null) {
+                        env.addProperty("ANTHROPIC_DEFAULT_HAIKU_MODEL", haikuModel);
+                }
+                if (sonnetModel != null) {
+                        env.addProperty("ANTHROPIC_DEFAULT_SONNET_MODEL", sonnetModel);
+                }
+                if (opusModel != null) {
+                        env.addProperty("ANTHROPIC_DEFAULT_OPUS_MODEL", opusModel);
+                }
                 config.add("env", env);
                 return new Preset(name, CliType.CLAUDE, config);
         }

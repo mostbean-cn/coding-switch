@@ -1,0 +1,9 @@
+{
+  "icons": {
+    "expui": {
+      "toolwindow": {
+        "codingSwitch.svg": "icons/codingSwitch.svg"
+      }
+    }
+  }
+}

@@ -5,32 +5,45 @@
     <vendor>mostbean</vendor>
 
     <description><![CDATA[
-    <h2>Coding Switch - AI 编程助手配置管理器</h2>
-    <p>一站式管理 Claude Code、Codex、Gemini CLI、OpenCode 等 AI 编程工具的配置切换。</p>
+    <h2>Coding Switch — AI 编程 CLI 多合一配置管理器</h2>
+    <p>在 IDE 内一站式管理和切换 Claude Code、Codex、Gemini CLI、OpenCode 等主流 AI 编程命令行工具的全部配置，告别繁琐的手动编辑。</p>
 
-    <h3>核心功能</h3>
+    <h3>✨ 核心功能</h3>
     <ul>
-        <li><b>配置管理</b>：统一管理多个 AI CLI 的 API 配置，支持官方接口和国产大模型（DeepSeek、智谱、Kimi、百度千帆、阿里等）</li>
-        <li><b>MCP 服务</b>：集中管理 Model Context Protocol 服务器配置</li>
-        <li><b>Skills 技能</b>：从 GitHub 安装和管理 Claude Skills</li>
-        <li><b>提示词管理</b>：多组系统提示词预设，支持 Markdown 格式</li>
+        <li><b>供应商配置管理</b> — 统一管理多个 AI CLI 的 API Key、模型和接入点。支持官方接口，同时内置丰富的国产大模型预设，一键切换，无需手动修改配置文件。</li>
+        <li><b>MCP 服务器管理</b> — 集中管理 Model Context Protocol (MCP) 服务器配置，为所有支持的 AI CLI 统一维护工具链。</li>
+        <li><b>技能管理 (Skills)</b> — 直接从 GitHub 仓库发现、安装和管理自定义技能（如 Claude Skills），扩展 AI 编程助手的能力边界。</li>
+        <li><b>提示词管理 (Prompts)</b> — 多组系统提示词预设管理，支持 Markdown 格式编写，快速切换 AI 助手的上下文和行为模式。</li>
     </ul>
 
-    <h3>支持的工具</h3>
+    <h3>🔌 支持的 AI CLI 工具</h3>
+    <table>
+        <tr><th>工具</th><th>官方 API</th><th>第三方 API</th></tr>
+        <tr><td>Claude Code</td><td>✅</td><td>✅</td></tr>
+        <tr><td>Codex (OpenAI)</td><td>✅</td><td>✅</td></tr>
+        <tr><td>Gemini CLI</td><td>✅</td><td>—</td></tr>
+        <tr><td>OpenCode</td><td>—</td><td>✅</td></tr>
+    </table>
+
+    <h3>📦 内置预设供应商</h3>
+    <p>开箱即用，内置多个主流国产大模型的接入预设配置：</p>
     <ul>
-        <li>Claude Code</li>
-        <li>Codex (OpenAI)</li>
-        <li>Gemini CLI</li>
-        <li>OpenCode</li>
+        <li>DeepSeek · 智谱 GLM · MiniMax · Kimi (Moonshot) · 百度千帆 · 阿里通义</li>
     </ul>
 
-    <h3>隐私说明</h3>
-    <p>本插件仅在本地读写配置文件，不会收集任何用户数据或上传敏感信息。</p>
+    <h3>🔒 隐私与安全</h3>
+    <p>本插件所有操作均在本地完成，仅读写本机配置文件，<b>不会收集、上传任何用户数据或敏感信息</b>。</p>
+
+    <h3>⚠️ 免责声明</h3>
+    <p>本插件是非官方的社区开源工具，仅供个人学习和研究使用。与 Anthropic、OpenAI、Google、JetBrains 或任何 AI 服务提供商均无附属关系。</p>
     ]]>    </description>
 
     <depends>com.intellij.modules.platform</depends>
 
     <extensions defaultExtensionNs="com.intellij">
+        <!-- New UI Icon Mapping -->
+        <iconMapper mappingFile="CodingSwitchIconMappings.json"/>
+
         <!-- Tool Window -->
         <toolWindow id="Coding Switch" anchor="right" icon="/icons/codingSwitch.svg" factoryClass="com.github.mostbean.codingswitch.ui.toolwindow.CodingSwitchToolWindowFactory"/>
 
