@@ -38,6 +38,18 @@
     <p>本插件是非官方的社区开源工具，仅供个人学习和研究使用。与 Anthropic、OpenAI、Google、JetBrains 或任何 AI 服务提供商均无附属关系。</p>
     ]]>    </description>
 
+    <change-notes><![CDATA[
+    <h3>0.1.2</h3>
+    <ul>
+        <li><b>MCP / Skills 列表页勾选优化</b> — 支持在主列表直接勾选各 CLI 开关，新增"保存更改"按钮，变更后才允许保存，批量同步配置。</li>
+        <li><b>Skills 自动扫描</b> — 首次进入 Skills 面板自动扫描本地已安装技能，无需手动刷新。</li>
+        <li><b>提示词（Prompts）优化</b> — 启用时自动保存编辑器内容，避免旧内容覆盖；保存已启用的预设时自动同步到 CLI 配置文件。</li>
+        <li><b>MCP 服务器检测</b> — 支持从 Claude/Codex/Gemini/OpenCode 配置文件中扫描并导入已有的 MCP 服务器。</li>
+        <li><b>MCP 名称智能提取</b> — 新增/导入时自动从 command/args 中提取有意义的名称（如 @scope/package）。</li>
+        <li><b>界面中文化</b> — 全部弹窗、工具栏、状态文字已切换为简体中文。</li>
+    </ul>
+    ]]>    </change-notes>
+
     <depends>com.intellij.modules.platform</depends>
 
     <extensions defaultExtensionNs="com.intellij">
