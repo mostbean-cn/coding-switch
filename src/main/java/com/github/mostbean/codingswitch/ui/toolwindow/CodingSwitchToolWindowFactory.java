@@ -3,6 +3,7 @@ package com.github.mostbean.codingswitch.ui.toolwindow;
 import com.github.mostbean.codingswitch.ui.panel.McpPanel;
 import com.github.mostbean.codingswitch.ui.panel.PromptPanel;
 import com.github.mostbean.codingswitch.ui.panel.ProviderPanel;
+import com.github.mostbean.codingswitch.ui.panel.SessionPanel;
 import com.github.mostbean.codingswitch.ui.panel.SettingsPanel;
 import com.github.mostbean.codingswitch.ui.panel.SkillPanel;
 import com.intellij.openapi.project.DumbAware;
@@ -28,7 +29,12 @@ public class CodingSwitchToolWindowFactory implements ToolWindowFactory, DumbAwa
                                 new ProviderPanel(), "配置管理", false);
                 toolWindow.getContentManager().addContent(providerContent);
 
-                // 标签页 2: MCP（MCP 服务器管理）
+                // 标签页 2: 会话管理
+                Content sessionContent = contentFactory.createContent(
+                                new SessionPanel(), "会话管理", false);
+                toolWindow.getContentManager().addContent(sessionContent);
+
+                // 标签页 3: MCP（MCP 服务器管理）
                 Content mcpContent = contentFactory.createContent(
                                 new McpPanel(), "MCP 服务", false);
                 toolWindow.getContentManager().addContent(mcpContent);
