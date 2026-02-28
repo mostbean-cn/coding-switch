@@ -60,6 +60,8 @@ public final class I18n {
 
                 Map.entry("settings.status.checking", "检测中..."),
                 Map.entry("settings.status.notInstalled", "未安装"),
+                Map.entry("settings.status.detectTimeout", "检测超时"),
+                Map.entry("settings.status.detectFailed", "检测失败"),
                 Map.entry("settings.status.latest", "v{0} ✓ 已是最新"),
                 Map.entry("settings.status.updatable", "v{0} ⬆ 可更新"),
 
@@ -91,6 +93,8 @@ public final class I18n {
 
                 Map.entry("settings.status.checking", "Checking..."),
                 Map.entry("settings.status.notInstalled", "Not Installed"),
+                Map.entry("settings.status.detectTimeout", "Detection Timeout"),
+                Map.entry("settings.status.detectFailed", "Detection Failed"),
                 Map.entry("settings.status.latest", "v{0} ✓ Up to date"),
                 Map.entry("settings.status.updatable", "v{0} ⬆ Update available"),
 

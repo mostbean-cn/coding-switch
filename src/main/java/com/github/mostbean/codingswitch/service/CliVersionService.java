@@ -13,49 +13,107 @@ import java.util.regex.Pattern;
 
 /**
  * CLI 版本检测服务。
- * 通过执行命令行获取各 CLI 工具的安装状态、当前版本和最新版本。
  */
 @Service(Service.Level.APP)
 public final class CliVersionService {
 
     private static final Logger LOG = Logger.getInstance(CliVersionService.class);
     private static final Pattern VERSION_PATTERN = Pattern.compile("(\\d+\\.\\d+[.\\d]*)");
+    private static final long VERSION_TIMEOUT_SECONDS = 10;
+    private static final long LATEST_TIMEOUT_SECONDS = 15;
+
+    public enum VersionStatus {
+        INSTALLED,
+        NOT_INSTALLED,
+        TIMEOUT,
+        COMMAND_FAILED
+    }
+
+    public static final class VersionResult {
+        private final VersionStatus status;
+        private final String version;
+        private final String detail;
+
+        private VersionResult(VersionStatus status, String version, String detail) {
+            this.status = status;
+            this.version = version;
+            this.detail = detail;
+        }
+
+        public static VersionResult installed(String version) {
+            return new VersionResult(VersionStatus.INSTALLED, version, null);
+        }
+
+        public static VersionResult notInstalled() {
+            return new VersionResult(VersionStatus.NOT_INSTALLED, null, null);
+        }
+
+        public static VersionResult timeout(String detail) {
+            return new VersionResult(VersionStatus.TIMEOUT, null, detail);
+        }
+
+        public static VersionResult failed(String detail) {
+            return new VersionResult(VersionStatus.COMMAND_FAILED, null, detail);
+        }
+
+        public VersionStatus status() {
+            return status;
+        }
+
+        public String version() {
+            return version;
+        }
+
+        public String detail() {
+            return detail;
+        }
+    }
 
     public static CliVersionService getInstance() {
         return ApplicationManager.getApplication().getService(CliVersionService.class);
     }
 
     /**
-     * 获取指定 CLI 的当前安装版本号。
-     *
-     * @return 版本号字符串，未安装则返回 null
+     * 兼容旧调用：仅返回版本号。
      */
     public String getVersion(CliType cliType) {
-        // 尝试多个命令以提高兼容性
-        String[] commands = getVersionCommands(cliType);
-        for (String command : commands) {
-            String result = runAndParse(command);
-            if (result != null)
-                return result;
-        }
-        return null;
+        VersionResult result = getVersionResult(cliType);
+        return result.status() == VersionStatus.INSTALLED ? result.version() : null;
     }
 
-    /**
-     * 从 npm registry 或其他来源获取最新版本号。
-     *
-     * @return 最新版本号，获取失败返回 null
-     */
+    public VersionResult getVersionResult(CliType cliType) {
+        String[] commands = getVersionCommands(cliType);
+        boolean hasTimeout = false;
+        String lastFailure = null;
+        for (String command : commands) {
+            VersionResult result = runAndParse(command, VERSION_TIMEOUT_SECONDS);
+            if (result.status() == VersionStatus.INSTALLED) {
+                return result;
+            }
+            if (result.status() == VersionStatus.TIMEOUT) {
+                hasTimeout = true;
+            } else if (result.status() == VersionStatus.COMMAND_FAILED) {
+                lastFailure = result.detail();
+            }
+        }
+        if (hasTimeout) {
+            return VersionResult.timeout("version command timeout");
+        }
+        if (lastFailure != null) {
+            return VersionResult.failed(lastFailure);
+        }
+        return VersionResult.notInstalled();
+    }
+
     public String getLatestVersion(CliType cliType) {
         String command = getLatestVersionCommand(cliType);
-        if (command == null)
+        if (command == null) {
             return null;
-        return runAndParse(command);
+        }
+        VersionResult result = runAndParse(command, LATEST_TIMEOUT_SECONDS);
+        return result.status() == VersionStatus.INSTALLED ? result.version() : null;
     }
 
-    /**
-     * 获取更新命令。
-     */
     public String getUpdateCommand(CliType cliType) {
         return switch (cliType) {
             case CLAUDE -> "curl -fsSL https://claude.ai/install.sh | bash";
@@ -65,33 +123,19 @@ public final class CliVersionService {
         };
     }
 
-    /**
-     * 获取安装脚本（与更新命令相同）。
-     */
     public String getInstallCommand(CliType cliType) {
         return getUpdateCommand(cliType);
     }
 
-    // =====================================================================
-    // 内部方法
-    // =====================================================================
-
-    /**
-     * 每种 CLI 可能需要尝试多个命令来检测版本。
-     */
     private String[] getVersionCommands(CliType cliType) {
         return switch (cliType) {
-            case CLAUDE -> new String[] { "claude --version", "claude -v" };
-            case CODEX -> new String[] { "codex --version", "codex -v", "npx @openai/codex --version" };
-            case GEMINI -> new String[] { "gemini --version", "gemini -v", "npx @google/gemini-cli --version" };
-            case OPENCODE -> new String[] { "opencode --version", "opencode -v" };
+            case CLAUDE -> new String[]{"claude --version", "claude -v"};
+            case CODEX -> new String[]{"codex --version", "codex -v", "npx @openai/codex --version"};
+            case GEMINI -> new String[]{"gemini --version", "gemini -v", "npx @google/gemini-cli --version"};
+            case OPENCODE -> new String[]{"opencode --version", "opencode -v"};
         };
     }
 
-    /**
-     * 获取最新版本查询命令。
-     * npm 包用 npm view，其他走 --version（暂无公开 API）。
-     */
     private String getLatestVersionCommand(CliType cliType) {
         return switch (cliType) {
             case CLAUDE -> "npm view @anthropic-ai/claude-code version";
@@ -101,21 +145,16 @@ public final class CliVersionService {
         };
     }
 
-    /**
-     * 执行命令并从输出中提取版本号。
-     */
-    private String runAndParse(String command) {
+    private VersionResult runAndParse(String command, long timeoutSeconds) {
         try {
             ProcessBuilder pb = createProcessBuilder(command);
             pb.redirectErrorStream(true);
             Process process = pb.start();
-            boolean finished = process.waitFor(10, TimeUnit.SECONDS);
+            boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
             if (!finished) {
                 process.destroyForcibly();
-                return null;
+                return VersionResult.timeout("timeout: " + command);
             }
-            if (process.exitValue() != 0)
-                return null;
 
             StringBuilder output = new StringBuilder();
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
@@ -124,11 +163,21 @@ public final class CliVersionService {
                     output.append(line).append("\n");
                 }
             }
+            String raw = output.toString().trim();
 
-            return extractVersion(output.toString().trim());
+            if (process.exitValue() != 0) {
+                LOG.info("Version command failed (exit " + process.exitValue() + "): " + command);
+                return VersionResult.failed("exit " + process.exitValue() + ": " + command);
+            }
+
+            String parsed = extractVersion(raw);
+            if (parsed == null || parsed.isBlank()) {
+                return VersionResult.failed("empty output: " + command);
+            }
+            return VersionResult.installed(parsed);
         } catch (Exception e) {
             LOG.info("Version command failed: " + command + " -> " + e.getMessage());
-            return null;
+            return VersionResult.failed(e.getMessage());
         }
     }
 
@@ -136,25 +185,20 @@ public final class CliVersionService {
         String os = System.getProperty("os.name", "").toLowerCase();
         if (os.contains("win")) {
             return new ProcessBuilder("cmd", "/c", command);
-        } else {
-            return new ProcessBuilder("bash", "-c", command);
         }
+        return new ProcessBuilder("bash", "-c", command);
     }
 
-    /**
-     * 从命令输出中提取 x.y.z 格式的版本号。
-     */
     private String extractVersion(String rawOutput) {
-        if (rawOutput == null || rawOutput.isEmpty())
+        if (rawOutput == null || rawOutput.isEmpty()) {
             return null;
+        }
 
-        // 用正则匹配 x.y.z 格式
         Matcher matcher = VERSION_PATTERN.matcher(rawOutput);
         if (matcher.find()) {
             return matcher.group(1);
         }
 
-        // 如果没匹配到版本号格式，返回原始内容（取第一行）
         String firstLine = rawOutput.split("\n")[0].trim();
         return firstLine.isEmpty() ? null : firstLine;
     }

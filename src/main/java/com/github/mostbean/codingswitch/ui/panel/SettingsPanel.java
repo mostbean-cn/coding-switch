@@ -247,33 +247,51 @@ public class SettingsPanel extends JPanel {
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
             CliVersionService service = CliVersionService.getInstance();
             for (CliType cli : CliType.values()) {
-                String current = service.getVersion(cli);
+                CliVersionService.VersionResult current = service.getVersionResult(cli);
                 String latest = service.getLatestVersion(cli);
                 SwingUtilities.invokeLater(() -> updateDisplay(cli, current, latest));
             }
         });
     }
 
-    private void updateDisplay(CliType cli, String current, String latest) {
+    private void updateDisplay(CliType cli, CliVersionService.VersionResult currentResult, String latest) {
         JBLabel icon = statusIcons.get(cli);
         JBLabel curLabel = currentLabels.get(cli);
         JBLabel latLabel = latestLabels.get(cli);
 
-        if (current != null) {
-            curLabel.setText("v" + current);
-            curLabel.setForeground(new Color(66, 160, 83));
-            icon.setIcon(AllIcons.General.InspectionsOK);
-        } else {
-            curLabel.setText(I18n.t("settings.status.notInstalled"));
-            curLabel.setForeground(JBColor.RED);
-            icon.setIcon(AllIcons.General.Error);
+        String current = currentResult != null ? currentResult.version() : null;
+        CliVersionService.VersionStatus status = currentResult != null
+                ? currentResult.status()
+                : CliVersionService.VersionStatus.NOT_INSTALLED;
+
+        switch (status) {
+            case INSTALLED -> {
+                curLabel.setText("v" + current);
+                curLabel.setForeground(new Color(66, 160, 83));
+                icon.setIcon(AllIcons.General.InspectionsOK);
+            }
+            case TIMEOUT -> {
+                curLabel.setText(I18n.t("settings.status.detectTimeout"));
+                curLabel.setForeground(new Color(200, 130, 0));
+                icon.setIcon(AllIcons.General.BalloonWarning);
+            }
+            case COMMAND_FAILED -> {
+                curLabel.setText(I18n.t("settings.status.detectFailed"));
+                curLabel.setForeground(new Color(200, 130, 0));
+                icon.setIcon(AllIcons.General.BalloonWarning);
+            }
+            case NOT_INSTALLED -> {
+                curLabel.setText(I18n.t("settings.status.notInstalled"));
+                curLabel.setForeground(JBColor.RED);
+                icon.setIcon(AllIcons.General.Error);
+            }
         }
 
         if (latest != null) {
-            if (current != null && current.equals(latest)) {
+            if (status == CliVersionService.VersionStatus.INSTALLED && current != null && current.equals(latest)) {
                 latLabel.setText(I18n.t("settings.status.latest", latest));
                 latLabel.setForeground(new Color(66, 160, 83));
-            } else if (current != null) {
+            } else if (status == CliVersionService.VersionStatus.INSTALLED && current != null) {
                 latLabel.setText(I18n.t("settings.status.updatable", latest));
                 latLabel.setForeground(new Color(200, 130, 0));
             } else {
