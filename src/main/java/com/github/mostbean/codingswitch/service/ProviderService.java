@@ -202,7 +202,16 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         // 写 config.toml
         if (config.has("config")) {
             Path tomlPath = svc.getConfigDir(CliType.CODEX).resolve("config.toml");
-            svc.writeFile(tomlPath, config.get("config").getAsString());
+            String managedBlock = "# >>> coding-switch:provider:start\n"
+                    + config.get("config").getAsString().trim() + "\n"
+                    + "# <<< coding-switch:provider:end\n";
+            String existing = svc.readFile(tomlPath);
+            String merged = upsertManagedBlock(
+                    existing,
+                    managedBlock,
+                    "# >>> coding-switch:provider:start",
+                    "# <<< coding-switch:provider:end");
+            svc.writeFile(tomlPath, merged);
         }
     }
 
@@ -260,5 +269,22 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         for (Runnable listener : changeListeners) {
             listener.run();
         }
+    }
+
+    private static String upsertManagedBlock(String existing, String block, String startMarker, String endMarker) {
+        String safeExisting = existing == null ? "" : existing;
+        int start = safeExisting.indexOf(startMarker);
+        int end = safeExisting.indexOf(endMarker);
+        if (start >= 0 && end >= start) {
+            int endExclusive = end + endMarker.length();
+            if (endExclusive < safeExisting.length() && safeExisting.charAt(endExclusive) == '\n') {
+                endExclusive++;
+            }
+            return safeExisting.substring(0, start) + block + safeExisting.substring(endExclusive);
+        }
+        if (safeExisting.isBlank()) {
+            return block;
+        }
+        return safeExisting + (safeExisting.endsWith("\n") ? "\n" : "\n\n") + block;
     }
 }
