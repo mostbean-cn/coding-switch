@@ -130,21 +130,33 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
     private void syncClaudeMcp(ConfigFileService svc, List<McpServer> servers) throws IOException {
         var path = svc.getMcpConfigPath(CliType.CLAUDE);
         JsonObject root = svc.readJsonFile(path);
-        root.add("mcpServers", buildMcpServersJson(servers));
+        if (servers.isEmpty()) {
+            root.remove("mcpServers");
+        } else {
+            root.add("mcpServers", buildMcpServersJson(servers));
+        }
         svc.writeJsonFile(path, root);
     }
 
     private void syncGeminiMcp(ConfigFileService svc, List<McpServer> servers) throws IOException {
         var path = svc.getMcpConfigPath(CliType.GEMINI);
         JsonObject root = svc.readJsonFile(path);
-        root.add("mcpServers", buildMcpServersJson(servers));
+        if (servers.isEmpty()) {
+            root.remove("mcpServers");
+        } else {
+            root.add("mcpServers", buildMcpServersJson(servers));
+        }
         svc.writeJsonFile(path, root);
     }
 
     private void syncOpenCodeMcp(ConfigFileService svc, List<McpServer> servers) throws IOException {
         var path = svc.getMcpConfigPath(CliType.OPENCODE);
         JsonObject root = svc.readJsonFile(path);
-        root.add("mcpServers", buildMcpServersJson(servers));
+        if (servers.isEmpty()) {
+            root.remove("mcpServers");
+        } else {
+            root.add("mcpServers", buildMcpServersJson(servers));
+        }
         svc.writeJsonFile(path, root);
     }
 
