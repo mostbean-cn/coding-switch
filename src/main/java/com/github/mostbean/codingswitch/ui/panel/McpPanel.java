@@ -4,29 +4,32 @@ import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.McpServer;
 import com.github.mostbean.codingswitch.service.McpService;
 import com.github.mostbean.codingswitch.ui.dialog.McpServerDialog;
+import com.google.gson.Gson;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
+import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.ui.ToolbarDecorator;
 import com.intellij.ui.table.JBTable;
 import com.intellij.util.ui.JBUI;
 import org.jetbrains.annotations.NotNull;
-import com.google.gson.Gson;
 
-import javax.swing.*;
+import javax.swing.JComponent;
+import javax.swing.JPanel;
+import javax.swing.ListSelectionModel;
+import javax.swing.SwingConstants;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
-import java.awt.*;
+import java.awt.BorderLayout;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * MCP 服务器管理面板。
- * 表格展示每个 MCP 对各 CLI 的独立开关（CheckBox 列）。
  */
 public class McpPanel extends JPanel {
 
@@ -34,12 +37,14 @@ public class McpPanel extends JPanel {
 
     private final McpTableModel tableModel = new McpTableModel(this::markDirty);
     private final JBTable serverTable = new JBTable(tableModel);
+    private final Path projectRoot;
 
-    // 保存按钮相关的 state
     private boolean isDirty = false;
     private AnAction saveAction;
 
-    public McpPanel() {
+    public McpPanel(Project project) {
+        this.projectRoot = resolveProjectRoot(project);
+
         setLayout(new BorderLayout());
         setBorder(JBUI.Borders.empty(8));
 
@@ -49,34 +54,40 @@ public class McpPanel extends JPanel {
         refreshTable();
     }
 
+    private static Path resolveProjectRoot(Project project) {
+        if (project == null || project.getBasePath() == null || project.getBasePath().isBlank()) {
+            return null;
+        }
+        try {
+            return Path.of(project.getBasePath()).toAbsolutePath().normalize();
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
     private JComponent createTablePanel() {
         serverTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        serverTable.getEmptyText().setText("暂无 MCP 服务器，点击 '+' 新增或 '从 CLI 导入'");
+        serverTable.getEmptyText().setText("暂无 MCP 服务器，点击 + 新增或从 CLI 导入");
         serverTable.setRowHeight(JBUI.scale(28));
 
-        // 列宽设置
-        serverTable.getColumnModel().getColumn(0).setPreferredWidth(130); // 名称
-        serverTable.getColumnModel().getColumn(1).setPreferredWidth(60); // 传输方式
-        // CLI CheckBox 列
+        serverTable.getColumnModel().getColumn(0).setPreferredWidth(130);
+        serverTable.getColumnModel().getColumn(1).setPreferredWidth(60);
         for (int i = 0; i < CLI_TYPES.length; i++) {
             serverTable.getColumnModel().getColumn(2 + i).setPreferredWidth(70);
             serverTable.getColumnModel().getColumn(2 + i).setMaxWidth(90);
         }
         int detailCol = 2 + CLI_TYPES.length;
-        serverTable.getColumnModel().getColumn(detailCol).setPreferredWidth(250); // 详情
+        serverTable.getColumnModel().getColumn(detailCol).setPreferredWidth(250);
 
-        // 居中传输方式列
         DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
         centerRenderer.setHorizontalAlignment(SwingConstants.CENTER);
         serverTable.getColumnModel().getColumn(1).setCellRenderer(centerRenderer);
 
-        // 双击编辑
         serverTable.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 2) {
                     int col = serverTable.columnAtPoint(e.getPoint());
-                    // 双击非 CheckBox 列时打开编辑对话框
                     if (col < 2 || col >= 2 + CLI_TYPES.length) {
                         if (serverTable.getSelectedRow() != -1) {
                             onEdit();
@@ -103,15 +114,7 @@ public class McpPanel extends JPanel {
                 .setEditAction(button -> onEdit())
                 .setRemoveAction(button -> onDelete())
                 .addExtraAction(saveAction)
-                .addExtraAction(new AnAction("同步全部", "强制同步启用的服务器到所有 CLI 配置",
-                        AllIcons.Actions.Refresh) {
-                    @Override
-                    public void actionPerformed(@NotNull AnActionEvent e) {
-                        onSyncAll();
-                    }
-                })
-                .addExtraAction(new AnAction("从 CLI 导入", "扫描 CLI 配置文件中已有的 MCP 服务器",
-                        AllIcons.Actions.Download) {
+                .addExtraAction(new AnAction("从 CLI 导入", "扫描 CLI 配置中已有的 MCP 服务器", AllIcons.Actions.Download) {
                     @Override
                     public void actionPerformed(@NotNull AnActionEvent e) {
                         onImportFromCli();
@@ -123,15 +126,8 @@ public class McpPanel extends JPanel {
 
     private void markDirty() {
         isDirty = true;
-        // 触发 action 状态更新
-        if (serverTable != null) {
-            serverTable.repaint();
-        }
+        serverTable.repaint();
     }
-
-    // =====================================================================
-    // 操作方法
-    // =====================================================================
 
     private void onAdd() {
         McpServerDialog dialog = new McpServerDialog(null);
@@ -140,9 +136,7 @@ public class McpPanel extends JPanel {
                 for (McpServer s : dialog.getServers()) {
                     McpService.getInstance().addServer(s);
                 }
-                Messages.showInfoMessage(
-                        "已导入 " + dialog.getServers().size() + " 个 MCP 服务器",
-                        "导入完成");
+                Messages.showInfoMessage("已导入 " + dialog.getServers().size() + " 个 MCP 服务器", "导入完成");
             } else {
                 McpService.getInstance().addServer(dialog.getServer());
             }
@@ -151,8 +145,9 @@ public class McpPanel extends JPanel {
 
     private void onEdit() {
         McpServer selected = getSelectedServer();
-        if (selected == null)
+        if (selected == null) {
             return;
+        }
         McpServerDialog dialog = new McpServerDialog(selected);
         if (dialog.showAndGet()) {
             McpService.getInstance().updateServer(dialog.getServer());
@@ -161,19 +156,22 @@ public class McpPanel extends JPanel {
 
     private void onDelete() {
         McpServer selected = getSelectedServer();
-        if (selected == null)
+        if (selected == null) {
             return;
+        }
         int result = Messages.showYesNoDialog(
                 "确定删除 MCP 服务器 \"" + selected.getName() + "\" 吗？",
-                "确认删除", Messages.getQuestionIcon());
+                "确认删除",
+                Messages.getQuestionIcon());
         if (result == Messages.YES) {
             McpService.getInstance().removeServer(selected.getId());
         }
     }
 
     private void onSaveChanges() {
-        if (!isDirty)
+        if (!isDirty) {
             return;
+        }
         List<McpServer> currentList = tableModel.getServers();
         for (McpServer s : currentList) {
             McpService.getInstance().updateServer(s);
@@ -182,26 +180,28 @@ public class McpPanel extends JPanel {
         Messages.showInfoMessage("更改已保存并同步", "保存成功");
     }
 
-    private void onSyncAll() {
-        try {
-            McpService.getInstance().syncToAllConfigs();
-            Messages.showInfoMessage("MCP 服务器已成功同步到所有 CLI 配置", "同步完成");
-        } catch (IOException ex) {
-            Messages.showErrorDialog("同步失败: " + ex.getMessage(), "错误");
-        }
-    }
-
     private void onImportFromCli() {
-        int count = McpService.getInstance().importFromCliConfigs();
-        if (count > 0) {
-            Messages.showInfoMessage(
-                    "已从 CLI 配置文件中导入 " + count + " 个 MCP 服务器",
-                    "导入完成");
-        } else {
-            Messages.showInfoMessage(
-                    "未发现新的 MCP 服务器\n（已有的同名服务器会自动合并 CLI 开关）",
-                    "导入完成");
+        McpService.ImportOptions options = new McpService.ImportOptions();
+        McpService.ImportReport report = McpService.getInstance().importFromCliConfigs(projectRoot, options);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("新增导入: ").append(report.newlyImported).append("\n");
+        sb.append("合并已有: ").append(report.mergedExisting).append("\n");
+        sb.append("跳过无效/冲突: ").append(report.skippedInvalid).append("\n\n");
+        sb.append("下一步：勾选目标 CLI 列（如 OpenCode/Codex/Gemini）后点击保存更改即可同步安装。");
+
+        if (!report.warnings.isEmpty()) {
+            sb.append("\n\n告警：\n");
+            int max = Math.min(5, report.warnings.size());
+            for (int i = 0; i < max; i++) {
+                sb.append("- ").append(report.warnings.get(i)).append("\n");
+            }
+            if (report.warnings.size() > max) {
+                sb.append("- ... 其余 ").append(report.warnings.size() - max).append(" 条未展示");
+            }
         }
+
+        Messages.showInfoMessage(sb.toString(), "导入完成");
     }
 
     private McpServer getSelectedServer() {
@@ -213,7 +213,6 @@ public class McpPanel extends JPanel {
     }
 
     private void refreshTable() {
-        // 深拷贝，防止表格直接修改了后台的 Service 数据模型
         List<McpServer> clones = new ArrayList<>();
         Gson gson = new Gson();
         for (McpServer s : McpService.getInstance().getServers()) {
@@ -223,13 +222,8 @@ public class McpPanel extends JPanel {
         isDirty = false;
     }
 
-    // =====================================================================
-    // TableModel — 支持每 CLI 独立 CheckBox 列
-    // =====================================================================
-
     private static class McpTableModel extends AbstractTableModel {
 
-        // 列定义: 名称 | 传输方式 | Claude | Codex | Gemini | OpenCode | 详情
         private static final int COL_NAME = 0;
         private static final int COL_TRANSPORT = 1;
         private static final int COL_CLI_START = 2;
@@ -268,21 +262,23 @@ public class McpPanel extends JPanel {
 
         @Override
         public String getColumnName(int column) {
-            if (column == COL_NAME)
+            if (column == COL_NAME) {
                 return "名称";
-            if (column == COL_TRANSPORT)
+            }
+            if (column == COL_TRANSPORT) {
                 return "传输方式";
+            }
             if (column >= COL_CLI_START && column < COL_DETAIL) {
                 return CLI_TYPES[column - COL_CLI_START].getDisplayName();
             }
-            if (column == COL_DETAIL)
+            if (column == COL_DETAIL) {
                 return "详情";
+            }
             return "";
         }
 
         @Override
         public Class<?> getColumnClass(int columnIndex) {
-            // CLI 开关列使用 Boolean 类型（JBTable 自动渲染为 CheckBox）
             if (columnIndex >= COL_CLI_START && columnIndex < COL_DETAIL) {
                 return Boolean.class;
             }
@@ -298,7 +294,7 @@ public class McpPanel extends JPanel {
         public Object getValueAt(int rowIndex, int columnIndex) {
             McpServer s = data.get(rowIndex);
             if (columnIndex == COL_NAME) {
-                return (s.isEnabled() ? "" : "⏸ ") + s.getName();
+                return (s.isEnabled() ? "" : "⚪") + s.getName();
             }
             if (columnIndex == COL_TRANSPORT) {
                 return s.getTransportType().name();
@@ -312,9 +308,8 @@ public class McpPanel extends JPanel {
                     return s.getCommand() + (s.getArgs() != null && s.getArgs().length > 0
                             ? " " + String.join(" ", s.getArgs())
                             : "");
-                } else {
-                    return s.getUrl() != null ? s.getUrl() : "";
                 }
+                return s.getUrl() != null ? s.getUrl() : "";
             }
             return "";
         }

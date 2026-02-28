@@ -1,29 +1,29 @@
 package com.github.mostbean.codingswitch.service;
 
 import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.components.*;
+import com.intellij.openapi.components.PersistentStateComponent;
+import com.intellij.openapi.components.Service;
+import com.intellij.openapi.components.State;
+import com.intellij.openapi.components.Storage;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * 插件全局设置（持久化存储）。
- * 目前包含语言偏好。
  */
 @Service(Service.Level.APP)
 @State(name = "CodingSwitchSettings", storages = @Storage("codingSwitchSettings.xml"))
 public final class PluginSettings implements PersistentStateComponent<PluginSettings.State> {
 
     public enum Language {
-        ZH("中文"),
-        EN("English");
+        ZH,
+        EN;
 
-        private final String displayName;
-
-        Language(String displayName) {
-            this.displayName = displayName;
-        }
-
-        public String getDisplayName() {
-            return displayName;
+        public String getDisplayName(Language uiLanguage) {
+            boolean englishUi = uiLanguage == EN;
+            return switch (this) {
+                case ZH -> englishUi ? "Chinese" : "中文";
+                case EN -> "English";
+            };
         }
     }
 

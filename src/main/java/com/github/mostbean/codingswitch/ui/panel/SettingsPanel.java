@@ -2,6 +2,7 @@ package com.github.mostbean.codingswitch.ui.panel;
 
 import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.service.CliVersionService;
+import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.application.ApplicationManager;
@@ -12,8 +13,27 @@ import com.intellij.ui.components.JBScrollPane;
 import com.intellij.util.ui.FormBuilder;
 import com.intellij.util.ui.JBUI;
 
-import javax.swing.*;
-import java.awt.*;
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.DefaultListCellRenderer;
+import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JList;
+import javax.swing.JPanel;
+import javax.swing.JTextField;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import javax.swing.Timer;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -37,33 +57,23 @@ public class SettingsPanel extends JPanel {
         JPanel mainPanel = new JPanel();
         mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
 
-        // ===== 版本检测区域 =====
         mainPanel.add(buildVersionSection());
         mainPanel.add(Box.createVerticalStrut(16));
 
-        // ===== 安装命令区域 =====
         mainPanel.add(buildInstallSection());
         mainPanel.add(Box.createVerticalStrut(16));
 
-        // ===== 偏好设置区域 =====
         mainPanel.add(buildLanguageSection());
-
         mainPanel.add(Box.createVerticalGlue());
 
-        // 初始化时自动检测一次
         checkAllVersions();
-
         return mainPanel;
     }
-
-    // =====================================================================
-    // 版本检测区域
-    // =====================================================================
 
     private JPanel buildVersionSection() {
         JPanel section = new JPanel(new BorderLayout(0, 8));
         section.setBorder(BorderFactory.createTitledBorder(
-                BorderFactory.createEtchedBorder(), "CLI 版本状态"));
+                BorderFactory.createEtchedBorder(), I18n.t("settings.section.versionStatus")));
 
         JPanel grid = new JPanel(new GridBagLayout());
         grid.setBorder(JBUI.Borders.empty(12));
@@ -71,25 +81,24 @@ public class SettingsPanel extends JPanel {
         gbc.insets = JBUI.insets(6, 8);
         gbc.anchor = GridBagConstraints.WEST;
 
-        // 表头
         gbc.gridy = 0;
         gbc.gridx = 0;
         grid.add(bold(new JBLabel("")), gbc);
         gbc.gridx = 1;
-        grid.add(bold(new JBLabel("CLI")), gbc);
+        grid.add(bold(new JBLabel(I18n.t("settings.table.cli"))), gbc);
         gbc.gridx = 2;
-        grid.add(bold(new JBLabel("当前版本")), gbc);
+        grid.add(bold(new JBLabel(I18n.t("settings.table.currentVersion"))), gbc);
         gbc.gridx = 3;
-        grid.add(bold(new JBLabel("最新版本")), gbc);
+        grid.add(bold(new JBLabel(I18n.t("settings.table.latestVersion"))), gbc);
 
         int row = 1;
         for (CliType cli : CliType.values()) {
             JBLabel icon = new JBLabel(AllIcons.General.BalloonInformation);
             JBLabel nameLabel = new JBLabel(cli.getDisplayName());
             nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD));
-            JBLabel curLabel = new JBLabel("检测中...");
+            JBLabel curLabel = new JBLabel(I18n.t("settings.status.checking"));
             curLabel.setForeground(JBColor.GRAY);
-            JBLabel latLabel = new JBLabel("检测中...");
+            JBLabel latLabel = new JBLabel(I18n.t("settings.status.checking"));
             latLabel.setForeground(JBColor.GRAY);
 
             statusIcons.put(cli, icon);
@@ -113,8 +122,7 @@ public class SettingsPanel extends JPanel {
             row++;
         }
 
-        // 刷新按钮
-        JButton refreshBtn = new JButton("检测全部版本");
+        JButton refreshBtn = new JButton(I18n.t("settings.button.checkAllVersions"));
         refreshBtn.setIcon(AllIcons.Actions.Refresh);
         refreshBtn.addActionListener(e -> checkAllVersions());
 
@@ -123,18 +131,13 @@ public class SettingsPanel extends JPanel {
 
         section.add(grid, BorderLayout.CENTER);
         section.add(btnPanel, BorderLayout.SOUTH);
-
         return section;
     }
-
-    // =====================================================================
-    // 安装命令区域
-    // =====================================================================
 
     private JPanel buildInstallSection() {
         JPanel section = new JPanel(new BorderLayout());
         section.setBorder(BorderFactory.createTitledBorder(
-                BorderFactory.createEtchedBorder(), "安装/更新命令"));
+                BorderFactory.createEtchedBorder(), I18n.t("settings.section.installCommands")));
 
         FormBuilder form = FormBuilder.createFormBuilder();
         for (CliType cli : CliType.values()) {
@@ -145,7 +148,6 @@ public class SettingsPanel extends JPanel {
         JPanel content = form.getPanel();
         content.setBorder(JBUI.Borders.empty(8, 12));
         section.add(content, BorderLayout.CENTER);
-
         return section;
     }
 
@@ -163,7 +165,7 @@ public class SettingsPanel extends JPanel {
         cmdField.setBorder(JBUI.Borders.empty(4, 8));
 
         JButton copyBtn = new JButton(AllIcons.Actions.Copy);
-        copyBtn.setToolTipText("复制到剪贴板");
+        copyBtn.setToolTipText(I18n.t("settings.tooltip.copyClipboard"));
         copyBtn.setPreferredSize(new Dimension(JBUI.scale(28), JBUI.scale(28)));
         copyBtn.addActionListener(e -> {
             Toolkit.getDefaultToolkit().getSystemClipboard()
@@ -177,32 +179,26 @@ public class SettingsPanel extends JPanel {
         row.add(label, BorderLayout.WEST);
         row.add(cmdField, BorderLayout.CENTER);
         row.add(copyBtn, BorderLayout.EAST);
-
         return row;
     }
-
-    // =====================================================================
-    // 语言设置区域
-    // =====================================================================
 
     private JPanel buildLanguageSection() {
         JPanel section = new JPanel(new BorderLayout());
         section.setBorder(BorderFactory.createTitledBorder(
-                BorderFactory.createEtchedBorder(), "偏好设置"));
+                BorderFactory.createEtchedBorder(), I18n.t("settings.section.preferences")));
 
-        // 语言选择行
         JPanel langRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
-        langRow.add(new JBLabel("界面语言:"));
+        langRow.add(new JBLabel(I18n.t("settings.label.uiLanguage")));
 
         JComboBox<PluginSettings.Language> langCombo = new JComboBox<>(PluginSettings.Language.values());
         langCombo.setSelectedItem(PluginSettings.getInstance().getLanguage());
         langCombo.setRenderer(new DefaultListCellRenderer() {
             @Override
             public Component getListCellRendererComponent(JList<?> list, Object value,
-                    int index, boolean isSelected, boolean cellHasFocus) {
+                                                          int index, boolean isSelected, boolean cellHasFocus) {
                 super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
                 if (value instanceof PluginSettings.Language lang) {
-                    setText(lang.getDisplayName());
+                    setText(lang.getDisplayName(I18n.currentLanguage()));
                 }
                 return this;
             }
@@ -210,14 +206,12 @@ public class SettingsPanel extends JPanel {
         langCombo.addActionListener(e -> onLanguageChanged(langCombo));
         langRow.add(langCombo);
 
-        // 提示信息
-        JBLabel hintLabel = new JBLabel("⚠️ 切换语言后需要重启 IDE 才能完全生效");
+        JBLabel hintLabel = new JBLabel(I18n.t("settings.hint.restartRequired"));
         hintLabel.setForeground(new JBColor(new Color(200, 130, 0), new Color(230, 180, 80)));
         hintLabel.setBorder(JBUI.Borders.empty(0, 12, 8, 12));
 
         section.add(langRow, BorderLayout.NORTH);
         section.add(hintLabel, BorderLayout.CENTER);
-
         return section;
     }
 
@@ -229,31 +223,23 @@ public class SettingsPanel extends JPanel {
 
         PluginSettings.getInstance().setLanguage(selected);
 
-        // 显示重启确认对话框
         int result = Messages.showYesNoDialog(
-                "语言已切换为 " + selected.getDisplayName() + "\n\n" +
-                        "需要重启 IDE 才能完全生效。\n" +
-                        "是否立即重启 IDE？",
-                "语言设置已更改",
-                "立即重启",
-                "稍后手动重启",
+                I18n.t("settings.dialog.languageChanged.message", selected.getDisplayName(I18n.currentLanguage())),
+                I18n.t("settings.dialog.languageChanged.title"),
+                I18n.t("settings.dialog.languageChanged.restartNow"),
+                I18n.t("settings.dialog.languageChanged.restartLater"),
                 Messages.getQuestionIcon());
 
         if (result == Messages.YES) {
-            // 重启 IDE
             ApplicationManager.getApplication().restart();
         }
     }
 
-    // =====================================================================
-    // 版本检测逻辑
-    // =====================================================================
-
     private void checkAllVersions() {
         for (CliType cli : CliType.values()) {
-            currentLabels.get(cli).setText("检测中...");
+            currentLabels.get(cli).setText(I18n.t("settings.status.checking"));
             currentLabels.get(cli).setForeground(JBColor.GRAY);
-            latestLabels.get(cli).setText("检测中...");
+            latestLabels.get(cli).setText(I18n.t("settings.status.checking"));
             latestLabels.get(cli).setForeground(JBColor.GRAY);
             statusIcons.get(cli).setIcon(AllIcons.General.BalloonInformation);
         }
@@ -278,17 +264,17 @@ public class SettingsPanel extends JPanel {
             curLabel.setForeground(new Color(66, 160, 83));
             icon.setIcon(AllIcons.General.InspectionsOK);
         } else {
-            curLabel.setText("未安装");
+            curLabel.setText(I18n.t("settings.status.notInstalled"));
             curLabel.setForeground(JBColor.RED);
             icon.setIcon(AllIcons.General.Error);
         }
 
         if (latest != null) {
             if (current != null && current.equals(latest)) {
-                latLabel.setText("v" + latest + " ✓ 已是最新");
+                latLabel.setText(I18n.t("settings.status.latest", latest));
                 latLabel.setForeground(new Color(66, 160, 83));
             } else if (current != null) {
-                latLabel.setText("v" + latest + " ⬆ 可更新");
+                latLabel.setText(I18n.t("settings.status.updatable", latest));
                 latLabel.setForeground(new Color(200, 130, 0));
             } else {
                 latLabel.setText("v" + latest);

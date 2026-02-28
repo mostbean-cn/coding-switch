@@ -18,25 +18,48 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * MCP 服务器管理服务。
- * 管理 MCP 服务器列表，并将启用的服务器同步写入各 CLI 的配置文件。
  */
 @Service(Service.Level.APP)
 @State(name = "CodingSwitchMcp", storages = @Storage("coding-switch-mcp.xml"))
-public final class McpService implements PersistentStateComponent<McpService.State> {
+public final class McpService implements PersistentStateComponent<McpService.StateData> {
 
     private static final Logger LOG = Logger.getInstance(McpService.class);
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
-    public static class State {
+    public static class StateData {
         public String serversJson = "[]";
     }
 
-    private State myState = new State();
+    public static class ImportOptions {
+        public boolean includeClaudeUserScope = true;
+        public boolean includeClaudeProjectScope = true;
+        public boolean includeCurrentProjectLocalScope = true;
+    }
+
+    public static class ImportReport {
+        public int newlyImported;
+        public int mergedExisting;
+        public int skippedInvalid;
+        public final List<String> warnings = new ArrayList<>();
+
+        public int getTouchedCount() {
+            return newlyImported + mergedExisting;
+        }
+    }
+
+    private StateData myState = new StateData();
     private final List<Runnable> changeListeners = new ArrayList<>();
 
     public static McpService getInstance() {
@@ -44,25 +67,20 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
     }
 
     @Override
-    public @Nullable State getState() {
+    public @Nullable StateData getState() {
         myState.serversJson = GSON.toJson(getServers());
         return myState;
     }
 
     @Override
-    public void loadState(@NotNull State state) {
+    public void loadState(@NotNull StateData state) {
         myState = state;
     }
 
-    // =====================================================================
-    // CRUD
-    // =====================================================================
-
     public List<McpServer> getServers() {
         try {
-            List<McpServer> list = GSON.fromJson(myState.serversJson,
-                    new TypeToken<List<McpServer>>() {
-                    }.getType());
+            List<McpServer> list = GSON.fromJson(myState.serversJson, new TypeToken<List<McpServer>>() {
+            }.getType());
             return list != null ? list : new ArrayList<>();
         } catch (Exception e) {
             LOG.warn("Failed to parse MCP servers", e);
@@ -99,13 +117,6 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
         }
     }
 
-    // =====================================================================
-    // 同步到 CLI 配置文件
-    // =====================================================================
-
-    /**
-     * 将所有启用的 MCP 服务器同步写入指定 CLI 的配置文件。
-     */
     public void syncToConfig(CliType cliType) throws IOException {
         List<McpServer> enabledServers = getServers().stream()
                 .filter(McpServer::isEnabled)
@@ -113,7 +124,6 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
                 .toList();
 
         ConfigFileService configService = ConfigFileService.getInstance();
-
         switch (cliType) {
             case CLAUDE -> syncClaudeMcp(configService, enabledServers);
             case GEMINI -> syncGeminiMcp(configService, enabledServers);
@@ -122,7 +132,6 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
         }
     }
 
-    /** 同步到所有 CLI */
     public void syncToAllConfigs() throws IOException {
         for (CliType cli : CliType.values()) {
             syncToConfig(cli);
@@ -130,7 +139,7 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
     }
 
     private void syncClaudeMcp(ConfigFileService svc, List<McpServer> servers) throws IOException {
-        var path = svc.getMcpConfigPath(CliType.CLAUDE);
+        Path path = svc.getMcpConfigPath(CliType.CLAUDE);
         JsonObject root = svc.readJsonFile(path);
         if (servers.isEmpty()) {
             root.remove("mcpServers");
@@ -141,7 +150,7 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
     }
 
     private void syncGeminiMcp(ConfigFileService svc, List<McpServer> servers) throws IOException {
-        var path = svc.getMcpConfigPath(CliType.GEMINI);
+        Path path = svc.getMcpConfigPath(CliType.GEMINI);
         JsonObject root = svc.readJsonFile(path);
         if (servers.isEmpty()) {
             root.remove("mcpServers");
@@ -152,7 +161,7 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
     }
 
     private void syncOpenCodeMcp(ConfigFileService svc, List<McpServer> servers) throws IOException {
-        var path = svc.getMcpConfigPath(CliType.OPENCODE);
+        Path path = svc.getMcpConfigPath(CliType.OPENCODE);
         JsonObject root = svc.readJsonFile(path);
         if (servers.isEmpty()) {
             root.remove("mcp");
@@ -163,7 +172,12 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
     }
 
     private void syncCodexMcp(ConfigFileService svc, List<McpServer> servers) throws IOException {
-        var path = svc.getMcpConfigPath(CliType.CODEX);
+        Path path = svc.getMcpConfigPath(CliType.CODEX);
+        List<String> managedNames = servers.stream()
+                .map(McpServer::getName)
+                .filter(name -> name != null && !name.isBlank())
+                .toList();
+
         StringBuilder sb = new StringBuilder();
         sb.append("# >>> coding-switch:mcp:start\n");
         sb.append("# MCP Servers (managed by Coding Switch)\n\n");
@@ -175,7 +189,8 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
                     sb.append("command = \"").append(escapeToml(server.getCommand())).append("\"\n");
                 }
             } else {
-                sb.append("type = \"").append(server.getTransportType() == McpServer.TransportType.SSE ? "sse" : "http")
+                sb.append("type = \"")
+                        .append(server.getTransportType() == McpServer.TransportType.SSE ? "sse" : "http")
                         .append("\"\n");
                 if (server.getUrl() != null && !server.getUrl().isBlank()) {
                     sb.append("url = \"").append(escapeToml(server.getUrl())).append("\"\n");
@@ -184,31 +199,34 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
             if (server.getArgs() != null && server.getArgs().length > 0) {
                 sb.append("args = [");
                 for (int i = 0; i < server.getArgs().length; i++) {
-                    if (i > 0)
+                    if (i > 0) {
                         sb.append(", ");
+                    }
                     sb.append("\"").append(escapeToml(server.getArgs()[i])).append("\"");
                 }
                 sb.append("]\n");
             }
             if (server.getEnv() != null && !server.getEnv().isEmpty()) {
                 sb.append("[mcp_servers.").append(server.getName()).append(".env]\n");
-                for (var entry : server.getEnv().entrySet()) {
+                for (Map.Entry<String, String> entry : server.getEnv().entrySet()) {
                     sb.append(entry.getKey()).append(" = \"").append(escapeToml(entry.getValue())).append("\"\n");
                 }
             }
             sb.append("\n");
         }
         sb.append("# <<< coding-switch:mcp:end\n");
+
         String existing = svc.readFile(path);
-        String merged = upsertManagedBlock(existing, sb.toString(),
+        String withoutManagedBlock = removeManagedBlock(existing,
+                "# >>> coding-switch:mcp:start",
+                "# <<< coding-switch:mcp:end");
+        String sanitized = removeConflictingCodexSections(withoutManagedBlock, managedNames);
+        String merged = upsertManagedBlock(sanitized, sb.toString(),
                 "# >>> coding-switch:mcp:start",
                 "# <<< coding-switch:mcp:end");
         svc.writeFile(path, merged);
     }
 
-    /**
-     * 构建 mcpServers JSON 对象（Claude/Gemini/OpenCode 通用格式）。
-     */
     private JsonObject buildMcpServersJson(List<McpServer> servers) {
         JsonObject mcpServers = new JsonObject();
         for (McpServer server : servers) {
@@ -258,80 +276,99 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
         return mcp;
     }
 
-    // =====================================================================
-    // 从 CLI 配置文件导入已有 MCP 服务器
-    // =====================================================================
-
-    /**
-     * 扫描所有 CLI 的配置文件，导入已有的 MCP 服务器。
-     * <p>
-     * 去重策略：已存在的同名 MCP 仅合并来源 CLI 开关，不覆盖其他字段。
-     *
-     * @return 新导入的服务器数量
-     */
     public int importFromCliConfigs() {
+        return importFromCliConfigs(null, new ImportOptions()).newlyImported;
+    }
+
+    public ImportReport importFromCliConfigs(@Nullable Path currentProjectRoot, @Nullable ImportOptions options) {
+        ImportOptions opts = options != null ? options : new ImportOptions();
         ConfigFileService configService = ConfigFileService.getInstance();
         List<McpServer> existing = new ArrayList<>(getServers());
         String beforeState = GSON.toJson(existing);
-        int importedCount = 0;
-        boolean changed = false;
+        ImportReport report = new ImportReport();
 
-        importedCount += importFromJsonMcpServers(configService, existing, CliType.CLAUDE);
-        importedCount += importFromJsonMcpServers(configService, existing, CliType.GEMINI);
-        importedCount += importFromOpenCodeConfig(configService, existing);
+        importFromClaudeScopes(configService, existing, currentProjectRoot, opts, report);
+        importFromJsonMcpServers(configService, existing, CliType.GEMINI, report);
+        importFromOpenCodeConfig(configService, existing, report);
+        importFromCodexToml(existing, report);
 
-        // TOML 格式 CLI：Codex
-        try {
-            int codexCount = importFromCodexToml(existing);
-            importedCount += codexCount;
-            if (codexCount > 0)
-                changed = true;
-        } catch (Exception e) {
-            LOG.info("Failed to import MCP from Codex: " + e.getMessage());
-        }
-
-        changed = !beforeState.equals(GSON.toJson(existing));
-        if (importedCount > 0 || changed) {
+        boolean changed = !beforeState.equals(GSON.toJson(existing));
+        if (changed) {
             saveServers(existing);
         }
-        return importedCount;
+        return report;
     }
 
-    private int importFromJsonMcpServers(ConfigFileService configService, List<McpServer> existing, CliType cliType) {
-        int importedCount = 0;
+    private void importFromClaudeScopes(ConfigFileService configService, List<McpServer> existing,
+                                        @Nullable Path currentProjectRoot, ImportOptions options, ImportReport report) {
         try {
-            var path = configService.getMcpConfigPath(cliType);
-            JsonObject root = configService.readJsonFile(path);
-            if (!root.has("mcpServers")) {
-                return 0;
+            Path userPath = configService.getMcpConfigPath(CliType.CLAUDE);
+            JsonObject root = configService.readJsonFile(userPath);
+
+            if (options.includeClaudeUserScope) {
+                importFromJsonServerObject(
+                        root.has("mcpServers") && root.get("mcpServers").isJsonObject()
+                                ? root.getAsJsonObject("mcpServers")
+                                : null,
+                        existing, CliType.CLAUDE, "Claude(user)", report);
             }
-            JsonObject mcpServers = root.getAsJsonObject("mcpServers");
-            for (String serverName : mcpServers.keySet()) {
-                McpServer existingServer = existing.stream()
-                        .filter(s -> s.getName().equals(serverName)).findFirst().orElse(null);
-                if (existingServer != null) {
-                    if (!existingServer.isSyncedTo(cliType)) {
-                        existingServer.setSyncedTo(cliType, true);
+
+            if (options.includeClaudeProjectScope && currentProjectRoot != null
+                    && root.has("projects") && root.get("projects").isJsonObject()) {
+                JsonObject projects = root.getAsJsonObject("projects");
+                String matchKey = findMatchingProjectKey(projects, currentProjectRoot);
+                if (matchKey != null) {
+                    JsonElement elem = projects.get(matchKey);
+                    if (elem != null && elem.isJsonObject()) {
+                        JsonObject projectObj = elem.getAsJsonObject();
+                        importFromJsonServerObject(
+                                projectObj.has("mcpServers") && projectObj.get("mcpServers").isJsonObject()
+                                        ? projectObj.getAsJsonObject("mcpServers")
+                                        : null,
+                                existing, CliType.CLAUDE, "Claude(project:" + matchKey + ")", report);
                     }
-                    continue;
                 }
-                JsonObject serverJson = mcpServers.getAsJsonObject(serverName);
-                McpServer server = parseMcpServerFromJson(serverName, serverJson, cliType);
-                if (server != null) {
-                    existing.add(server);
-                    importedCount++;
+            }
+
+            if (options.includeCurrentProjectLocalScope && currentProjectRoot != null) {
+                Path localPath = currentProjectRoot.resolve(".mcp.json");
+                if (Files.exists(localPath)) {
+                    JsonObject localRoot = configService.readJsonFile(localPath);
+                    JsonObject localServers = null;
+                    if (localRoot.has("mcpServers") && localRoot.get("mcpServers").isJsonObject()) {
+                        localServers = localRoot.getAsJsonObject("mcpServers");
+                    } else if (looksLikeServerMap(localRoot)) {
+                        localServers = localRoot;
+                    }
+                    importFromJsonServerObject(localServers, existing, CliType.CLAUDE,
+                            "Claude(local:" + localPath + ")", report);
                 }
             }
         } catch (Exception e) {
-            LOG.info("Failed to import MCP from " + cliType.getDisplayName() + ": " + e.getMessage());
+            LOG.info("Failed to import MCP from Claude: " + e.getMessage());
+            report.warnings.add("Claude 导入失败: " + e.getMessage());
         }
-        return importedCount;
     }
 
-    private int importFromOpenCodeConfig(ConfigFileService configService, List<McpServer> existing) {
-        int importedCount = 0;
+    private void importFromJsonMcpServers(ConfigFileService configService, List<McpServer> existing,
+                                          CliType cliType, ImportReport report) {
         try {
-            var path = configService.getMcpConfigPath(CliType.OPENCODE);
+            Path path = configService.getMcpConfigPath(cliType);
+            JsonObject root = configService.readJsonFile(path);
+            if (!root.has("mcpServers")) {
+                return;
+            }
+            JsonObject mcpServers = root.getAsJsonObject("mcpServers");
+            importFromJsonServerObject(mcpServers, existing, cliType, cliType.getDisplayName(), report);
+        } catch (Exception e) {
+            LOG.info("Failed to import MCP from " + cliType.getDisplayName() + ": " + e.getMessage());
+            report.warnings.add(cliType.getDisplayName() + " 导入失败: " + e.getMessage());
+        }
+    }
+
+    private void importFromOpenCodeConfig(ConfigFileService configService, List<McpServer> existing, ImportReport report) {
+        try {
+            Path path = configService.getMcpConfigPath(CliType.OPENCODE);
             JsonObject root = configService.readJsonFile(path);
             JsonObject mcp = null;
             if (root.has("mcp") && root.get("mcp").isJsonObject()) {
@@ -340,147 +377,126 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
                 mcp = root.getAsJsonObject("mcpServers");
             }
             if (mcp == null) {
-                return 0;
+                return;
             }
 
             for (String serverName : mcp.keySet()) {
-                if (!mcp.get(serverName).isJsonObject()) {
+                JsonElement element = mcp.get(serverName);
+                if (element == null || !element.isJsonObject()) {
+                    report.skippedInvalid++;
                     continue;
                 }
-                McpServer existingServer = existing.stream()
-                        .filter(s -> s.getName().equals(serverName)).findFirst().orElse(null);
-                if (existingServer != null) {
-                    if (!existingServer.isSyncedTo(CliType.OPENCODE)) {
-                        existingServer.setSyncedTo(CliType.OPENCODE, true);
-                    }
-                    continue;
-                }
-                McpServer server = parseOpenCodeServer(serverName, mcp.getAsJsonObject(serverName));
-                if (server != null) {
-                    existing.add(server);
-                    importedCount++;
-                }
+                McpServer server = parseOpenCodeServer(serverName, element.getAsJsonObject());
+                mergeImportedServer(existing, server, CliType.OPENCODE, "OpenCode", report);
             }
         } catch (Exception e) {
             LOG.info("Failed to import MCP from OpenCode: " + e.getMessage());
+            report.warnings.add("OpenCode 导入失败: " + e.getMessage());
         }
-        return importedCount;
     }
 
-    /**
-     * 从 Codex 的 TOML 配置文件导入 MCP 服务器。
-     * 解析 ~/.codex/config.toml 中 [mcp_servers.xxx] 段。
-     */
-    private int importFromCodexToml(List<McpServer> existing) {
-        ConfigFileService configService = ConfigFileService.getInstance();
-        var path = configService.getMcpConfigPath(CliType.CODEX);
-        String content = configService.readFile(path);
-        if (content.isBlank())
-            return 0;
+    private void importFromCodexToml(List<McpServer> existing, ImportReport report) {
+        try {
+            ConfigFileService configService = ConfigFileService.getInstance();
+            Path path = configService.getMcpConfigPath(CliType.CODEX);
+            String content = configService.readFile(path);
+            if (content.isBlank()) {
+                return;
+            }
 
-        int importedCount = 0;
-        String currentSection = null;
-        String currentCommand = null;
-        String currentUrl = null;
-        List<String> currentArgs = new ArrayList<>();
-        java.util.Map<String, String> currentEnv = new java.util.HashMap<>();
-        String currentType = "stdio";
-        boolean inEnvSection = false;
+            String currentSection = null;
+            String currentCommand = null;
+            String currentUrl = null;
+            List<String> currentArgs = new ArrayList<>();
+            Map<String, String> currentEnv = new HashMap<>();
+            String currentType = "stdio";
+            boolean inEnvSection = false;
 
-        for (String rawLine : content.split("\n")) {
-            String line = rawLine.trim();
-            if (line.isEmpty() || line.startsWith("#"))
-                continue;
-
-            // 检测段头：[mcp_servers.xxx]
-            if (line.startsWith("[") && line.endsWith("]")) {
-                String sectionName = line.substring(1, line.length() - 1).trim();
-                if (sectionName.startsWith("mcp_servers.")) {
-                    String suffix = sectionName.substring("mcp_servers.".length());
-                    boolean envSection = suffix.endsWith(".env");
-                    String nextSection = envSection ? suffix.substring(0, suffix.length() - 4) : suffix;
-
-                    // 进入新 server 前保存上一个 server
-                    if (currentSection != null && !currentSection.equals(nextSection)) {
-                        importedCount += saveCodexSection(existing, currentSection,
-                                currentType, currentCommand, currentArgs, currentUrl, currentEnv);
-                        currentCommand = null;
-                        currentUrl = null;
-                        currentArgs = new ArrayList<>();
-                        currentEnv = new java.util.HashMap<>();
-                        currentType = "stdio";
-                    }
-
-                    if (currentSection == null) {
-                        currentCommand = null;
-                        currentUrl = null;
-                        currentArgs = new ArrayList<>();
-                        currentEnv = new java.util.HashMap<>();
-                        currentType = "stdio";
-                    }
-                    currentSection = nextSection;
-                    inEnvSection = envSection;
-                } else {
-                    if (currentSection != null) {
-                        importedCount += saveCodexSection(existing, currentSection,
-                                currentType, currentCommand, currentArgs, currentUrl, currentEnv);
-                    }
-                    currentSection = null;
-                    inEnvSection = false;
-                    currentCommand = null;
-                    currentUrl = null;
-                    currentArgs = new ArrayList<>();
-                    currentEnv = new java.util.HashMap<>();
-                    currentType = "stdio";
+            for (String rawLine : content.split("\n")) {
+                String line = rawLine.trim();
+                if (line.isEmpty() || line.startsWith("#")) {
+                    continue;
                 }
-                continue;
+
+                if (line.startsWith("[") && line.endsWith("]")) {
+                    String sectionName = line.substring(1, line.length() - 1).trim();
+                    if (sectionName.startsWith("mcp_servers.")) {
+                        String suffix = sectionName.substring("mcp_servers.".length());
+                        boolean envSection = suffix.endsWith(".env");
+                        String nextSection = envSection ? suffix.substring(0, suffix.length() - 4) : suffix;
+
+                        if (currentSection != null && !currentSection.equals(nextSection)) {
+                            saveCodexSection(existing, currentSection, currentType, currentCommand,
+                                    currentArgs, currentUrl, currentEnv, report);
+                            currentCommand = null;
+                            currentUrl = null;
+                            currentArgs = new ArrayList<>();
+                            currentEnv = new HashMap<>();
+                            currentType = "stdio";
+                        }
+
+                        if (currentSection == null) {
+                            currentCommand = null;
+                            currentUrl = null;
+                            currentArgs = new ArrayList<>();
+                            currentEnv = new HashMap<>();
+                            currentType = "stdio";
+                        }
+                        currentSection = nextSection;
+                        inEnvSection = envSection;
+                    } else {
+                        if (currentSection != null) {
+                            saveCodexSection(existing, currentSection, currentType, currentCommand,
+                                    currentArgs, currentUrl, currentEnv, report);
+                        }
+                        currentSection = null;
+                        inEnvSection = false;
+                        currentCommand = null;
+                        currentUrl = null;
+                        currentArgs = new ArrayList<>();
+                        currentEnv = new HashMap<>();
+                        currentType = "stdio";
+                    }
+                    continue;
+                }
+
+                if (currentSection == null) {
+                    continue;
+                }
+
+                int eq = line.indexOf('=');
+                if (eq < 0) {
+                    continue;
+                }
+                String key = line.substring(0, eq).trim();
+                String value = line.substring(eq + 1).trim();
+
+                if (inEnvSection) {
+                    currentEnv.put(key, stripQuotes(value));
+                    continue;
+                }
+
+                switch (key) {
+                    case "type" -> currentType = stripQuotes(value);
+                    case "command" -> currentCommand = stripQuotes(value);
+                    case "url" -> currentUrl = stripQuotes(value);
+                    case "args" -> currentArgs = parseTomlArray(value);
+                }
             }
 
-            if (currentSection == null)
-                continue;
-
-            // 解析 key = value
-            int eq = line.indexOf('=');
-            if (eq < 0)
-                continue;
-            String key = line.substring(0, eq).trim();
-            String value = line.substring(eq + 1).trim();
-
-            if (inEnvSection) {
-                currentEnv.put(key, stripQuotes(value));
-                continue;
+            if (currentSection != null) {
+                saveCodexSection(existing, currentSection, currentType, currentCommand,
+                        currentArgs, currentUrl, currentEnv, report);
             }
-
-            switch (key) {
-                case "type" -> currentType = stripQuotes(value);
-                case "command" -> currentCommand = stripQuotes(value);
-                case "url" -> currentUrl = stripQuotes(value);
-                case "args" -> currentArgs = parseTomlArray(value);
-            }
+        } catch (Exception e) {
+            LOG.info("Failed to import MCP from Codex: " + e.getMessage());
+            report.warnings.add("Codex 导入失败: " + e.getMessage());
         }
-
-        // 保存最后一个段
-        if (currentSection != null) {
-            importedCount += saveCodexSection(existing, currentSection,
-                    currentType, currentCommand, currentArgs, currentUrl, currentEnv);
-        }
-
-        return importedCount;
     }
 
-    private int saveCodexSection(List<McpServer> existing, String name,
-            String type, String command, List<String> args, String url,
-            java.util.Map<String, String> env) {
-        // 去重：已存在则仅合并 Codex CLI 开关
-        McpServer existingServer = existing.stream()
-                .filter(s -> s.getName().equals(name)).findFirst().orElse(null);
-        if (existingServer != null) {
-            if (!existingServer.isSyncedTo(CliType.CODEX)) {
-                existingServer.setSyncedTo(CliType.CODEX, true);
-            }
-            return 0;
-        }
-
+    private void saveCodexSection(List<McpServer> existing, String name,
+                                  String type, String command, List<String> args, String url,
+                                  Map<String, String> env, ImportReport report) {
         McpServer server = new McpServer();
         server.setName(name);
         server.setEnabled(true);
@@ -494,13 +510,15 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
             server.setTransportType("sse".equals(type) ? McpServer.TransportType.SSE : McpServer.TransportType.HTTP);
             server.setUrl(url);
         } else {
-            return 0; // 无法识别
+            report.skippedInvalid++;
+            report.warnings.add("Codex 导入跳过无效 MCP: " + name);
+            return;
         }
 
-        if (!env.isEmpty())
+        if (!env.isEmpty()) {
             server.setEnv(env);
-        existing.add(server);
-        return 1;
+        }
+        mergeImportedServer(existing, server, CliType.CODEX, "Codex", report);
     }
 
     private static String stripQuotes(String value) {
@@ -512,52 +530,47 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
 
     private static List<String> parseTomlArray(String value) {
         List<String> result = new ArrayList<>();
-        // 简单解析 ["a", "b", "c"] 格式
         if (value.startsWith("[") && value.endsWith("]")) {
             String inner = value.substring(1, value.length() - 1);
             for (String item : inner.split(",")) {
                 String trimmed = stripQuotes(item.trim());
-                if (!trimmed.isEmpty())
+                if (!trimmed.isEmpty()) {
                     result.add(trimmed);
+                }
             }
         }
         return result;
     }
 
-    /**
-     * 从 JSON 节点解析出 McpServer 对象。
-     */
     private McpServer parseMcpServerFromJson(String name, JsonObject json, CliType source) {
         McpServer server = new McpServer();
         server.setName(name);
         server.setEnabled(true);
-        // 只启用来源 CLI，而非全部
         server.setSyncedTo(source, true);
 
         if (json.has("command")) {
-            // STDIO 模式
             server.setTransportType(McpServer.TransportType.STDIO);
             server.setCommand(json.get("command").getAsString());
             if (json.has("args") && json.get("args").isJsonArray()) {
-                var argsArr = json.getAsJsonArray("args");
+                JsonArray argsArr = json.getAsJsonArray("args");
                 String[] args = new String[argsArr.size()];
                 for (int i = 0; i < argsArr.size(); i++) {
                     args[i] = argsArr.get(i).getAsString();
                 }
                 server.setArgs(args);
+            } else {
+                server.setArgs(new String[0]);
             }
         } else if (json.has("url")) {
-            // SSE/HTTP 模式
             String url = json.get("url").getAsString();
             server.setTransportType(url.contains("/sse") ? McpServer.TransportType.SSE : McpServer.TransportType.HTTP);
             server.setUrl(url);
         } else {
-            return null; // 无法识别的格式
+            return null;
         }
 
-        // 导入环境变量
         if (json.has("env") && json.get("env").isJsonObject()) {
-            java.util.Map<String, String> env = new java.util.HashMap<>();
+            Map<String, String> env = new HashMap<>();
             JsonObject envJson = json.getAsJsonObject("env");
             for (String key : envJson.keySet()) {
                 env.put(key, envJson.get(key).getAsString());
@@ -606,7 +619,7 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
             envJson = json.getAsJsonObject("env");
         }
         if (envJson != null) {
-            java.util.Map<String, String> env = new java.util.HashMap<>();
+            Map<String, String> env = new HashMap<>();
             for (String key : envJson.keySet()) {
                 JsonElement value = envJson.get(key);
                 if (!value.isJsonNull()) {
@@ -619,6 +632,111 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
         }
 
         return server;
+    }
+
+    private void importFromJsonServerObject(@Nullable JsonObject serverObject, List<McpServer> existing,
+                                            CliType source, String sourceLabel, ImportReport report) {
+        if (serverObject == null) {
+            return;
+        }
+        for (String serverName : serverObject.keySet()) {
+            JsonElement element = serverObject.get(serverName);
+            if (element == null || !element.isJsonObject()) {
+                report.skippedInvalid++;
+                continue;
+            }
+            McpServer parsed = parseMcpServerFromJson(serverName, element.getAsJsonObject(), source);
+            mergeImportedServer(existing, parsed, source, sourceLabel, report);
+        }
+    }
+
+    private void mergeImportedServer(List<McpServer> existing, @Nullable McpServer imported,
+                                     CliType source, String sourceLabel, ImportReport report) {
+        if (imported == null || imported.getName() == null || imported.getName().isBlank()) {
+            report.skippedInvalid++;
+            return;
+        }
+
+        McpServer existingServer = existing.stream()
+                .filter(s -> imported.getName().equals(s.getName()))
+                .findFirst()
+                .orElse(null);
+
+        if (existingServer == null) {
+            existing.add(imported);
+            report.newlyImported++;
+            return;
+        }
+
+        if (sameServerSignature(existingServer, imported)) {
+            if (!existingServer.isSyncedTo(source)) {
+                existingServer.setSyncedTo(source, true);
+                report.mergedExisting++;
+            }
+            return;
+        }
+
+        report.skippedInvalid++;
+        report.warnings.add("同名 MCP 冲突已跳过: " + imported.getName() + " (来源: " + sourceLabel + ")");
+    }
+
+    private static boolean sameServerSignature(McpServer a, McpServer b) {
+        if (a.getTransportType() != b.getTransportType()) {
+            return false;
+        }
+        return switch (a.getTransportType()) {
+            case STDIO -> Objects.equals(a.getCommand(), b.getCommand())
+                    && Arrays.equals(normalizeArgs(a.getArgs()), normalizeArgs(b.getArgs()))
+                    && Objects.equals(normalizeEnv(a.getEnv()), normalizeEnv(b.getEnv()));
+            case SSE, HTTP -> Objects.equals(a.getUrl(), b.getUrl())
+                    && Objects.equals(normalizeEnv(a.getEnv()), normalizeEnv(b.getEnv()));
+        };
+    }
+
+    private static String[] normalizeArgs(String[] args) {
+        return args == null ? new String[0] : args;
+    }
+
+    private static Map<String, String> normalizeEnv(Map<String, String> env) {
+        return env == null ? Collections.emptyMap() : env;
+    }
+
+    private static boolean looksLikeServerMap(JsonObject root) {
+        for (String key : root.keySet()) {
+            JsonElement element = root.get(key);
+            if (element == null || !element.isJsonObject()) {
+                continue;
+            }
+            JsonObject item = element.getAsJsonObject();
+            if (item.has("command") || item.has("url")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Nullable
+    private static String findMatchingProjectKey(JsonObject projects, Path currentProjectRoot) {
+        String normalizedCurrent = normalizePathString(currentProjectRoot);
+        for (String rawKey : projects.keySet()) {
+            try {
+                String normalizedKey = normalizePathString(Path.of(rawKey));
+                if (normalizedCurrent.equalsIgnoreCase(normalizedKey)) {
+                    return rawKey;
+                }
+            } catch (Exception ignored) {
+                // ignore malformed key
+            }
+        }
+        return null;
+    }
+
+    private static String normalizePathString(Path path) {
+        try {
+            return path.toAbsolutePath().normalize().toString();
+        } catch (Exception ignored) {
+            return path.toString();
+        }
     }
 
     private static String upsertManagedBlock(String existing, String block, String startMarker, String endMarker) {
@@ -638,13 +756,59 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
         return safeExisting + (safeExisting.endsWith("\n") ? "\n" : "\n\n") + block;
     }
 
+    private static String removeManagedBlock(String existing, String startMarker, String endMarker) {
+        String safeExisting = existing == null ? "" : existing;
+        int start = safeExisting.indexOf(startMarker);
+        int end = safeExisting.indexOf(endMarker);
+        if (start < 0 || end < start) {
+            return safeExisting;
+        }
+        int endExclusive = end + endMarker.length();
+        if (endExclusive < safeExisting.length() && safeExisting.charAt(endExclusive) == '\n') {
+            endExclusive++;
+        }
+        return safeExisting.substring(0, start) + safeExisting.substring(endExclusive);
+    }
+
+    private static String removeConflictingCodexSections(String content, List<String> managedNames) {
+        if (content == null || content.isBlank() || managedNames == null || managedNames.isEmpty()) {
+            return content == null ? "" : content;
+        }
+
+        StringBuilder out = new StringBuilder();
+        String currentSection = null;
+        boolean dropCurrentSection = false;
+
+        for (String rawLine : content.split("\n", -1)) {
+            String line = rawLine.trim();
+            if (line.startsWith("[") && line.endsWith("]")) {
+                currentSection = line.substring(1, line.length() - 1).trim();
+                dropCurrentSection = isManagedCodexSection(currentSection, managedNames);
+            }
+            if (!dropCurrentSection) {
+                out.append(rawLine).append("\n");
+            }
+        }
+        return out.toString();
+    }
+
+    private static boolean isManagedCodexSection(String section, List<String> managedNames) {
+        for (String name : managedNames) {
+            String base = "mcp_servers." + name;
+            String singleQuoted = "mcp_servers.'" + name + "'";
+            String doubleQuoted = "mcp_servers.\"" + name + "\"";
+            if (section.equals(base) || section.equals(base + ".env")
+                    || section.equals(singleQuoted) || section.equals(singleQuoted + ".env")
+                    || section.equals(doubleQuoted) || section.equals(doubleQuoted + ".env")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static String escapeToml(String value) {
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
-
-    // =====================================================================
-    // 内部工具
-    // =====================================================================
 
     private void saveServers(List<McpServer> servers) {
         myState.serversJson = GSON.toJson(servers);
