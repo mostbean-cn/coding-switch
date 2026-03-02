@@ -2,6 +2,7 @@ package com.github.mostbean.codingswitch.ui.panel;
 
 import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.PromptPreset;
+import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.PromptService;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.AnAction;
@@ -47,7 +48,7 @@ public class PromptPanel extends JPanel {
 
     private JPanel createToolbar() {
         JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        toolbar.add(new JBLabel("按 CLI 筛选: "));
+        toolbar.add(new JBLabel(I18n.t("prompt.filter.label")));
         for (CliType cli : CliType.values()) {
             filterCombo.addItem(cli);
         }
@@ -63,13 +64,14 @@ public class PromptPanel extends JPanel {
         // 左侧：预设列表 (配合 ToolbarDecorator)
         presetList.setCellRenderer(new PresetCellRenderer());
         presetList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        presetList.getEmptyText().setText("暂无预设，点击 '+' 新增");
+        presetList.getEmptyText().setText(I18n.t("prompt.list.empty"));
 
         ToolbarDecorator listDecorator = ToolbarDecorator.createDecorator(presetList)
                 .setAddAction(button -> onAdd())
                 .setRemoveAction(button -> onDelete())
                 .addExtraAction(
-                        new AnAction("启用", "将此预设写入对应 CLI 的配置文件", AllIcons.Actions.Execute) {
+                        new AnAction(I18n.t("prompt.action.activate"), I18n.t("prompt.action.activate.tooltip"),
+                                AllIcons.Actions.Execute) {
                             @Override
                             public void actionPerformed(@NotNull AnActionEvent e) {
                                 onActivate();
@@ -96,11 +98,11 @@ public class PromptPanel extends JPanel {
 
         // 右侧工具栏（Save, Load Current）
         JPanel editorActionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 4));
-        JButton loadBtn = new JButton("加载当前配置");
+        JButton loadBtn = new JButton(I18n.t("prompt.button.loadCurrent"));
         loadBtn.addActionListener(e -> onLoadCurrent());
         editorActionPanel.add(loadBtn);
 
-        JButton saveBtn = new JButton("保存内容");
+        JButton saveBtn = new JButton(I18n.t("prompt.button.save"));
         saveBtn.addActionListener(e -> onSave());
         saveBtn.putClientProperty("JButton.buttonType", "default");
         editorActionPanel.add(saveBtn);
@@ -132,7 +134,7 @@ public class PromptPanel extends JPanel {
     }
 
     private void onAdd() {
-        String name = Messages.showInputDialog("预设名称:", "新增提示词预设",
+        String name = Messages.showInputDialog(I18n.t("prompt.dialog.addPrompt"), I18n.t("prompt.dialog.addTitle"),
                 Messages.getQuestionIcon());
         if (name != null && !name.isBlank()) {
             CliType cli = (CliType) filterCombo.getSelectedItem();
@@ -145,7 +147,7 @@ public class PromptPanel extends JPanel {
     private void onSave() {
         PromptPreset selected = presetList.getSelectedValue();
         if (selected == null) {
-            Messages.showWarningDialog("请先选择一个预设。", "未选择");
+            Messages.showWarningDialog(I18n.t("prompt.dialog.noSelection"), I18n.t("prompt.dialog.noSelectionTitle"));
             return;
         }
         selected.setContent(editorArea.getText());
@@ -155,12 +157,15 @@ public class PromptPanel extends JPanel {
         if (selected.isActive()) {
             try {
                 PromptService.getInstance().activatePreset(selected.getId());
-                Messages.showInfoMessage("预设内容已保存并同步到 " + selected.getTargetCli().getDisplayName() + "。", "保存成功");
+                Messages.showInfoMessage(
+                        I18n.t("prompt.dialog.savedAndSynced", selected.getTargetCli().getDisplayName()),
+                        I18n.t("prompt.dialog.saveTitle"));
             } catch (IOException ex) {
-                Messages.showErrorDialog("内容已保存，但同步到配置文件失败: " + ex.getMessage(), "同步失败");
+                Messages.showErrorDialog(I18n.t("prompt.dialog.syncFailed", ex.getMessage()),
+                        I18n.t("prompt.dialog.syncFailedTitle"));
             }
         } else {
-            Messages.showInfoMessage("预设内容已保存。", "保存成功");
+            Messages.showInfoMessage(I18n.t("prompt.dialog.saved"), I18n.t("prompt.dialog.saveTitle"));
         }
     }
 
@@ -169,8 +174,8 @@ public class PromptPanel extends JPanel {
         if (selected == null)
             return;
         int result = Messages.showYesNoDialog(
-                "确定删除预设 \"" + selected.getName() + "\" 吗？",
-                "确认删除", Messages.getWarningIcon());
+                I18n.t("prompt.dialog.deleteConfirm", selected.getName()),
+                I18n.t("prompt.dialog.deleteTitle"), Messages.getWarningIcon());
         if (result == Messages.YES) {
             PromptService.getInstance().removePreset(selected.getId());
             editorArea.setText("");
@@ -187,11 +192,12 @@ public class PromptPanel extends JPanel {
         try {
             PromptService.getInstance().activatePreset(selected.getId());
             Messages.showInfoMessage(
-                    "预设 \"" + selected.getName() + "\" 已启用到 "
-                            + selected.getTargetCli().getDisplayName() + "。",
-                    "启用成功");
+                    I18n.t("prompt.dialog.activateSuccess", selected.getName(),
+                            selected.getTargetCli().getDisplayName()),
+                    I18n.t("prompt.dialog.activateTitle"));
         } catch (IOException ex) {
-            Messages.showErrorDialog("启用失败: " + ex.getMessage(), "错误");
+            Messages.showErrorDialog(I18n.t("prompt.dialog.activateFailed", ex.getMessage()),
+                    I18n.t("provider.dialog.error"));
         }
     }
 
@@ -200,8 +206,8 @@ public class PromptPanel extends JPanel {
         if (cli == null)
             return;
         int result = Messages.showYesNoDialog(
-                "加载当前配置将覆盖编辑器内容。\n确定继续吗？",
-                "确认加载", Messages.getQuestionIcon());
+                I18n.t("prompt.dialog.loadConfirm"),
+                I18n.t("prompt.dialog.loadTitle"), Messages.getQuestionIcon());
         if (result == Messages.YES) {
             String content = PromptService.getInstance().readCurrentPrompt(cli);
             editorArea.setText(content);
@@ -240,7 +246,7 @@ public class PromptPanel extends JPanel {
             append(preset.getName());
 
             if (preset.isActive()) {
-                append("  (已启用)", new SimpleTextAttributes(SimpleTextAttributes.STYLE_BOLD,
+                append(I18n.t("prompt.status.active"), new SimpleTextAttributes(SimpleTextAttributes.STYLE_BOLD,
                         new Color(66, 160, 83)));
             }
 

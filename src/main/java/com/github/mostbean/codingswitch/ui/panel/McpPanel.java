@@ -2,6 +2,7 @@ package com.github.mostbean.codingswitch.ui.panel;
 
 import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.McpServer;
+import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.McpService;
 import com.github.mostbean.codingswitch.ui.dialog.McpServerDialog;
 import com.google.gson.Gson;
@@ -67,7 +68,7 @@ public class McpPanel extends JPanel {
 
     private JComponent createTablePanel() {
         serverTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        serverTable.getEmptyText().setText("暂无 MCP 服务器，点击 + 新增或从 CLI 导入");
+        serverTable.getEmptyText().setText(I18n.t("mcp.table.empty"));
         serverTable.setRowHeight(JBUI.scale(28));
 
         serverTable.getColumnModel().getColumn(0).setPreferredWidth(130);
@@ -97,7 +98,8 @@ public class McpPanel extends JPanel {
             }
         });
 
-        saveAction = new AnAction("保存更改", "保存表格中的勾选状态变更", AllIcons.Actions.MenuSaveall) {
+        saveAction = new AnAction(I18n.t("mcp.action.save"), I18n.t("mcp.action.save.tooltip"),
+                AllIcons.Actions.MenuSaveall) {
             @Override
             public void actionPerformed(@NotNull AnActionEvent e) {
                 onSaveChanges();
@@ -114,7 +116,8 @@ public class McpPanel extends JPanel {
                 .setEditAction(button -> onEdit())
                 .setRemoveAction(button -> onDelete())
                 .addExtraAction(saveAction)
-                .addExtraAction(new AnAction("从 CLI 导入", "扫描 CLI 配置中已有的 MCP 服务器", AllIcons.Actions.Download) {
+                .addExtraAction(new AnAction(I18n.t("mcp.action.importCli"), I18n.t("mcp.action.importCli.tooltip"),
+                        AllIcons.Actions.Download) {
                     @Override
                     public void actionPerformed(@NotNull AnActionEvent e) {
                         onImportFromCli();
@@ -136,7 +139,8 @@ public class McpPanel extends JPanel {
                 for (McpServer s : dialog.getServers()) {
                     McpService.getInstance().addServer(s);
                 }
-                Messages.showInfoMessage("已导入 " + dialog.getServers().size() + " 个 MCP 服务器", "导入完成");
+                Messages.showInfoMessage(I18n.t("mcp.import.batchDone", dialog.getServers().size()),
+                        I18n.t("mcp.dialog.importDone"));
             } else {
                 McpService.getInstance().addServer(dialog.getServer());
             }
@@ -160,8 +164,8 @@ public class McpPanel extends JPanel {
             return;
         }
         int result = Messages.showYesNoDialog(
-                "确定删除 MCP 服务器 \"" + selected.getName() + "\" 吗？",
-                "确认删除",
+                I18n.t("mcp.dialog.deleteConfirm", selected.getName()),
+                I18n.t("mcp.dialog.deleteTitle"),
                 Messages.getQuestionIcon());
         if (result == Messages.YES) {
             McpService.getInstance().removeServer(selected.getId());
@@ -177,7 +181,7 @@ public class McpPanel extends JPanel {
             McpService.getInstance().updateServer(s);
         }
         isDirty = false;
-        Messages.showInfoMessage("更改已保存并同步", "保存成功");
+        Messages.showInfoMessage(I18n.t("mcp.dialog.saveSuccess"), I18n.t("mcp.dialog.saveTitle"));
     }
 
     private void onImportFromCli() {
@@ -185,23 +189,23 @@ public class McpPanel extends JPanel {
         McpService.ImportReport report = McpService.getInstance().importFromCliConfigs(projectRoot, options);
 
         StringBuilder sb = new StringBuilder();
-        sb.append("新增导入: ").append(report.newlyImported).append("\n");
-        sb.append("合并已有: ").append(report.mergedExisting).append("\n");
-        sb.append("跳过无效/冲突: ").append(report.skippedInvalid).append("\n\n");
-        sb.append("下一步：勾选目标 CLI 列（如 OpenCode/Codex/Gemini）后点击保存更改即可同步安装。");
+        sb.append(I18n.t("mcp.import.newlyImported", report.newlyImported)).append("\n");
+        sb.append(I18n.t("mcp.import.mergedExisting", report.mergedExisting)).append("\n");
+        sb.append(I18n.t("mcp.import.skippedInvalid", report.skippedInvalid)).append("\n\n");
+        sb.append(I18n.t("mcp.import.nextStep"));
 
         if (!report.warnings.isEmpty()) {
-            sb.append("\n\n告警：\n");
+            sb.append("\n\n").append(I18n.t("mcp.import.warnings")).append("\n");
             int max = Math.min(5, report.warnings.size());
             for (int i = 0; i < max; i++) {
                 sb.append("- ").append(report.warnings.get(i)).append("\n");
             }
             if (report.warnings.size() > max) {
-                sb.append("- ... 其余 ").append(report.warnings.size() - max).append(" 条未展示");
+                sb.append(I18n.t("mcp.import.moreWarnings", report.warnings.size() - max));
             }
         }
 
-        Messages.showInfoMessage(sb.toString(), "导入完成");
+        Messages.showInfoMessage(sb.toString(), I18n.t("mcp.dialog.importDone"));
     }
 
     private McpServer getSelectedServer() {
@@ -263,16 +267,16 @@ public class McpPanel extends JPanel {
         @Override
         public String getColumnName(int column) {
             if (column == COL_NAME) {
-                return "名称";
+                return I18n.t("mcp.table.col.name");
             }
             if (column == COL_TRANSPORT) {
-                return "传输方式";
+                return I18n.t("mcp.table.col.transport");
             }
             if (column >= COL_CLI_START && column < COL_DETAIL) {
                 return CLI_TYPES[column - COL_CLI_START].getDisplayName();
             }
             if (column == COL_DETAIL) {
-                return "详情";
+                return I18n.t("mcp.table.col.detail");
             }
             return "";
         }

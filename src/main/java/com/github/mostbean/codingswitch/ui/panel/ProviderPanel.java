@@ -2,6 +2,7 @@ package com.github.mostbean.codingswitch.ui.panel;
 
 import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.Provider;
+import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.ProviderService;
 import com.github.mostbean.codingswitch.ui.dialog.ProviderDialog;
 import com.google.gson.JsonObject;
@@ -49,7 +50,7 @@ public class ProviderPanel extends JPanel {
 
     private JPanel createToolbar() {
         JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        toolbar.add(new JBLabel("筛选 CLI: "));
+        toolbar.add(new JBLabel(I18n.t("provider.filter.label")));
 
         filterCombo.addItem(null); // "All" 选项
         for (CliType cli : CliType.values()) {
@@ -60,7 +61,7 @@ public class ProviderPanel extends JPanel {
             public Component getListCellRendererComponent(JList<?> list, Object value,
                     int index, boolean isSelected, boolean cellHasFocus) {
                 super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                setText(value == null ? "全部" : ((CliType) value).getDisplayName());
+                setText(value == null ? I18n.t("provider.filter.all") : ((CliType) value).getDisplayName());
                 return this;
             }
         });
@@ -72,7 +73,7 @@ public class ProviderPanel extends JPanel {
 
     private JComponent createTablePanel() {
         providerTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        providerTable.getEmptyText().setText("暂无配置，点击 '+' 新增");
+        providerTable.getEmptyText().setText(I18n.t("provider.table.empty"));
         providerTable.setRowHeight(JBUI.scale(24));
 
         // 列宽调整
@@ -88,7 +89,7 @@ public class ProviderPanel extends JPanel {
                     boolean isSelected, boolean hasFocus,
                     int row, int column) {
                 Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-                if ("已激活".equals(value) && !isSelected) {
+                if (I18n.t("provider.status.active").equals(value) && !isSelected) {
                     c.setForeground(new Color(66, 160, 83)); // 柔和的绿色
                     setFont(getFont().deriveFont(Font.BOLD));
                 } else if (!isSelected) {
@@ -114,7 +115,8 @@ public class ProviderPanel extends JPanel {
                 .setAddAction(button -> onAdd())
                 .setEditAction(button -> onEdit())
                 .setRemoveAction(button -> onDelete())
-                .addExtraAction(new AnAction("复制", "复制选中的配置", AllIcons.Actions.Copy) {
+                .addExtraAction(new AnAction(I18n.t("provider.action.duplicate"),
+                        I18n.t("provider.action.duplicate.tooltip"), AllIcons.Actions.Copy) {
                     @Override
                     public void actionPerformed(@NotNull AnActionEvent e) {
                         onDuplicate();
@@ -125,18 +127,19 @@ public class ProviderPanel extends JPanel {
                         e.getPresentation().setEnabled(providerTable.getSelectedRow() != -1);
                     }
                 })
-                .addExtraAction(new AnAction("激活", "激活选中的配置并同步到 CLI",
-                        AllIcons.Actions.Execute) {
-                    @Override
-                    public void actionPerformed(@NotNull AnActionEvent e) {
-                        onActivate();
-                    }
+                .addExtraAction(
+                        new AnAction(I18n.t("provider.action.activate"), I18n.t("provider.action.activate.tooltip"),
+                                AllIcons.Actions.Execute) {
+                            @Override
+                            public void actionPerformed(@NotNull AnActionEvent e) {
+                                onActivate();
+                            }
 
-                    @Override
-                    public void update(@NotNull AnActionEvent e) {
-                        e.getPresentation().setEnabled(providerTable.getSelectedRow() != -1);
-                    }
-                });
+                            @Override
+                            public void update(@NotNull AnActionEvent e) {
+                                e.getPresentation().setEnabled(providerTable.getSelectedRow() != -1);
+                            }
+                        });
 
         return decorator.createPanel();
     }
@@ -167,8 +170,8 @@ public class ProviderPanel extends JPanel {
         if (selected == null)
             return;
         int result = Messages.showYesNoDialog(
-                "确定删除配置 \"" + selected.getName() + "\" 吗？",
-                "确认删除", Messages.getQuestionIcon());
+                I18n.t("provider.dialog.deleteConfirm", selected.getName()),
+                I18n.t("provider.dialog.deleteTitle"), Messages.getQuestionIcon());
         if (result == Messages.YES) {
             ProviderService.getInstance().removeProvider(selected.getId());
         }
@@ -188,11 +191,12 @@ public class ProviderPanel extends JPanel {
         try {
             ProviderService.getInstance().activateProvider(selected.getId());
             Messages.showInfoMessage(
-                    "配置 \"" + selected.getName() + "\" 已激活\n" +
-                            "已同步到 " + selected.getCliType().getDisplayName() + "",
-                    "激活成功");
+                    I18n.t("provider.dialog.activateSuccess", selected.getName(),
+                            selected.getCliType().getDisplayName()),
+                    I18n.t("provider.dialog.activateTitle"));
         } catch (IOException ex) {
-            Messages.showErrorDialog("激活失败: " + ex.getMessage(), "错误");
+            Messages.showErrorDialog(I18n.t("provider.dialog.activateFailed", ex.getMessage()),
+                    I18n.t("provider.dialog.error"));
         }
     }
 
@@ -217,7 +221,8 @@ public class ProviderPanel extends JPanel {
     // =====================================================================
 
     private static class ProviderTableModel extends AbstractTableModel {
-        private final String[] COLUMNS = { "名称", "CLI", "状态", "模型" };
+        private final String[] COLUMNS = { I18n.t("provider.table.col.name"), I18n.t("provider.table.col.cli"),
+                I18n.t("provider.table.col.status"), I18n.t("provider.table.col.model") };
         private List<Provider> data = new ArrayList<>();
 
         public void setProviders(List<Provider> providers) {
@@ -250,7 +255,7 @@ public class ProviderPanel extends JPanel {
             return switch (columnIndex) {
                 case 0 -> p.getName();
                 case 1 -> p.getCliType().getDisplayName();
-                case 2 -> p.isActive() ? "已激活" : "-";
+                case 2 -> p.isActive() ? I18n.t("provider.status.active") : "-";
                 // 提取主要模型名称用于显示
                 case 3 -> extractModelName(p.getCliType(), p.getSettingsConfig());
                 default -> "";

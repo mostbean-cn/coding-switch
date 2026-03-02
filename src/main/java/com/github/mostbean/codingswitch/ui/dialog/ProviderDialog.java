@@ -2,6 +2,7 @@ package com.github.mostbean.codingswitch.ui.dialog;
 
 import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.Provider;
+import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.ProviderPresets;
 import com.google.gson.JsonObject;
 import com.intellij.openapi.ui.DialogWrapper;
@@ -22,8 +23,8 @@ import java.util.List;
  */
 public class ProviderDialog extends DialogWrapper {
 
-    private static final String PRESET_NONE = "自定义";
-    private static final String OFFICIAL_HINT = "💡 无需配置 API Key，激活后首次运行 CLI 将自动打开浏览器完成官方登录";
+    private static final String PRESET_NONE = I18n.t("providerDialog.preset.custom");
+    private static final String OFFICIAL_HINT = I18n.t("providerDialog.preset.officialHint");
 
     private final JPanel presetButtonsPanel = new JPanel(new GridLayout(0, 5, 8, 8));
     private final JBLabel presetHintLabel = new JBLabel(" ");
@@ -77,7 +78,7 @@ public class ProviderDialog extends DialogWrapper {
         super(true);
         this.provider = existing != null ? existing : new Provider();
 
-        setTitle(existing != null ? "编辑配置" : "新增配置");
+        setTitle(existing != null ? I18n.t("providerDialog.title.edit") : I18n.t("providerDialog.title.add"));
 
         // 构建 CLI 面板
         dynamicPanel.add(buildClaudePanel(), CliType.CLAUDE.name());
@@ -124,11 +125,11 @@ public class ProviderDialog extends DialogWrapper {
 
         // 顶部：预设按钮 + 基本信息
         JPanel topPanel = FormBuilder.createFormBuilder()
-                .addLabeledComponent("预设配置:", presetButtonsPanel)
+                .addLabeledComponent(I18n.t("providerDialog.label.preset"), presetButtonsPanel)
                 .addComponent(presetHintLabel)
                 .addSeparator(8)
-                .addLabeledComponent("CLI 类型:", cliTypeCombo)
-                .addLabeledComponent("配置名称:", nameField)
+                .addLabeledComponent(I18n.t("providerDialog.label.cliType"), cliTypeCombo)
+                .addLabeledComponent(I18n.t("providerDialog.label.configName"), nameField)
                 .getPanel();
 
         centerPanel.add(topPanel, BorderLayout.NORTH);
@@ -196,7 +197,7 @@ public class ProviderDialog extends DialogWrapper {
                 if ("Official Login".equals(preset.name())) {
                     presetHintLabel.setText(OFFICIAL_HINT);
                 } else {
-                    presetHintLabel.setText("💡 已填充预设，请补充 API Key 后保存");
+                    presetHintLabel.setText(I18n.t("providerDialog.preset.fillHint"));
                 }
                 return;
             }
@@ -210,7 +211,8 @@ public class ProviderDialog extends DialogWrapper {
                 if (selectedPreset.equals(presetName)) {
                     // 选中状态：蓝色边框高亮，无背景色变化
                     btn.setBorder(BorderFactory.createCompoundBorder(
-                            BorderFactory.createLineBorder(new JBColor(new Color(59, 130, 246), new Color(96, 165, 250)), 2),
+                            BorderFactory
+                                    .createLineBorder(new JBColor(new Color(59, 130, 246), new Color(96, 165, 250)), 2),
                             BorderFactory.createEmptyBorder(4, 10, 4, 10)));
                     btn.setFont(btn.getFont().deriveFont(Font.BOLD));
                 } else {
@@ -258,46 +260,46 @@ public class ProviderDialog extends DialogWrapper {
 
     private JPanel buildClaudePanel() {
         JPanel form = FormBuilder.createFormBuilder()
-                .addLabeledComponent("Key 字段名:", claudeApiKeyField)
+                .addLabeledComponent(I18n.t("providerDialog.label.keyFieldName"), claudeApiKeyField)
                 .addLabeledComponent("API Key:", claudeApiKey)
                 .addLabeledComponent("Base URL:", claudeBaseUrl)
                 .addSeparator(8)
-                .addLabeledComponent("主模型:", claudeModel)
-                .addLabeledComponent("Haiku 模型:", claudeHaiku)
-                .addLabeledComponent("Sonnet 模型:", claudeSonnet)
-                .addLabeledComponent("Opus 模型:", claudeOpus)
+                .addLabeledComponent(I18n.t("providerDialog.label.mainModel"), claudeModel)
+                .addLabeledComponent("Haiku:", claudeHaiku)
+                .addLabeledComponent("Sonnet:", claudeSonnet)
+                .addLabeledComponent("Opus:", claudeOpus)
                 .getPanel();
-        return wrapWithTitledBorder(form, "Claude Code 配置");
+        return wrapWithTitledBorder(form, I18n.t("providerDialog.border.claude"));
     }
 
     private JPanel buildCodexPanel() {
         JPanel form = FormBuilder.createFormBuilder()
                 .addLabeledComponent("API Key:", codexApiKey)
                 .addLabeledComponent("Base URL:", codexBaseUrl)
-                .addLabeledComponent("模型:", codexModel)
+                .addLabeledComponent(I18n.t("providerDialog.label.model"), codexModel)
                 .addSeparator(8)
-                .addLabeledComponent("推理强度:", codexReasoningEffort)
+                .addLabeledComponent(I18n.t("providerDialog.label.reasoningEffort"), codexReasoningEffort)
                 .getPanel();
-        return wrapWithTitledBorder(form, "Codex 配置");
+        return wrapWithTitledBorder(form, I18n.t("providerDialog.border.codex"));
     }
 
     private JPanel buildGeminiPanel() {
         JPanel form = FormBuilder.createFormBuilder()
                 .addLabeledComponent("API Key:", geminiApiKey)
                 .addLabeledComponent("Base URL:", geminiBaseUrl)
-                .addLabeledComponent("模型:", geminiModel)
+                .addLabeledComponent(I18n.t("providerDialog.label.model"), geminiModel)
                 .getPanel();
-        return wrapWithTitledBorder(form, "Gemini CLI 配置");
+        return wrapWithTitledBorder(form, I18n.t("providerDialog.border.gemini"));
     }
 
     private JPanel buildOpenCodePanel() {
         JPanel form = FormBuilder.createFormBuilder()
-                .addLabeledComponent("NPM 包:", opencodeNpm)
+                .addLabeledComponent(I18n.t("providerDialog.label.npmPackage"), opencodeNpm)
                 .addLabeledComponent("API Key:", opencodeApiKey)
                 .addLabeledComponent("Base URL:", opencodeBaseUrl)
-                .addLabeledComponent("模型:", opencodeModel)
+                .addLabeledComponent(I18n.t("providerDialog.label.model"), opencodeModel)
                 .getPanel();
-        return wrapWithTitledBorder(form, "OpenCode 配置");
+        return wrapWithTitledBorder(form, I18n.t("providerDialog.border.opencode"));
     }
 
     private JPanel wrapWithTitledBorder(JPanel content, String title) {
@@ -502,7 +504,7 @@ public class ProviderDialog extends DialogWrapper {
     @Override
     protected @Nullable ValidationInfo doValidate() {
         if (nameField.getText().isBlank()) {
-            return new ValidationInfo("请填写配置名称", nameField);
+            return new ValidationInfo(I18n.t("providerDialog.validate.nameRequired"), nameField);
         }
         // Official 预设不需要校验 API Key
         if ("Official Login".equals(selectedPreset))
@@ -511,16 +513,16 @@ public class ProviderDialog extends DialogWrapper {
         CliType cli = (CliType) cliTypeCombo.getSelectedItem();
         return switch (cli) {
             case CLAUDE -> claudeApiKey.getText().isBlank()
-                    ? new ValidationInfo("请填写 API Key", claudeApiKey)
+                    ? new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), claudeApiKey)
                     : null;
             case CODEX -> codexApiKey.getText().isBlank()
-                    ? new ValidationInfo("请填写 API Key", codexApiKey)
+                    ? new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), codexApiKey)
                     : null;
             case GEMINI -> geminiApiKey.getText().isBlank()
-                    ? new ValidationInfo("请填写 API Key", geminiApiKey)
+                    ? new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), geminiApiKey)
                     : null;
             case OPENCODE -> opencodeApiKey.getText().isBlank()
-                    ? new ValidationInfo("请填写 API Key", opencodeApiKey)
+                    ? new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), opencodeApiKey)
                     : null;
         };
     }

@@ -2,6 +2,7 @@ package com.github.mostbean.codingswitch.ui.panel;
 
 import com.github.mostbean.codingswitch.model.SessionMessage;
 import com.github.mostbean.codingswitch.model.SessionMeta;
+import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.SessionScannerService;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.application.ApplicationManager;
@@ -44,7 +45,7 @@ public class SessionPanel extends JPanel {
         }
     };
     private final JPanel messageContainer = new JPanel();
-    private final JBLabel emptyLabel = new JBLabel("选择一个会话查看详情", SwingConstants.CENTER);
+    private final JBLabel emptyLabel = new JBLabel(I18n.t("session.empty.selectHint"), SwingConstants.CENTER);
 
     private List<SessionMeta> allSessions = new ArrayList<>();
     private String searchQuery = "";
@@ -111,7 +112,7 @@ public class SessionPanel extends JPanel {
         filterBar.add(filterCombo, BorderLayout.CENTER);
 
         JButton refreshBtn = new JButton(AllIcons.Actions.Refresh);
-        refreshBtn.setToolTipText("刷新会话列表");
+        refreshBtn.setToolTipText(I18n.t("session.tooltip.refresh"));
         refreshBtn.addActionListener(e -> refreshSessions());
         filterBar.add(refreshBtn, BorderLayout.EAST);
 
@@ -183,7 +184,7 @@ public class SessionPanel extends JPanel {
         // 中部：消息时间线（先显示加载中）
         messageContainer.removeAll();
         messageContainer.setLayout(new BoxLayout(messageContainer, BoxLayout.Y_AXIS));
-        JBLabel loadingLabel = new JBLabel("加载消息中...", SwingConstants.CENTER);
+        JBLabel loadingLabel = new JBLabel(I18n.t("session.loading.messages"), SwingConstants.CENTER);
         loadingLabel.setForeground(UIUtil.getInactiveTextColor());
         messageContainer.add(loadingLabel);
 
@@ -277,7 +278,7 @@ public class SessionPanel extends JPanel {
         row.add(label, BorderLayout.CENTER);
 
         JButton copyBtn = new JButton(AllIcons.Actions.Copy);
-        copyBtn.setToolTipText("复制: " + copyValue);
+        copyBtn.setToolTipText(I18n.t("session.tooltip.copy", copyValue));
         copyBtn.setPreferredSize(new Dimension(20, 20));
         copyBtn.setMargin(JBUI.emptyInsets());
         copyBtn.setBorderPainted(false);
@@ -300,13 +301,13 @@ public class SessionPanel extends JPanel {
 
         // 复制恢复命令
         if (session.getResumeCommand() != null && !session.getResumeCommand().isBlank()) {
-            JButton copyCmd = new JButton("复制恢复命令");
+            JButton copyCmd = new JButton(I18n.t("session.button.copyResumeCmd"));
             copyCmd.setIcon(AllIcons.Actions.Copy);
             copyCmd.setToolTipText(session.getResumeCommand());
             copyCmd.addActionListener(e -> {
                 copyToClipboard(session.getResumeCommand());
-                copyCmd.setText("已复制 ✓");
-                Timer timer = new Timer(2000, ev -> copyCmd.setText("复制恢复命令"));
+                copyCmd.setText(I18n.t("session.button.copied"));
+                Timer timer = new Timer(2000, ev -> copyCmd.setText(I18n.t("session.button.copyResumeCmd")));
                 timer.setRepeats(false);
                 timer.start();
             });
@@ -315,13 +316,13 @@ public class SessionPanel extends JPanel {
 
         // 复制项目目录
         if (session.getProjectDir() != null && !session.getProjectDir().isBlank()) {
-            JButton copyDir = new JButton("复制项目目录");
+            JButton copyDir = new JButton(I18n.t("session.button.copyProjectDir"));
             copyDir.setIcon(AllIcons.Actions.Copy);
             copyDir.setToolTipText(session.getProjectDir());
             copyDir.addActionListener(e -> {
                 copyToClipboard(session.getProjectDir());
-                copyDir.setText("已复制 ✓");
-                Timer timer = new Timer(2000, ev -> copyDir.setText("复制项目目录"));
+                copyDir.setText(I18n.t("session.button.copied"));
+                Timer timer = new Timer(2000, ev -> copyDir.setText(I18n.t("session.button.copyProjectDir")));
                 timer.setRepeats(false);
                 timer.start();
             });
@@ -335,7 +336,7 @@ public class SessionPanel extends JPanel {
         messageContainer.removeAll();
 
         if (messages.isEmpty()) {
-            JBLabel empty = new JBLabel("暂无消息记录", SwingConstants.CENTER);
+            JBLabel empty = new JBLabel(I18n.t("session.empty.noMessages"), SwingConstants.CENTER);
             empty.setForeground(UIUtil.getInactiveTextColor());
             empty.setAlignmentX(Component.LEFT_ALIGNMENT);
             messageContainer.add(empty);
@@ -393,7 +394,7 @@ public class SessionPanel extends JPanel {
         // 消息内容（限制最大行数，超长截断）
         String content = message.getContent();
         if (content.length() > 2000) {
-            content = content.substring(0, 2000) + "\n... (内容过长已截断)";
+            content = content.substring(0, 2000) + I18n.t("session.content.truncated");
         }
         JTextArea textArea = new JTextArea(content);
         textArea.setEditable(false);
@@ -462,7 +463,7 @@ public class SessionPanel extends JPanel {
         // 清空并显示加载状态
         listModel.clear();
         detailPanel.removeAll();
-        JBLabel loading = new JBLabel("正在扫描会话...", SwingConstants.CENTER);
+        JBLabel loading = new JBLabel(I18n.t("session.loading.scanning"), SwingConstants.CENTER);
         loading.setForeground(UIUtil.getInactiveTextColor());
         detailPanel.add(loading, BorderLayout.CENTER);
         detailPanel.revalidate();
@@ -477,11 +478,7 @@ public class SessionPanel extends JPanel {
                 detailPanel.removeAll();
                 if (sessions.isEmpty()) {
                     JBLabel noData = new JBLabel(
-                            "<html><center>未发现任何会话<br><br>"
-                                    + "<font size='2' color='gray'>"
-                                    + "请确保已安装并使用过 Claude Code、Codex、<br>"
-                                    + "Gemini CLI 或 OpenCode 中的至少一个工具。"
-                                    + "</font></center></html>",
+                            I18n.t("session.empty.noSessions"),
                             SwingConstants.CENTER);
                     detailPanel.add(noData, BorderLayout.CENTER);
                 } else {
@@ -537,20 +534,20 @@ public class SessionPanel extends JPanel {
 
     private String formatRelativeTime(Long millis) {
         if (millis == null)
-            return "未知";
+            return I18n.t("session.time.unknown");
         long diff = System.currentTimeMillis() - millis;
         long minutes = diff / 60_000;
         long hours = diff / 3_600_000;
         long days = diff / 86_400_000;
 
         if (minutes < 1)
-            return "刚刚";
+            return I18n.t("session.time.justNow");
         if (minutes < 60)
-            return minutes + " 分钟前";
+            return I18n.t("session.time.minutesAgo", minutes);
         if (hours < 24)
-            return hours + " 小时前";
+            return I18n.t("session.time.hoursAgo", hours);
         if (days < 7)
-            return days + " 天前";
+            return I18n.t("session.time.daysAgo", days);
         return DateTimeFormatter.ofPattern("yyyy-MM-dd")
                 .format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()));
     }
@@ -558,12 +555,12 @@ public class SessionPanel extends JPanel {
     private String formatTimeRange(Long createdAt, Long lastActiveAt) {
         StringBuilder sb = new StringBuilder();
         if (createdAt != null) {
-            sb.append("创建: ").append(formatRelativeTime(createdAt));
+            sb.append(I18n.t("session.time.created", formatRelativeTime(createdAt)));
         }
         if (lastActiveAt != null && !lastActiveAt.equals(createdAt)) {
             if (!sb.isEmpty())
                 sb.append("  ·  ");
-            sb.append("最后活跃: ").append(formatRelativeTime(lastActiveAt));
+            sb.append(I18n.t("session.time.lastActive", formatRelativeTime(lastActiveAt)));
         }
         return sb.toString();
     }

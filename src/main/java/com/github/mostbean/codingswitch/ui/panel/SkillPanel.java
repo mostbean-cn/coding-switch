@@ -2,6 +2,7 @@ package com.github.mostbean.codingswitch.ui.panel;
 
 import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.Skill;
+import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.SkillService;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.AnAction;
@@ -51,7 +52,7 @@ public class SkillPanel extends JPanel {
 
     private JComponent createTablePanel() {
         skillTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        skillTable.getEmptyText().setText("暂无 Skills，点击 '扫描本地' 发现已安装的技能");
+        skillTable.getEmptyText().setText(I18n.t("skill.table.empty"));
         skillTable.setRowHeight(JBUI.scale(28));
 
         // 列宽设置
@@ -72,7 +73,7 @@ public class SkillPanel extends JPanel {
                     boolean isSelected, boolean hasFocus,
                     int row, int column) {
                 Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-                if ("已安装".equals(value) && !isSelected) {
+                if (I18n.t("skill.status.installed").equals(value) && !isSelected) {
                     c.setForeground(new Color(66, 160, 83));
                     setFont(getFont().deriveFont(Font.BOLD));
                 } else if (!isSelected) {
@@ -83,7 +84,8 @@ public class SkillPanel extends JPanel {
             }
         });
 
-        saveAction = new AnAction("保存更改", "保存表格中的勾选状态变更", AllIcons.Actions.MenuSaveall) {
+        saveAction = new AnAction(I18n.t("skill.action.save"), I18n.t("skill.action.save.tooltip"),
+                AllIcons.Actions.MenuSaveall) {
             @Override
             public void actionPerformed(@NotNull AnActionEvent e) {
                 onSaveChanges();
@@ -97,9 +99,9 @@ public class SkillPanel extends JPanel {
 
         ToolbarDecorator decorator = ToolbarDecorator.createDecorator(skillTable)
                 .setRemoveAction(button -> onUninstall())
-                .setRemoveActionName("卸载 Skill")
+                .setRemoveActionName(I18n.t("skill.action.uninstall"))
                 .addExtraAction(saveAction)
-                .addExtraAction(new AnAction("扫描本地", "扫描 ~/.claude/skills/ 中已安装的 Skills",
+                .addExtraAction(new AnAction(I18n.t("skill.action.scanLocal"), I18n.t("skill.action.scanLocal.tooltip"),
                         AllIcons.Actions.Refresh) {
                     @Override
                     public void actionPerformed(@NotNull AnActionEvent e) {
@@ -107,7 +109,8 @@ public class SkillPanel extends JPanel {
                     }
                 })
                 .addExtraAction(
-                        new AnAction("添加仓库", "添加自定义 GitHub 仓库 URL", AllIcons.General.Add) {
+                        new AnAction(I18n.t("skill.action.addRepo"), I18n.t("skill.action.addRepo.tooltip"),
+                                AllIcons.General.Add) {
                             @Override
                             public void actionPerformed(@NotNull AnActionEvent e) {
                                 onAddRepo();
@@ -137,8 +140,8 @@ public class SkillPanel extends JPanel {
         tableModel.setSkills(localSkills);
         if (localSkills.isEmpty()) {
             Messages.showInfoMessage(
-                    "未在 ~/.claude/skills/ 中发现已安装的 Skills",
-                    "扫描结果");
+                    I18n.t("skill.dialog.scanEmpty"),
+                    I18n.t("skill.dialog.scanTitle"));
         }
     }
 
@@ -150,25 +153,26 @@ public class SkillPanel extends JPanel {
         if (selected == null || !selected.isInstalled())
             return;
         int result = Messages.showYesNoDialog(
-                "卸载技能 \"" + selected.getName() + "\" 吗？\n这将删除本地目录。",
-                "确认卸载", Messages.getWarningIcon());
+                I18n.t("skill.dialog.uninstallConfirm", selected.getName()),
+                I18n.t("skill.dialog.uninstallTitle"), Messages.getWarningIcon());
         if (result == Messages.YES) {
             try {
                 SkillService.getInstance().uninstallSkill(selected.getId());
                 onScanLocal();
             } catch (IOException ex) {
-                Messages.showErrorDialog("卸载失败: " + ex.getMessage(), "错误");
+                Messages.showErrorDialog(I18n.t("skill.dialog.uninstallFailed", ex.getMessage()),
+                        I18n.t("provider.dialog.error"));
             }
         }
     }
 
     private void onAddRepo() {
         String url = Messages.showInputDialog(
-                "输入 GitHub 仓库 URL：\n（例：https://github.com/anthropics/courses）",
-                "添加自定义仓库", Messages.getQuestionIcon());
+                I18n.t("skill.dialog.addRepoPrompt"),
+                I18n.t("skill.dialog.addRepoTitle"), Messages.getQuestionIcon());
         if (url != null && !url.isBlank()) {
             SkillService.getInstance().addCustomRepo(url.trim());
-            Messages.showInfoMessage("仓库已添加: " + url, "成功");
+            Messages.showInfoMessage(I18n.t("skill.dialog.addRepoDone", url), I18n.t("skill.dialog.addRepoSuccess"));
         }
     }
 
@@ -180,7 +184,7 @@ public class SkillPanel extends JPanel {
             SkillService.getInstance().updateSkill(s);
         }
         isDirty = false;
-        Messages.showInfoMessage("Skill 同步状态已更新", "保存成功");
+        Messages.showInfoMessage(I18n.t("skill.dialog.saveSuccess"), I18n.t("skill.dialog.saveTitle"));
     }
 
     private void refreshTable() {
@@ -242,14 +246,14 @@ public class SkillPanel extends JPanel {
         @Override
         public String getColumnName(int column) {
             if (column == COL_NAME)
-                return "名称";
+                return I18n.t("skill.table.col.name");
             if (column == COL_STATUS)
-                return "状态";
+                return I18n.t("skill.table.col.status");
             if (column >= COL_CLI_START && column < COL_DESC) {
                 return CLI_TYPES[column - COL_CLI_START].getDisplayName();
             }
             if (column == COL_DESC)
-                return "描述";
+                return I18n.t("skill.table.col.desc");
             return "";
         }
 
@@ -273,7 +277,7 @@ public class SkillPanel extends JPanel {
             if (columnIndex == COL_NAME)
                 return s.getName();
             if (columnIndex == COL_STATUS)
-                return s.isInstalled() ? "已安装" : "未安装";
+                return s.isInstalled() ? I18n.t("skill.status.installed") : I18n.t("skill.status.notInstalled");
             if (columnIndex >= COL_CLI_START && columnIndex < COL_DESC) {
                 CliType cli = CLI_TYPES[columnIndex - COL_CLI_START];
                 return s.isSyncedTo(cli);

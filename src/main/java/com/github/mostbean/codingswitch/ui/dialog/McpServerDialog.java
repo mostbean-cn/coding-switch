@@ -2,6 +2,7 @@ package com.github.mostbean.codingswitch.ui.dialog;
 
 import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.McpServer;
+import com.github.mostbean.codingswitch.service.I18n;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -51,7 +52,7 @@ public class McpServerDialog extends DialogWrapper {
         this.server = existing != null ? existing : new McpServer();
         this.isEdit = existing != null;
 
-        setTitle(isEdit ? "编辑 MCP 服务器" : "新增 MCP 服务器");
+        setTitle(isEdit ? I18n.t("mcpDialog.title.edit") : I18n.t("mcpDialog.title.add"));
 
         for (CliType cliType : CliType.values()) {
             JBCheckBox cb = new JBCheckBox(cliType.getDisplayName());
@@ -126,9 +127,9 @@ public class McpServerDialog extends DialogWrapper {
         }
 
         JPanel formPanel = FormBuilder.createFormBuilder()
-                .addLabeledComponent("服务器名称:", nameField)
-                .addLabeledComponent("传输方式:", transportCombo)
-                .addLabeledComponent("同步目标:", syncPanel)
+                .addLabeledComponent(I18n.t("mcpDialog.label.name"), nameField)
+                .addLabeledComponent(I18n.t("mcpDialog.label.transport"), transportCombo)
+                .addLabeledComponent(I18n.t("mcpDialog.label.syncTarget"), syncPanel)
                 .addComponent(transportDynamicPanel)
                 .getPanel();
         formPanel.setBorder(JBUI.Borders.empty(4, 8, 4, 8));
@@ -137,15 +138,7 @@ public class McpServerDialog extends DialogWrapper {
         JPanel jsonPanel = new JPanel(new BorderLayout(0, 8));
         jsonPanel.setBorder(JBUI.Borders.empty(8));
 
-        JBLabel hint = new JBLabel("<html>" +
-                "粘贴 JSON 格式的 MCP 服务器配置，支持以下格式：<br><br>" +
-                "<b>单个服务器（带名称）：</b><br>" +
-                "<code>{\"server-name\": {\"command\": \"npx\", \"args\": [\"-y\", \"pkg\"]}}</code><br><br>" +
-                "<b>单个服务器（不带名称）：</b><br>" +
-                "<code>{\"command\": \"npx\", \"args\": [\"-y\", \"pkg\"]}</code><br><br>" +
-                "<b>多个服务器：</b><br>" +
-                "<code>{\"s1\": {\"command\": \"..\"}, \"s2\": {\"url\": \"...\"}}</code>" +
-                "</html>");
+        JBLabel hint = new JBLabel(I18n.t("mcpDialog.json.hint"));
         hint.setForeground(JBUI.CurrentTheme.ContextHelp.FOREGROUND);
 
         jsonInput.setFont(new Font(Font.MONOSPACED, Font.PLAIN, JBUI.scale(12)));
@@ -161,9 +154,9 @@ public class McpServerDialog extends DialogWrapper {
         jsonPanel.add(new JScrollPane(jsonInput), BorderLayout.CENTER);
 
         // ===== 标签页 =====
-        tabbedPane.addTab("表单模式", formPanel);
+        tabbedPane.addTab(I18n.t("mcpDialog.tab.form"), formPanel);
         if (!isEdit) {
-            tabbedPane.addTab("JSON 导入", jsonPanel);
+            tabbedPane.addTab(I18n.t("mcpDialog.tab.json"), jsonPanel);
         }
 
         JPanel wrapper = new JPanel(new BorderLayout());
@@ -174,19 +167,19 @@ public class McpServerDialog extends DialogWrapper {
 
     private JPanel buildStdioPanel() {
         JPanel form = FormBuilder.createFormBuilder()
-                .addLabeledComponent("命令:", commandField)
-                .addLabeledComponent("参数:", argsField)
-                .addTooltip("空格分隔的参数（如 run main.js）")
+                .addLabeledComponent(I18n.t("mcpDialog.label.command"), commandField)
+                .addLabeledComponent(I18n.t("mcpDialog.label.args"), argsField)
+                .addTooltip(I18n.t("mcpDialog.label.argsHint"))
                 .getPanel();
-        return wrapWithTitledBorder(form, "STDIO 选项");
+        return wrapWithTitledBorder(form, I18n.t("mcpDialog.border.stdio"));
     }
 
     private JPanel buildUrlPanel() {
         JPanel form = FormBuilder.createFormBuilder()
                 .addLabeledComponent("URL:", urlField)
-                .addTooltip("如 http://localhost:8080/sse")
+                .addTooltip(I18n.t("mcpDialog.label.urlHint"))
                 .getPanel();
-        return wrapWithTitledBorder(form, "网络选项");
+        return wrapWithTitledBorder(form, I18n.t("mcpDialog.border.network"));
     }
 
     private JPanel wrapWithTitledBorder(JPanel content, String title) {
@@ -216,21 +209,21 @@ public class McpServerDialog extends DialogWrapper {
 
     private ValidationInfo validateForm() {
         if (nameField.getText().isBlank()) {
-            return new ValidationInfo("请填写服务器名称", nameField);
+            return new ValidationInfo(I18n.t("mcpDialog.validate.nameRequired"), nameField);
         }
         McpServer.TransportType type = (McpServer.TransportType) transportCombo.getSelectedItem();
         if (type == McpServer.TransportType.STDIO) {
             if (commandField.getText().isBlank()) {
-                return new ValidationInfo("STDIO 模式请填写命令", commandField);
+                return new ValidationInfo(I18n.t("mcpDialog.validate.commandRequired"), commandField);
             }
         } else {
             if (urlField.getText().isBlank()) {
-                return new ValidationInfo("请填写 URL", urlField);
+                return new ValidationInfo(I18n.t("mcpDialog.validate.urlRequired"), urlField);
             }
         }
         boolean hasSync = syncChecks.values().stream().anyMatch(JBCheckBox::isSelected);
         if (!hasSync) {
-            return new ValidationInfo("请至少选择一个同步目标 CLI");
+            return new ValidationInfo(I18n.t("mcpDialog.validate.syncRequired"));
         }
         return null;
     }
@@ -238,12 +231,12 @@ public class McpServerDialog extends DialogWrapper {
     private ValidationInfo validateJson() {
         String text = jsonInput.getText().trim();
         if (text.isEmpty()) {
-            return new ValidationInfo("请粘贴 JSON 配置", jsonInput);
+            return new ValidationInfo(I18n.t("mcpDialog.validate.jsonRequired"), jsonInput);
         }
         try {
             parseJsonInput(text);
         } catch (Exception e) {
-            return new ValidationInfo("JSON 解析失败: " + e.getMessage(), jsonInput);
+            return new ValidationInfo(I18n.t("mcpDialog.validate.jsonFailed", e.getMessage()), jsonInput);
         }
         return null;
     }
@@ -334,7 +327,7 @@ public class McpServerDialog extends DialogWrapper {
         }
 
         if (parsedServers.isEmpty()) {
-            throw new IllegalArgumentException("未找到有效的 MCP 服务器配置");
+            throw new IllegalArgumentException(I18n.t("mcpDialog.json.noValidServer"));
         }
     }
 
