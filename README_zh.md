@@ -8,9 +8,9 @@ Coding Switch 是一款专为 JetBrains IDE 打造的 AI 编程 CLI 工具多合
 
 ## 核心功能
 
-- **供应商配置管理 (Provider)**：轻松管理和批量切换 Claude Code、Codex (OpenAI)、Gemini CLI 和 OpenCode 的 API 配置。支持官方接口以及自定义第三方或本地大模型接口，内置多个国产大模型预设（DeepSeek、智谱 GLM、MiniMax、Kimi、百度千帆、阿里 Plan 等）。
+- **供应商配置管理 (Provider)**：轻松管理和批量切换 Claude Code、Codex (OpenAI)、Gemini CLI 和 OpenCode 的 API 配置。支持官方接口以及自定义第三方或本地大模型接口，内置多个国产大模型预设（DeepSeek、智谱 GLM、MiniMax、Kimi、百度千帆、阿里 Plan 等），并支持激活前连接测试与健康检查。
 - **MCP 管理**：为所有支持的 AI CLI 提供统一的 Model Context Protocol (MCP) 服务器管理。
-- **技能管理 (Skills)**：直接从 GitHub 仓库发现、安装和管理自定义技能（例如 Claude Skills）。
+- **技能管理 (Skills)**：可从 GitHub 仓库发现、安装、更新和卸载自定义技能（例如 Claude Skills），形成完整闭环；无 Git 环境下支持 ZIP 下载解压安装/更新兜底。内置 4 个推荐仓库（ComposioHQ/awesome-claude-skills、JimLiu/baoyu-skills、anthropics/skills、cexll/myclaude），并支持在 Skills 面板 `+` 按钮中一键安装和外部浏览器打开仓库 Skills 地址。除 Claude 原生 Skills 外，Codex/Gemini/OpenCode 也可通过 Skills Bridge 自动同步到各自提示词文件。
 - **提示词管理 (Prompts)**：支持 Markdown 的多系统提示词管理，方便快速切换 AI 助手的上下文和预设行为模式。
 
 ## 支持的工具

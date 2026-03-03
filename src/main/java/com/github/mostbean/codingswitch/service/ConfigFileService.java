@@ -95,9 +95,22 @@ public final class ConfigFileService {
         };
     }
 
-    /** Skills 安装目录（仅 Claude） */
-    public Path getSkillsDir() {
+    /** Skills 全局安装中立目录 */
+    public Path getGlobalSkillsDir() {
+        return userHome().resolve(".config").resolve("coding-switch").resolve("skills");
+    }
+
+    /** Claude Code 的专用 Skills 目录 */
+    public Path getClaudeSkillsDir() {
         return getConfigDir(CliType.CLAUDE).resolve("skills");
+    }
+
+    public Path getCodexSkillsDir() {
+        return getConfigDir(CliType.CODEX).resolve("skills");
+    }
+
+    public Path getGeminiSkillsDir() {
+        return getConfigDir(CliType.GEMINI).resolve("skills");
     }
 
     // =====================================================================

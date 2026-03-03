@@ -21,7 +21,9 @@ import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JList;
 import javax.swing.JPanel;
+import javax.swing.JPasswordField;
 import javax.swing.JTextField;
+import javax.swing.JToggleButton;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
@@ -187,6 +189,9 @@ public class SettingsPanel extends JPanel {
         section.setBorder(BorderFactory.createTitledBorder(
                 BorderFactory.createEtchedBorder(), I18n.t("settings.section.preferences")));
 
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+
         JPanel langRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
         langRow.add(new JBLabel(I18n.t("settings.label.uiLanguage")));
 
@@ -205,12 +210,45 @@ public class SettingsPanel extends JPanel {
         });
         langCombo.addActionListener(e -> onLanguageChanged(langCombo));
         langRow.add(langCombo);
+        content.add(langRow);
+
+        JPanel tokenRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
+        tokenRow.add(new JBLabel(I18n.t("settings.label.githubToken")));
+        JPasswordField tokenField = new JPasswordField(28);
+        tokenField.setText(PluginSettings.getInstance().getGithubToken());
+        tokenRow.add(tokenField);
+
+        JToggleButton showToggle = new JToggleButton(I18n.t("settings.button.show"));
+        char defaultEcho = tokenField.getEchoChar();
+        showToggle.addActionListener(e -> {
+            boolean selected = showToggle.isSelected();
+            tokenField.setEchoChar(selected ? (char) 0 : defaultEcho);
+            showToggle.setText(I18n.t(selected ? "settings.button.hide" : "settings.button.show"));
+        });
+        tokenRow.add(showToggle);
+
+        JButton saveTokenBtn = new JButton(I18n.t("settings.button.saveGithubToken"));
+        saveTokenBtn.addActionListener(e -> {
+            String token = new String(tokenField.getPassword()).trim();
+            PluginSettings.getInstance().setGithubToken(token);
+            Messages.showInfoMessage(
+                    I18n.t("settings.githubToken.saved"),
+                    I18n.t("settings.githubToken.title"));
+        });
+        tokenRow.add(saveTokenBtn);
+        content.add(tokenRow);
+
+        JPanel tokenHintRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        JBLabel tokenHintLabel = new JBLabel(I18n.t("settings.hint.githubToken"));
+        tokenHintLabel.setForeground(JBColor.GRAY);
+        tokenHintRow.add(tokenHintLabel);
+        content.add(tokenHintRow);
 
         JBLabel hintLabel = new JBLabel(I18n.t("settings.hint.restartRequired"));
         hintLabel.setForeground(new JBColor(new Color(200, 130, 0), new Color(230, 180, 80)));
         hintLabel.setBorder(JBUI.Borders.empty(0, 12, 8, 12));
 
-        section.add(langRow, BorderLayout.NORTH);
+        section.add(content, BorderLayout.NORTH);
         section.add(hintLabel, BorderLayout.CENTER);
         return section;
     }

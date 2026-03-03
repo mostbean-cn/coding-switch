@@ -8,9 +8,9 @@ Coding Switch is an All-in-One configuration manager for AI Coding CLI tools, bu
 
 ## Features
 
-- **Provider Management**: Effortlessly manage and switch API configurations for Claude Code, Codex (OpenAI), Gemini CLI, and OpenCode. Supports official APIs as well as custom base URLs for third-party or local providers, including popular Chinese LLM services (DeepSeek, Zhipu, Kimi, Baidu Qianfan, Alibaba).
+- **Provider Management**: Effortlessly manage and switch API configurations for Claude Code, Codex (OpenAI), Gemini CLI, and OpenCode. Supports official APIs as well as custom base URLs for third-party or local providers, including popular Chinese LLM services (DeepSeek, Zhipu, Kimi, Baidu Qianfan, Alibaba), with pre-activation connection tests and health checks.
 - **MCP Management**: Unified Model Context Protocol (MCP) server management across all supported AI CLIs.
-- **Skills Management**: Discover, install, and manage custom skills (e.g., Claude Skills) directly from GitHub repositories.
+- **Skills Management**: Discover, install, update, and uninstall custom skills (e.g., Claude Skills) directly from GitHub repositories, with ZIP-download fallback for install/update when git is unavailable. Built-in discovery includes 4 recommended repositories (ComposioHQ/awesome-claude-skills, JimLiu/baoyu-skills, anthropics/skills, cexll/myclaude), with one-click install from the Skills panel `+` button and external browser open for repository skills pages. Besides Claude native skills, Codex/Gemini/OpenCode are also adapted via an auto-managed Skills Bridge in their prompt files.
 - **Prompts Management**: Manage multiple preset system prompts with Markdown support to easily switch the context and behavior of your AI assistants.
 
 ## Supported AI CLIs

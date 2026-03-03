@@ -3,9 +3,13 @@ package com.github.mostbean.codingswitch.ui.dialog;
 import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.Provider;
 import com.github.mostbean.codingswitch.service.I18n;
+import com.github.mostbean.codingswitch.service.ProviderConnectionTestService;
 import com.github.mostbean.codingswitch.service.ProviderPresets;
 import com.google.gson.JsonObject;
+import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.ui.DialogWrapper;
+import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.ValidationInfo;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.components.JBLabel;
@@ -70,6 +74,8 @@ public class ProviderDialog extends DialogWrapper {
             "@ai-sdk/mistral");
 
     private final JPanel dynamicPanel = new JPanel(new CardLayout());
+    private final JButton testConnectionButton = new JButton(I18n.t("providerDialog.button.testConnection"));
+    private final JBLabel testStatusLabel = new JBLabel(" ");
     private final Provider provider;
     private String selectedPreset = PRESET_NONE;
     private List<ProviderPresets.Preset> currentPresets = List.of();
@@ -104,6 +110,8 @@ public class ProviderDialog extends DialogWrapper {
             opencodeNpm.setSelectedItem("@ai-sdk/openai-compatible");
         }
 
+        testConnectionButton.addActionListener(e -> onTestConnection());
+
         init();
 
         // 触发初始面板 + 预设按钮
@@ -122,11 +130,18 @@ public class ProviderDialog extends DialogWrapper {
         // 预设提示标签样式
         presetHintLabel.setForeground(new JBColor(new Color(200, 130, 0), new Color(230, 180, 80)));
         presetHintLabel.setBorder(JBUI.Borders.empty(0, 0, 4, 0));
+        testStatusLabel.setBorder(JBUI.Borders.empty(0, 0, 4, 0));
+
+        JPanel testPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        testPanel.add(testConnectionButton);
+        testPanel.add(Box.createHorizontalStrut(8));
+        testPanel.add(testStatusLabel);
 
         // 顶部：预设按钮 + 基本信息
         JPanel topPanel = FormBuilder.createFormBuilder()
                 .addLabeledComponent(I18n.t("providerDialog.label.preset"), presetButtonsPanel)
                 .addComponent(presetHintLabel)
+                .addComponent(testPanel)
                 .addSeparator(8)
                 .addLabeledComponent(I18n.t("providerDialog.label.cliType"), cliTypeCombo)
                 .addLabeledComponent(I18n.t("providerDialog.label.configName"), nameField)
@@ -183,6 +198,7 @@ public class ProviderDialog extends DialogWrapper {
 
         if (PRESET_NONE.equals(presetName)) {
             presetHintLabel.setText(" ");
+            testStatusLabel.setText(" ");
             return;
         }
 
@@ -199,6 +215,7 @@ public class ProviderDialog extends DialogWrapper {
                 } else {
                     presetHintLabel.setText(I18n.t("providerDialog.preset.fillHint"));
                 }
+                testStatusLabel.setText(" ");
                 return;
             }
         }
@@ -539,5 +556,37 @@ public class ProviderDialog extends DialogWrapper {
         JComboBox<String> combo = new JComboBox<>(items);
         combo.setEditable(true);
         return combo;
+    }
+
+    private void onTestConnection() {
+        CliType cliType = (CliType) cliTypeCombo.getSelectedItem();
+        if (cliType == null) {
+            return;
+        }
+
+        ValidationInfo info = doValidate();
+        if (info != null) {
+            Messages.showWarningDialog(info.message, I18n.t("providerDialog.test.validationTitle"));
+            return;
+        }
+
+        JsonObject config = buildSettingsConfig(cliType);
+        testConnectionButton.setEnabled(false);
+        testStatusLabel.setText(I18n.t("providerDialog.test.testing"));
+        testStatusLabel.setForeground(JBColor.GRAY);
+
+        ApplicationManager.getApplication().executeOnPooledThread(() -> {
+            ProviderConnectionTestService.TestResult result = ProviderConnectionTestService.getInstance().test(cliType, config);
+            ApplicationManager.getApplication().invokeLater(() -> {
+                testConnectionButton.setEnabled(true);
+                if (result.success()) {
+                    testStatusLabel.setText(I18n.t("providerDialog.test.success", result.durationMs()));
+                    testStatusLabel.setForeground(new Color(66, 160, 83));
+                } else {
+                    testStatusLabel.setText(I18n.t("providerDialog.test.failed", result.message()));
+                    testStatusLabel.setForeground(JBColor.RED);
+                }
+            }, ModalityState.any());
+        });
     }
 }

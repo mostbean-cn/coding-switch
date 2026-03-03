@@ -29,6 +29,7 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
 
     public static class State {
         public String language = Language.ZH.name();
+        public String githubToken = "";
     }
 
     private State state = new State();
@@ -57,6 +58,14 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
 
     public void setLanguage(Language lang) {
         state.language = lang.name();
+    }
+
+    public String getGithubToken() {
+        return state.githubToken == null ? "" : state.githubToken.trim();
+    }
+
+    public void setGithubToken(String token) {
+        state.githubToken = token == null ? "" : token.trim();
     }
 
     public boolean isChinese() {

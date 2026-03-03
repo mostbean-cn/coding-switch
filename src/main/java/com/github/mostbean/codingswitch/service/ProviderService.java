@@ -18,8 +18,10 @@ import org.jetbrains.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Provider 管理服务。
@@ -202,15 +204,17 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         // 写 config.toml
         if (config.has("config")) {
             Path tomlPath = svc.getConfigDir(CliType.CODEX).resolve("config.toml");
+            String providerToml = config.get("config").getAsString().trim();
             String managedBlock = "# >>> coding-switch:provider:start\n"
-                    + config.get("config").getAsString().trim() + "\n"
+                    + providerToml + "\n"
                     + "# <<< coding-switch:provider:end\n";
             String existing = svc.readFile(tomlPath);
-            String merged = upsertManagedBlock(
+            String withoutManagedBlock = removeManagedBlock(
                     existing,
-                    managedBlock,
                     "# >>> coding-switch:provider:start",
                     "# <<< coding-switch:provider:end");
+            String sanitized = removeConflictingCodexProviderEntries(withoutManagedBlock, providerToml);
+            String merged = prependManagedBlock(sanitized, managedBlock);
             svc.writeFile(tomlPath, merged);
         }
     }
@@ -271,20 +275,120 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         }
     }
 
-    private static String upsertManagedBlock(String existing, String block, String startMarker, String endMarker) {
+    private static String removeManagedBlock(String existing, String startMarker, String endMarker) {
         String safeExisting = existing == null ? "" : existing;
         int start = safeExisting.indexOf(startMarker);
         int end = safeExisting.indexOf(endMarker);
-        if (start >= 0 && end >= start) {
-            int endExclusive = end + endMarker.length();
-            if (endExclusive < safeExisting.length() && safeExisting.charAt(endExclusive) == '\n') {
-                endExclusive++;
-            }
-            return safeExisting.substring(0, start) + block + safeExisting.substring(endExclusive);
+        if (start < 0 || end < start) {
+            return safeExisting;
         }
+        int endExclusive = end + endMarker.length();
+        if (endExclusive < safeExisting.length() && safeExisting.charAt(endExclusive) == '\n') {
+            endExclusive++;
+        }
+        return safeExisting.substring(0, start) + safeExisting.substring(endExclusive);
+    }
+
+    private static String prependManagedBlock(String existing, String block) {
+        String safeExisting = existing == null ? "" : existing;
         if (safeExisting.isBlank()) {
             return block;
         }
-        return safeExisting + (safeExisting.endsWith("\n") ? "\n" : "\n\n") + block;
+        return block + "\n" + safeExisting.stripLeading();
+    }
+
+    private static String removeConflictingCodexProviderEntries(String content, String managedProviderToml) {
+        String safe = content == null ? "" : content;
+        if (safe.isBlank()) {
+            return safe;
+        }
+
+        Set<String> managedProviderNames = extractManagedProviderNames(managedProviderToml);
+        Set<String> managedRootKeys = Set.of(
+                "model_provider",
+                "model",
+                "model_reasoning_effort",
+                "disable_response_storage");
+
+        StringBuilder out = new StringBuilder();
+        String currentSection = null;
+        boolean dropCurrentSection = false;
+
+        for (String rawLine : safe.split("\n", -1)) {
+            String line = rawLine.trim();
+
+            if (line.startsWith("[") && line.endsWith("]")) {
+                currentSection = line.substring(1, line.length() - 1).trim();
+                dropCurrentSection = isManagedProviderSection(currentSection, managedProviderNames);
+            }
+
+            if (dropCurrentSection) {
+                continue;
+            }
+
+            String key = parseTomlKey(rawLine);
+            if (currentSection == null && key != null && managedRootKeys.contains(key)) {
+                continue;
+            }
+
+            out.append(rawLine).append("\n");
+        }
+        return out.toString();
+    }
+
+    private static Set<String> extractManagedProviderNames(String providerToml) {
+        Set<String> names = new HashSet<>();
+        if (providerToml == null || providerToml.isBlank()) {
+            return names;
+        }
+        for (String rawLine : providerToml.split("\n")) {
+            String line = rawLine.trim();
+            if (!line.startsWith("[") || !line.endsWith("]")) {
+                continue;
+            }
+            String section = line.substring(1, line.length() - 1).trim();
+            if (section.startsWith("model_providers.")) {
+                String suffix = section.substring("model_providers.".length()).trim();
+                if ((suffix.startsWith("'") && suffix.endsWith("'"))
+                        || (suffix.startsWith("\"") && suffix.endsWith("\""))) {
+                    suffix = suffix.substring(1, suffix.length() - 1);
+                }
+                if (!suffix.isBlank()) {
+                    names.add(suffix);
+                }
+            }
+        }
+        return names;
+    }
+
+    private static boolean isManagedProviderSection(String section, Set<String> managedProviderNames) {
+        if (managedProviderNames == null || managedProviderNames.isEmpty()) {
+            return false;
+        }
+        for (String name : managedProviderNames) {
+            String base = "model_providers." + name;
+            String singleQuoted = "model_providers.'" + name + "'";
+            String doubleQuoted = "model_providers.\"" + name + "\"";
+            if (section.equals(base) || section.startsWith(base + ".")
+                    || section.equals(singleQuoted) || section.startsWith(singleQuoted + ".")
+                    || section.equals(doubleQuoted) || section.startsWith(doubleQuoted + ".")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String parseTomlKey(String line) {
+        int commentIdx = line.indexOf('#');
+        String raw = commentIdx >= 0 ? line.substring(0, commentIdx) : line;
+        int eq = raw.indexOf('=');
+        if (eq <= 0) {
+            return null;
+        }
+        String key = raw.substring(0, eq).trim();
+        if (key.isEmpty() || key.contains(" ") || key.contains("\t")) {
+            return null;
+        }
+        return key;
     }
 }

@@ -19,14 +19,14 @@ public class Skill {
     private boolean installed;
     private String localPath;
 
-    /** 该 Skill 同步到哪些 CLI（目前只有 Claude 真正支持） */
+    /** 该 Skill 同步到哪些 CLI（Claude 原生支持，其他 CLI 通过 Prompt Bridge 适配） */
     private Map<CliType, Boolean> syncTargets;
 
     public Skill() {
         this.id = UUID.randomUUID().toString();
         this.syncTargets = new HashMap<>();
-        // 默认仅 Claude 启用
-        syncTargets.put(CliType.CLAUDE, true);
+        // 默认均不启用，用户手动勾选后生效
+        syncTargets.put(CliType.CLAUDE, false);
         syncTargets.put(CliType.CODEX, false);
         syncTargets.put(CliType.GEMINI, false);
         syncTargets.put(CliType.OPENCODE, false);

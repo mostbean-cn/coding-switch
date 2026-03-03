@@ -4,6 +4,9 @@ import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.Skill;
 import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.SkillService;
+import com.github.mostbean.codingswitch.ui.dialog.SkillDiscoveryDialog;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
@@ -12,15 +15,19 @@ import com.intellij.ui.ToolbarDecorator;
 import com.intellij.ui.table.JBTable;
 import com.intellij.util.ui.JBUI;
 import org.jetbrains.annotations.NotNull;
-import com.google.gson.Gson;
 
 import javax.swing.*;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.TableCellEditor;
 import java.awt.*;
-import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Skills 管理面板。
@@ -98,26 +105,42 @@ public class SkillPanel extends JPanel {
         };
 
         ToolbarDecorator decorator = ToolbarDecorator.createDecorator(skillTable)
-                .setRemoveAction(button -> onUninstall())
-                .setRemoveActionName(I18n.t("skill.action.uninstall"))
+                .setAddAction(button -> onOpenDiscoveryDialog())
+                .setAddActionName(I18n.t("skill.action.discoverFromRepos"))
+                .setRemoveAction(button -> onRemoveSkill())
+                .setRemoveActionName(I18n.t("skill.action.remove"))
                 .addExtraAction(saveAction)
-                .addExtraAction(new AnAction(I18n.t("skill.action.scanLocal"), I18n.t("skill.action.scanLocal.tooltip"),
+                .addExtraAction(new AnAction(I18n.t("skill.action.update"), I18n.t("skill.action.update.tooltip"),
                         AllIcons.Actions.Refresh) {
+                    @Override
+                    public void actionPerformed(@NotNull AnActionEvent e) {
+                        onUpdateSelected();
+                    }
+
+                    @Override
+                    public void update(@NotNull AnActionEvent e) {
+                        Skill selected = getSelectedSkill();
+                        e.getPresentation()
+                                .setEnabled(SkillService.getInstance().isGitAvailable() && selected != null
+                                        && selected.isInstalled());
+                    }
+                })
+                .addExtraAction(new AnAction(I18n.t("skill.action.installZip"),
+                        I18n.t("skill.action.installZip.tooltip"),
+                        AllIcons.Actions.Download) {
+                    @Override
+                    public void actionPerformed(@NotNull AnActionEvent e) {
+                        onImportZipPackage();
+                    }
+                })
+                .addExtraAction(new AnAction(I18n.t("skill.action.scanLocal"), I18n.t("skill.action.scanLocal.tooltip"),
+                        AllIcons.Actions.Find) {
                     @Override
                     public void actionPerformed(@NotNull AnActionEvent e) {
                         onScanLocal();
                     }
-                })
-                .addExtraAction(
-                        new AnAction(I18n.t("skill.action.addRepo"), I18n.t("skill.action.addRepo.tooltip"),
-                                AllIcons.General.Add) {
-                            @Override
-                            public void actionPerformed(@NotNull AnActionEvent e) {
-                                onAddRepo();
-                            }
-                        });
+                });
 
-        decorator.disableAddAction();
         decorator.disableUpDownActions();
 
         return decorator.createPanel();
@@ -136,8 +159,11 @@ public class SkillPanel extends JPanel {
     // =====================================================================
 
     private void onScanLocal() {
-        List<Skill> localSkills = SkillService.getInstance().scanLocalSkills();
-        tableModel.setSkills(localSkills);
+        SkillService service = SkillService.getInstance();
+        List<Skill> localSkills = service.scanLocalSkills();
+        service.syncLocalSkills(localSkills);
+        service.syncSkillBridgesToCli();
+        refreshTable();
         if (localSkills.isEmpty()) {
             Messages.showInfoMessage(
                     I18n.t("skill.dialog.scanEmpty"),
@@ -145,57 +171,152 @@ public class SkillPanel extends JPanel {
         }
     }
 
-    private void onUninstall() {
-        int row = skillTable.getSelectedRow();
-        if (row < 0)
+    private void onOpenDiscoveryDialog() {
+        SkillDiscoveryDialog dialog = new SkillDiscoveryDialog();
+        dialog.show();
+        refreshTable();
+    }
+
+    private void onImportZipPackage() {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle(I18n.t("skill.dialog.zipChooserTitle"));
+        chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+        chooser.setMultiSelectionEnabled(false);
+        chooser.setAcceptAllFileFilterUsed(false);
+        chooser.setFileFilter(new FileNameExtensionFilter("ZIP (*.zip)", "zip"));
+
+        int option = chooser.showOpenDialog(this);
+        if (option != JFileChooser.APPROVE_OPTION || chooser.getSelectedFile() == null) {
             return;
-        Skill selected = tableModel.getSkillAt(row);
-        if (selected == null || !selected.isInstalled())
+        }
+
+        Path zipFile = chooser.getSelectedFile().toPath();
+        SkillService.OperationResult result = SkillService.getInstance().importSkillsFromLocalZip(zipFile);
+        if (result.success()) {
+            Messages.showInfoMessage(I18n.t("skill.dialog.importZipSuccess", result.message()),
+                    I18n.t("skill.dialog.importZipTitle"));
+        } else {
+            Messages.showErrorDialog(I18n.t("skill.dialog.importZipFailed", result.message()),
+                    I18n.t("provider.dialog.error"));
+        }
+        refreshTable();
+    }
+
+    private void onUpdateSelected() {
+        if (!SkillService.getInstance().isGitAvailable()) {
+            Messages.showWarningDialog(I18n.t("skill.dialog.gitRequired"), I18n.t("provider.dialog.error"));
             return;
-        int result = Messages.showYesNoDialog(
-                I18n.t("skill.dialog.uninstallConfirm", selected.getName()),
-                I18n.t("skill.dialog.uninstallTitle"), Messages.getWarningIcon());
-        if (result == Messages.YES) {
-            try {
-                SkillService.getInstance().uninstallSkill(selected.getId());
-                onScanLocal();
-            } catch (IOException ex) {
-                Messages.showErrorDialog(I18n.t("skill.dialog.uninstallFailed", ex.getMessage()),
-                        I18n.t("provider.dialog.error"));
-            }
+        }
+        Skill selected = getSelectedSkill();
+        if (selected == null) {
+            return;
+        }
+        SkillService.OperationResult result = SkillService.getInstance().updateInstalledSkill(selected.getId());
+        if (result.success()) {
+            Messages.showInfoMessage(I18n.t("skill.dialog.updateSuccess", selected.getName()),
+                    I18n.t("skill.dialog.updateTitle"));
+        } else {
+            Messages.showErrorDialog(I18n.t("skill.dialog.updateFailed", result.message()),
+                    I18n.t("provider.dialog.error"));
         }
     }
 
-    private void onAddRepo() {
-        String url = Messages.showInputDialog(
-                I18n.t("skill.dialog.addRepoPrompt"),
-                I18n.t("skill.dialog.addRepoTitle"), Messages.getQuestionIcon());
-        if (url != null && !url.isBlank()) {
-            SkillService.getInstance().addCustomRepo(url.trim());
-            Messages.showInfoMessage(I18n.t("skill.dialog.addRepoDone", url), I18n.t("skill.dialog.addRepoSuccess"));
+    private void onRemoveSkill() {
+        Skill selected = getSelectedSkill();
+        if (selected == null)
+            return;
+        int result = Messages.showYesNoDialog(
+                I18n.t("skill.dialog.removeConfirm", selected.getName()),
+                I18n.t("skill.dialog.removeTitle"), Messages.getWarningIcon());
+        if (result == Messages.YES) {
+            SkillService.getInstance().removeSkill(selected.getId());
+            refreshTable();
         }
     }
 
     private void onSaveChanges() {
+        if (skillTable.isEditing()) {
+            TableCellEditor editor = skillTable.getCellEditor();
+            if (editor != null) {
+                editor.stopCellEditing();
+            }
+        }
         if (!isDirty)
             return;
         List<Skill> currentList = tableModel.getSkills();
-        for (Skill s : currentList) {
-            SkillService.getInstance().updateSkill(s);
+        SkillService service = SkillService.getInstance();
+
+        List<Skill> beforeList = service.getSkills();
+        Map<String, Skill> beforeById = new HashMap<>();
+        for (Skill skill : beforeList) {
+            if (skill != null && skill.getId() != null) {
+                beforeById.put(skill.getId(), skill);
+            }
         }
+
+        EnumSet<CliType> changedSelectedCliSet = EnumSet.noneOf(CliType.class);
+        for (Skill current : currentList) {
+            if (current == null || current.getId() == null || !current.isInstalled()) {
+                continue;
+            }
+            Skill before = beforeById.get(current.getId());
+            boolean changed = false;
+            for (CliType cliType : CLI_TYPES) {
+                boolean now = current.isSyncedTo(cliType);
+                boolean old = before != null && before.isSyncedTo(cliType);
+                if (now != old) {
+                    changed = true;
+                    break;
+                }
+            }
+            if (!changed) {
+                continue;
+            }
+            for (CliType cliType : CLI_TYPES) {
+                if (current.isSyncedTo(cliType)) {
+                    changedSelectedCliSet.add(cliType);
+                }
+            }
+        }
+
+        for (Skill s : currentList) {
+            service.updateSkill(s);
+        }
+        SkillService.SkillBridgeSyncResult syncResult = service.syncSkillBridgesToCli();
+
+        int selectedCliCount = changedSelectedCliSet.size();
+
         isDirty = false;
-        Messages.showInfoMessage(I18n.t("skill.dialog.saveSuccess"), I18n.t("skill.dialog.saveTitle"));
+        if (syncResult.failed() > 0) {
+            Messages.showWarningDialog(
+                    I18n.t("skill.dialog.bridgeSyncPartial", selectedCliCount, syncResult.failed(),
+                            syncResult.detail()),
+                    I18n.t("skill.dialog.saveTitle"));
+        } else {
+            Messages.showInfoMessage(I18n.t("skill.dialog.bridgeSyncSuccess", selectedCliCount),
+                    I18n.t("skill.dialog.saveTitle"));
+        }
+        refreshTable();
     }
 
     private void refreshTable() {
         // 深拷贝防止本地表格直接修改了后台的 Service 数据模型
         List<Skill> clones = new ArrayList<>();
-        Gson gson = new Gson();
-        for (Skill s : SkillService.getInstance().getInstalledSkills()) {
+        Gson gson = new GsonBuilder().enableComplexMapKeySerialization().create();
+        for (Skill s : SkillService.getInstance().getSkills()) {
             clones.add(gson.fromJson(gson.toJson(s), Skill.class));
         }
         tableModel.setSkills(clones);
         isDirty = false;
+    }
+
+    private Skill getSelectedSkill() {
+        int viewRow = skillTable.getSelectedRow();
+        if (viewRow < 0) {
+            return null;
+        }
+        int modelRow = skillTable.convertRowIndexToModel(viewRow);
+        return tableModel.getSkillAt(modelRow);
     }
 
     // =====================================================================
