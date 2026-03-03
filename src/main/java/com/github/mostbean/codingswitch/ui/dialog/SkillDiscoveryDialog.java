@@ -9,6 +9,7 @@ import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.ComboBox;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.ui.components.JBLabel;
+import com.intellij.ui.components.JBList;
 import com.intellij.ui.table.JBTable;
 import com.intellij.util.ui.JBUI;
 import org.jetbrains.annotations.Nullable;
@@ -19,7 +20,7 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 
 public class SkillDiscoveryDialog extends DialogWrapper {
@@ -30,6 +31,7 @@ public class SkillDiscoveryDialog extends DialogWrapper {
 
     private final ComboBox<RepoItem> repoComboBox = new ComboBox<>();
     private final JButton addRepoButton = new JButton(I18n.t("skill.action.addRepo"));
+    private final JButton manageRepoButton = new JButton(I18n.t("skill.action.manageRepo"));
     private final JButton refreshButton = new JButton(I18n.t("skill.discovery.button.refresh"));
     private final JButton installButton = new JButton(I18n.t("skill.discovery.button.install"));
     private final JButton openButton = new JButton(I18n.t("skill.discovery.button.open"));
@@ -43,6 +45,7 @@ public class SkillDiscoveryDialog extends DialogWrapper {
         setTitle(I18n.t("skill.discovery.title"));
         setOKButtonText(I18n.t("skill.discovery.button.close"));
         addRepoButton.setToolTipText(I18n.t("skill.action.addRepo.tooltip"));
+        manageRepoButton.setToolTipText(I18n.t("skill.action.manageRepo.tooltip"));
 
         configureTable();
         bindActions();
@@ -66,6 +69,7 @@ public class SkillDiscoveryDialog extends DialogWrapper {
         topPanel.add(new JBLabel(I18n.t("skill.discovery.label.repo")));
         topPanel.add(repoComboBox);
         topPanel.add(addRepoButton);
+        topPanel.add(manageRepoButton);
         panel.add(topPanel, BorderLayout.NORTH);
 
         panel.add(new JScrollPane(table), BorderLayout.CENTER);
@@ -113,6 +117,7 @@ public class SkillDiscoveryDialog extends DialogWrapper {
         });
         refreshButton.addActionListener(e -> loadRepository(true));
         addRepoButton.addActionListener(e -> onAddRepository());
+        manageRepoButton.addActionListener(e -> onManageRepositories());
         installButton.addActionListener(e -> onInstallSelected());
         openButton.addActionListener(e -> onOpenSelected());
         updateButtons();
@@ -137,7 +142,8 @@ public class SkillDiscoveryDialog extends DialogWrapper {
             SkillService.RepoDiscoveryInfo repoInfo;
             String status;
             try {
-                repoInfo = SkillService.getInstance().discoverSkillRepository(selectedItem.url, forceRefresh);
+                repoInfo = SkillService.getInstance().discoverSkillRepository(selectedItem.url, selectedItem.branch,
+                        forceRefresh);
                 if (repoInfo.errorMessage() != null && !repoInfo.errorMessage().isBlank()) {
                     if (isRateLimited(repoInfo.errorMessage())) {
                         status = I18n.t("skill.discovery.status.rateLimited");
@@ -238,52 +244,114 @@ public class SkillDiscoveryDialog extends DialogWrapper {
     }
 
     private void onAddRepository() {
-        String input = Messages.showInputDialog(
-                getContentPanel(),
-                I18n.t("skill.dialog.addRepoPrompt"),
-                I18n.t("skill.dialog.addRepoTitle"),
-                Messages.getQuestionIcon());
+        RepoInput input = promptRepositoryInput(null);
         if (input == null) {
             return;
         }
-        String repoUrl = normalizeRepositoryInput(input);
+
+        SkillService.getInstance().addOrUpdateCustomRepo(input.repositoryUrl(), input.branch());
+        reloadRepositoryOptions(new RepoItem(input.repositoryUrl(), input.branch(), false));
+        loadRepository(true);
+
+        String displayName = input.branch() == null ? input.repositoryUrl()
+                : input.repositoryUrl() + "@" + input.branch();
+        Messages.showInfoMessage(
+                I18n.t("skill.dialog.addRepoDone", displayName),
+                I18n.t("skill.dialog.addRepoSuccess"));
+    }
+
+    private void onManageRepositories() {
+        RepoManagerDialog dialog = new RepoManagerDialog();
+        if (!dialog.showAndGet() || !dialog.hasChanged()) {
+            return;
+        }
+        reloadRepositoryOptions(dialog.getPreferredRepoItem());
+        loadRepository(true);
+    }
+
+    private @Nullable RepoInput promptRepositoryInput(@Nullable RepoInput preset) {
+        JTextField urlField = new JTextField(preset == null ? "" : preset.repositoryUrl(), 38);
+        JTextField branchField = new JTextField(preset == null || preset.branch() == null ? "" : preset.branch(), 24);
+
+        JPanel form = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = JBUI.insets(4);
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.anchor = GridBagConstraints.WEST;
+        form.add(new JLabel(I18n.t("skill.dialog.repo.urlLabel")), gbc);
+
+        gbc.gridx = 1;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
+        form.add(urlField, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy = 1;
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.weightx = 0;
+        form.add(new JLabel(I18n.t("skill.dialog.repo.branchLabel")), gbc);
+
+        gbc.gridx = 1;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
+        form.add(branchField, gbc);
+
+        gbc.gridx = 1;
+        gbc.gridy = 2;
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.weightx = 0;
+        form.add(new JBLabel(I18n.t("skill.dialog.repo.branchHint")), gbc);
+
+        Object[] options = { I18n.t("common.button.ok"), I18n.t("common.button.cancel") };
+        int result = JOptionPane.showOptionDialog(
+                getContentPanel(),
+                form,
+                I18n.t("skill.dialog.addRepoTitle"),
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.PLAIN_MESSAGE,
+                null,
+                options,
+                options[0]);
+        if (result != JOptionPane.OK_OPTION) {
+            return null;
+        }
+
+        String repoUrl = normalizeRepositoryInput(urlField.getText());
         if (repoUrl == null) {
             Messages.showErrorDialog(
                     I18n.t("skill.discovery.status.loadFailed", "Invalid GitHub repository URL"),
                     I18n.t("provider.dialog.error"));
-            return;
+            return null;
         }
-        SkillService.getInstance().addCustomRepo(repoUrl);
-        reloadRepositoryOptions(repoUrl);
-        loadRepository(true);
-        Messages.showInfoMessage(
-                I18n.t("skill.dialog.addRepoDone", repoUrl),
-                I18n.t("skill.dialog.addRepoSuccess"));
+
+        return new RepoInput(repoUrl, normalizeBranchInput(branchField.getText()));
     }
 
-    private void reloadRepositoryOptions(@Nullable String preferredRepoUrl) {
+    private void reloadRepositoryOptions(@Nullable RepoItem preferredRepoItem) {
         RepoItem selectedItem = (RepoItem) repoComboBox.getSelectedItem();
-        String targetRepoUrl = preferredRepoUrl;
-        if ((targetRepoUrl == null || targetRepoUrl.isBlank()) && selectedItem != null) {
-            targetRepoUrl = selectedItem.url;
+        String targetKey = preferredRepoItem != null ? preferredRepoItem.key() : null;
+        if ((targetKey == null || targetKey.isBlank()) && selectedItem != null) {
+            targetKey = selectedItem.key();
         }
 
-        LinkedHashSet<String> uniqueUrls = new LinkedHashSet<>();
-        for (String repoUrl : SkillService.getInstance().getAllRepos()) {
-            if (repoUrl == null || repoUrl.isBlank()) {
+        LinkedHashMap<String, RepoItem> uniqueItems = new LinkedHashMap<>();
+        for (SkillService.RepoOption repoOption : SkillService.getInstance().getAllRepoOptions()) {
+            if (repoOption == null || repoOption.repositoryUrl() == null || repoOption.repositoryUrl().isBlank()) {
                 continue;
             }
-            uniqueUrls.add(repoUrl.trim());
+            RepoItem item = new RepoItem(repoOption);
+            uniqueItems.putIfAbsent(item.key(), item);
         }
 
         suppressRepoSelectionEvent = true;
         try {
             DefaultComboBoxModel<RepoItem> model = new DefaultComboBoxModel<>();
             RepoItem matchedItem = null;
-            for (String repoUrl : uniqueUrls) {
-                RepoItem item = new RepoItem(repoUrl);
+            for (RepoItem item : uniqueItems.values()) {
                 model.addElement(item);
-                if (targetRepoUrl != null && targetRepoUrl.equalsIgnoreCase(repoUrl)) {
+                if (targetKey != null && targetKey.equals(item.key())) {
                     matchedItem = item;
                 }
             }
@@ -334,6 +402,24 @@ public class SkillDiscoveryDialog extends DialogWrapper {
         return "https://github.com/" + owner + "/" + repo;
     }
 
+    private static @Nullable String normalizeBranchInput(String rawInput) {
+        if (rawInput == null) {
+            return null;
+        }
+        String value = rawInput.trim();
+        if (value.isBlank()) {
+            return null;
+        }
+        String prefix = "refs/heads/";
+        if (value.startsWith(prefix) && value.length() > prefix.length()) {
+            value = value.substring(prefix.length());
+        }
+        while (value.endsWith("/")) {
+            value = value.substring(0, value.length() - 1);
+        }
+        return value.isBlank() ? null : value;
+    }
+
     private void setLoading(boolean loading, String status) {
         this.loading = loading;
         statusLabel.setText(status == null ? " " : status);
@@ -346,6 +432,7 @@ public class SkillDiscoveryDialog extends DialogWrapper {
 
         repoComboBox.setEnabled(!loading);
         addRepoButton.setEnabled(!loading);
+        manageRepoButton.setEnabled(!loading);
         refreshButton.setEnabled(!loading);
         openButton.setEnabled(!loading && hasSelection);
         installButton.setEnabled(!loading && hasSelection);
@@ -368,17 +455,45 @@ public class SkillDiscoveryDialog extends DialogWrapper {
         return normalized.contains("rate limit");
     }
 
+    private static String buildRepoKey(String repoUrl, @Nullable String branch) {
+        String normalizedUrl = repoUrl == null ? "" : repoUrl.trim().toLowerCase(java.util.Locale.ROOT);
+        String normalizedBranch = normalizeBranchInput(branch);
+        return normalizedUrl + "#"
+                + (normalizedBranch == null ? "" : normalizedBranch.toLowerCase(java.util.Locale.ROOT));
+    }
+
+    private record RepoInput(String repositoryUrl, @Nullable String branch) {
+    }
+
     static class RepoItem {
         final String url;
+        final @Nullable String branch;
+        final boolean builtIn;
         final String label;
 
-        RepoItem(String url) {
+        RepoItem(SkillService.RepoOption repoOption) {
+            this(repoOption.repositoryUrl(), repoOption.branch(), repoOption.builtIn());
+        }
+
+        RepoItem(String url, @Nullable String branch, boolean builtIn) {
             this.url = url;
+            this.branch = normalizeBranchInput(branch);
+            this.builtIn = builtIn;
             String name = url;
             if (name.startsWith("https://github.com/")) {
                 name = name.substring("https://github.com/".length());
             }
+            if (this.branch != null) {
+                name = name + "@" + this.branch;
+            }
+            if (this.builtIn) {
+                name = name + " (" + I18n.t("skill.repo.manager.builtinTag") + ")";
+            }
             this.label = name;
+        }
+
+        String key() {
+            return buildRepoKey(url, branch);
         }
 
         @Override
@@ -393,12 +508,129 @@ public class SkillDiscoveryDialog extends DialogWrapper {
             if (o == null || getClass() != o.getClass())
                 return false;
             RepoItem repoItem = (RepoItem) o;
-            return java.util.Objects.equals(url, repoItem.url);
+            return key().equals(repoItem.key());
         }
 
         @Override
         public int hashCode() {
-            return java.util.Objects.hash(url);
+            return key().hashCode();
+        }
+    }
+
+    private final class RepoManagerDialog extends DialogWrapper {
+        private final DefaultListModel<RepoItem> listModel = new DefaultListModel<>();
+        private final JBList<RepoItem> repoList = new JBList<>(listModel);
+        private final JButton addButton = new JButton(I18n.t("skill.repo.manager.add"));
+        private final JButton removeButton = new JButton(I18n.t("skill.repo.manager.remove"));
+        private boolean changed;
+        private @Nullable RepoItem preferredRepoItem;
+
+        RepoManagerDialog() {
+            super(true);
+            setTitle(I18n.t("skill.repo.manager.title"));
+            setOKButtonText(I18n.t("skill.discovery.button.close"));
+            init();
+
+            addButton.addActionListener(e -> onAddRepo());
+            removeButton.addActionListener(e -> onRemoveRepo());
+            repoList.addListSelectionListener(e -> updateRemoveButton());
+
+            reloadList(null);
+            updateRemoveButton();
+        }
+
+        @Override
+        protected Action[] createActions() {
+            return new Action[] { getOKAction() };
+        }
+
+        @Override
+        protected @Nullable JComponent createCenterPanel() {
+            JPanel panel = new JPanel(new BorderLayout(JBUI.scale(8), JBUI.scale(8)));
+            panel.setPreferredSize(new Dimension(JBUI.scale(560), JBUI.scale(300)));
+            panel.setBorder(JBUI.Borders.empty(6));
+
+            panel.add(new JScrollPane(repoList), BorderLayout.CENTER);
+
+            JPanel actions = new JPanel(new GridLayout(0, 1, 0, JBUI.scale(8)));
+            actions.add(addButton);
+            actions.add(removeButton);
+            panel.add(actions, BorderLayout.EAST);
+
+            return panel;
+        }
+
+        private void onAddRepo() {
+            RepoInput input = promptRepositoryInput(null);
+            if (input == null) {
+                return;
+            }
+            SkillService.getInstance().addOrUpdateCustomRepo(input.repositoryUrl(), input.branch());
+            changed = true;
+            preferredRepoItem = new RepoItem(input.repositoryUrl(), input.branch(), false);
+            reloadList(preferredRepoItem.key());
+        }
+
+        private void onRemoveRepo() {
+            RepoItem selected = repoList.getSelectedValue();
+            if (selected == null) {
+                return;
+            }
+            if (selected.builtIn) {
+                Messages.showInfoMessage(
+                        I18n.t("skill.repo.manager.removeBuiltIn"),
+                        I18n.t("skill.repo.manager.removeTitle"));
+                return;
+            }
+
+            String displayName = selected.branch == null ? selected.url : selected.url + "@" + selected.branch;
+            int result = Messages.showYesNoDialog(
+                    I18n.t("skill.repo.manager.removeConfirm", displayName),
+                    I18n.t("skill.repo.manager.removeTitle"),
+                    Messages.getQuestionIcon());
+            if (result != Messages.YES) {
+                return;
+            }
+
+            SkillService.getInstance().removeCustomRepo(selected.url, selected.branch);
+            changed = true;
+            preferredRepoItem = null;
+            reloadList(null);
+        }
+
+        private void reloadList(@Nullable String preferredKey) {
+            listModel.clear();
+            RepoItem selectedItem = null;
+            for (SkillService.RepoOption repoOption : SkillService.getInstance().getAllRepoOptions()) {
+                RepoItem item = new RepoItem(repoOption);
+                listModel.addElement(item);
+                if (preferredKey != null && preferredKey.equals(item.key())) {
+                    selectedItem = item;
+                }
+            }
+            if (selectedItem != null) {
+                repoList.setSelectedValue(selectedItem, true);
+            } else if (!listModel.isEmpty()) {
+                repoList.setSelectedIndex(0);
+            }
+            updateRemoveButton();
+        }
+
+        private void updateRemoveButton() {
+            RepoItem selected = repoList.getSelectedValue();
+            removeButton.setEnabled(selected != null && !selected.builtIn);
+        }
+
+        boolean hasChanged() {
+            return changed;
+        }
+
+        @Nullable
+        RepoItem getPreferredRepoItem() {
+            if (preferredRepoItem != null) {
+                return preferredRepoItem;
+            }
+            return repoList.getSelectedValue();
         }
     }
 

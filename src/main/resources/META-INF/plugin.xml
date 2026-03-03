@@ -39,7 +39,7 @@
     ]]>    </description>
 
     <change-notes><![CDATA[
-    <h3>0.1.5-beta</h3>
+    <h3>0.1.5</h3>
     <ul>
         <li><b>Skills 闭环管理</b> — 新增 Skills 安装、更新、卸载全流程能力，支持无 Git 环境下 ZIP 下载兜底，并在 Skills 面板提供推荐仓库的一键安装入口。</li>
         <li><b>Skills Bridge 同步增强</b> — 将 Claude Skills 自动桥接同步到 Codex/Gemini/OpenCode 的提示词配置，降低多 CLI 场景下的重复维护成本。</li>

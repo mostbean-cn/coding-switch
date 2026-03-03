@@ -21,7 +21,7 @@ import java.io.InputStreamReader;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
-import java.net.URL;
+import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AccessDeniedException;
@@ -41,6 +41,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -78,10 +79,29 @@ public final class SkillService implements PersistentStateComponent<SkillService
     public static final List<String> DEFAULT_REPOS = List.of(
             "https://github.com/anthropics/skills",
             "https://github.com/JimLiu/baoyu-skills");
+    private static final List<String> REMOVED_DEFAULT_REPOS = List.of(
+            "https://github.com/ComposioHQ/awesome-claude-skills");
 
     public static class State {
         public String skillsJson = "[]";
+        public String customRepoConfigsJson = "[]";
         public String customReposJson = "[]";
+    }
+
+    public record RepoOption(String repositoryUrl, String branch, boolean builtIn) {
+    }
+
+    private static final class CustomRepoConfig {
+        String repositoryUrl;
+        String branch;
+
+        CustomRepoConfig() {
+        }
+
+        CustomRepoConfig(String repositoryUrl, String branch) {
+            this.repositoryUrl = repositoryUrl;
+            this.branch = branch;
+        }
     }
 
     public record DiscoveryResult(int discovered, int refreshed, int total) {
@@ -220,35 +240,61 @@ public final class SkillService implements PersistentStateComponent<SkillService
     }
 
     public List<RepoDiscoveryInfo> discoverSkillRepositories() {
-        List<String> repoUrls = new ArrayList<>();
-        for (String repoUrl : getAllRepos()) {
-            if (repoUrl == null || repoUrl.isBlank()) {
-                continue;
-            }
-            if (!repoUrls.contains(repoUrl)) {
-                repoUrls.add(repoUrl);
-            }
-        }
-        return repoUrls.parallelStream()
-                .map(this::discoverSkillRepository)
+        List<RepoOption> repoOptions = getAllRepoOptions();
+        return repoOptions.parallelStream()
+                .map(repoOption -> discoverSkillRepository(repoOption, false))
                 .toList();
     }
 
     public RepoDiscoveryInfo discoverSkillRepository(String repoUrl) {
-        return discoverSkillRepository(repoUrl, false);
+        return discoverSkillRepository(repoUrl, null, false);
     }
 
     public synchronized RepoDiscoveryInfo discoverSkillRepository(String repoUrl, boolean forceRefresh) {
+        return discoverSkillRepository(repoUrl, null, forceRefresh);
+    }
+
+    public RepoDiscoveryInfo discoverSkillRepository(String repoUrl, @Nullable String branch) {
+        return discoverSkillRepository(repoUrl, branch, false);
+    }
+
+    public synchronized RepoDiscoveryInfo discoverSkillRepository(String repoUrl, @Nullable String branch,
+            boolean forceRefresh) {
+        return discoverSkillRepository(new RepoOption(repoUrl, branch, false), forceRefresh);
+    }
+
+    public synchronized RepoDiscoveryInfo discoverSkillRepository(RepoOption repoOption, boolean forceRefresh) {
+        if (repoOption == null || repoOption.repositoryUrl() == null || repoOption.repositoryUrl().isBlank()) {
+            return new RepoDiscoveryInfo(
+                    "",
+                    "unknown",
+                    "unknown",
+                    "main",
+                    List.of(),
+                    "Invalid GitHub repository URL");
+        }
+
+        String repoUrl = repoOption.repositoryUrl().trim();
+        String preferredBranch = normalizeBranch(repoOption.branch());
+        String cacheKey = buildRepoCacheKey(repoUrl, preferredBranch);
         long now = System.currentTimeMillis();
         if (!forceRefresh) {
-            CachedRepo cached = repoCache.get(repoUrl);
+            CachedRepo cached = repoCache.get(cacheKey);
             if (cached != null && now < cached.expireAt()) {
                 return cached.info();
             }
         }
-        RepoDiscoveryInfo info = fetchRepoDiscovery(repoUrl);
-        repoCache.put(repoUrl, new CachedRepo(info, now + resolveRepoCacheTtlMs(info)));
+        RepoDiscoveryInfo info = fetchRepoDiscovery(repoUrl, preferredBranch);
+        repoCache.put(cacheKey, new CachedRepo(info, now + resolveRepoCacheTtlMs(info)));
         return info;
+    }
+
+    private String buildRepoCacheKey(String repoUrl, @Nullable String branch) {
+        RepoRef parsed = parseRepo(repoUrl);
+        String normalizedUrl = parsed == null ? repoUrl.trim() : parsed.normalizedUrl();
+        String normalizedBranch = normalizeBranch(branch);
+        return normalizedUrl.toLowerCase(Locale.ROOT) + "#"
+                + (normalizedBranch == null ? "" : normalizedBranch.toLowerCase(Locale.ROOT));
     }
 
     private long resolveRepoCacheTtlMs(RepoDiscoveryInfo info) {
@@ -258,7 +304,7 @@ public final class SkillService implements PersistentStateComponent<SkillService
         return isRateLimitMessage(info.errorMessage()) ? REPO_CACHE_RATE_LIMIT_TTL_MS : REPO_CACHE_ERROR_TTL_MS;
     }
 
-    private RepoDiscoveryInfo fetchRepoDiscovery(String repoUrl) {
+    private RepoDiscoveryInfo fetchRepoDiscovery(String repoUrl, @Nullable String preferredBranch) {
         RepoRef parsed = parseRepo(repoUrl);
         if (parsed == null) {
             return new RepoDiscoveryInfo(
@@ -276,7 +322,10 @@ public final class SkillService implements PersistentStateComponent<SkillService
         String normalizedUrl = meta != null && meta.htmlUrl() != null && !meta.htmlUrl().isBlank()
                 ? meta.htmlUrl()
                 : parsed.normalizedUrl();
-        String branch = meta != null ? meta.defaultBranch() : null;
+        String branch = normalizeBranch(preferredBranch);
+        if (branch == null) {
+            branch = meta != null ? normalizeBranch(meta.defaultBranch()) : null;
+        }
         if (branch == null || branch.isBlank()) {
             branch = fetchDefaultBranch(parsed);
         }
@@ -306,7 +355,7 @@ public final class SkillService implements PersistentStateComponent<SkillService
 
         RepoDiscoveryInfo resolved = repoInfo;
         if (resolved.skillNames() == null || resolved.skillNames().isEmpty()) {
-            resolved = discoverSkillRepository(repoInfo.repositoryUrl());
+            resolved = discoverSkillRepository(repoInfo.repositoryUrl(), repoInfo.branch(), false);
         }
         if (resolved.skillNames() == null || resolved.skillNames().isEmpty()) {
             return new RepoInstallResult(false, 0, 0, 0, "No skills found in repository");
@@ -399,8 +448,8 @@ public final class SkillService implements PersistentStateComponent<SkillService
         int discovered = 0;
         int refreshed = 0;
 
-        for (String repoUrl : getAllRepos()) {
-            RepoRef ref = parseRepo(repoUrl);
+        for (RepoOption repoOption : getAllRepoOptions()) {
+            RepoRef ref = parseRepo(repoOption.repositoryUrl());
             if (ref == null) {
                 continue;
             }
@@ -930,36 +979,189 @@ public final class SkillService implements PersistentStateComponent<SkillService
     // =====================================================================
 
     public List<String> getCustomRepos() {
+        return getCustomRepoOptions().stream().map(RepoOption::repositoryUrl).toList();
+    }
+
+    public List<RepoOption> getCustomRepoOptions() {
+        List<CustomRepoConfig> fromConfig = parseCustomRepoConfigs();
+        List<String> legacyRepos = parseLegacyCustomRepos();
+
+        LinkedHashMap<String, RepoOption> merged = new LinkedHashMap<>();
+        boolean changed = false;
+
+        for (CustomRepoConfig config : fromConfig) {
+            RepoOption sanitized = sanitizeCustomRepoOption(config.repositoryUrl, config.branch);
+            if (sanitized == null) {
+                changed = true;
+                continue;
+            }
+            if (!sameRepoAndBranch(config.repositoryUrl, config.branch, sanitized.repositoryUrl(), sanitized.branch())) {
+                changed = true;
+            }
+            String key = sanitized.repositoryUrl().toLowerCase(Locale.ROOT);
+            RepoOption existing = merged.get(key);
+            if (existing == null) {
+                merged.put(key, sanitized);
+                continue;
+            }
+            String mergedBranch = normalizeBranch(existing.branch());
+            String candidateBranch = normalizeBranch(sanitized.branch());
+            if ((mergedBranch == null || mergedBranch.isBlank()) && candidateBranch != null) {
+                merged.put(key, new RepoOption(existing.repositoryUrl(), candidateBranch, false));
+            }
+            changed = true;
+        }
+
+        for (String legacyRepoUrl : legacyRepos) {
+            RepoOption sanitized = sanitizeCustomRepoOption(legacyRepoUrl, null);
+            if (sanitized == null) {
+                changed = true;
+                continue;
+            }
+            String key = sanitized.repositoryUrl().toLowerCase(Locale.ROOT);
+            if (!merged.containsKey(key)) {
+                merged.put(key, sanitized);
+            } else {
+                changed = true;
+            }
+        }
+
+        List<RepoOption> result = new ArrayList<>(merged.values());
+        String normalizedConfigJson = GSON.toJson(toCustomRepoConfigs(result));
+        boolean legacyNotEmpty = myState.customReposJson != null && !myState.customReposJson.isBlank()
+                && !"[]".equals(myState.customReposJson);
+        if (changed || !normalizedConfigJson.equals(myState.customRepoConfigsJson) || legacyNotEmpty) {
+            myState.customRepoConfigsJson = normalizedConfigJson;
+            myState.customReposJson = "[]";
+        }
+
+        return result;
+    }
+
+    public void addCustomRepo(String repoUrl) {
+        addOrUpdateCustomRepo(repoUrl, null);
+    }
+
+    public void addOrUpdateCustomRepo(String repoUrl, @Nullable String branch) {
+        RepoOption sanitized = sanitizeCustomRepoOption(repoUrl, branch);
+        if (sanitized == null) {
+            return;
+        }
+
+        List<RepoOption> repos = new ArrayList<>(getCustomRepoOptions());
+        for (int i = 0; i < repos.size(); i++) {
+            RepoOption existing = repos.get(i);
+            if (!sameRepo(existing.repositoryUrl(), sanitized.repositoryUrl())) {
+                continue;
+            }
+            if (Objects.equals(normalizeBranch(existing.branch()), normalizeBranch(sanitized.branch()))) {
+                return;
+            }
+            repos.set(i, sanitized);
+            persistCustomRepoOptions(repos);
+            fireChanged();
+            return;
+        }
+
+        repos.add(sanitized);
+        persistCustomRepoOptions(repos);
+        fireChanged();
+    }
+
+    public void removeCustomRepo(String repoUrl) {
+        removeCustomRepo(repoUrl, null);
+    }
+
+    public void removeCustomRepo(String repoUrl, @Nullable String branch) {
+        RepoRef target = parseRepo(repoUrl);
+        if (target == null) {
+            return;
+        }
+        String normalizedBranch = normalizeBranch(branch);
+        List<RepoOption> repos = new ArrayList<>(getCustomRepoOptions());
+        boolean removed = repos.removeIf(existing -> sameRepo(existing.repositoryUrl(), target.normalizedUrl())
+                && (normalizedBranch == null
+                        || Objects.equals(normalizeBranch(existing.branch()), normalizedBranch)));
+        if (!removed) {
+            return;
+        }
+        persistCustomRepoOptions(repos);
+        fireChanged();
+    }
+
+    public List<RepoOption> getAllRepoOptions() {
+        List<RepoOption> all = new ArrayList<>();
+        for (String repoUrl : DEFAULT_REPOS) {
+            RepoOption builtIn = createBuiltInRepoOption(repoUrl);
+            if (builtIn == null) {
+                continue;
+            }
+            all.add(builtIn);
+        }
+        all.addAll(getCustomRepoOptions());
+        return all;
+    }
+
+    public List<String> getAllRepos() {
+        return getAllRepoOptions().stream().map(RepoOption::repositoryUrl).toList();
+    }
+
+    private void persistCustomRepoOptions(List<RepoOption> repoOptions) {
+        myState.customRepoConfigsJson = GSON.toJson(toCustomRepoConfigs(repoOptions));
+        myState.customReposJson = "[]";
+    }
+
+    private List<String> parseLegacyCustomRepos() {
         try {
             List<String> list = GSON.fromJson(myState.customReposJson,
                     new TypeToken<List<String>>() {
                     }.getType());
-            return list != null ? list : new ArrayList<>();
+            return list == null ? new ArrayList<>() : list;
         } catch (Exception e) {
             return new ArrayList<>();
         }
     }
 
-    public void addCustomRepo(String repoUrl) {
-        List<String> repos = new ArrayList<>(getCustomRepos());
-        if (!repos.contains(repoUrl)) {
-            repos.add(repoUrl);
-            myState.customReposJson = GSON.toJson(repos);
-            fireChanged();
+    private List<CustomRepoConfig> parseCustomRepoConfigs() {
+        try {
+            List<CustomRepoConfig> list = GSON.fromJson(myState.customRepoConfigsJson,
+                    new TypeToken<List<CustomRepoConfig>>() {
+                    }.getType());
+            return list == null ? new ArrayList<>() : list;
+        } catch (Exception e) {
+            return new ArrayList<>();
         }
     }
 
-    public void removeCustomRepo(String repoUrl) {
-        List<String> repos = new ArrayList<>(getCustomRepos());
-        repos.remove(repoUrl);
-        myState.customReposJson = GSON.toJson(repos);
-        fireChanged();
+    private static List<CustomRepoConfig> toCustomRepoConfigs(List<RepoOption> repoOptions) {
+        List<CustomRepoConfig> configs = new ArrayList<>();
+        for (RepoOption repoOption : repoOptions) {
+            if (repoOption == null || repoOption.repositoryUrl() == null || repoOption.repositoryUrl().isBlank()) {
+                continue;
+            }
+            configs.add(new CustomRepoConfig(repoOption.repositoryUrl(), normalizeBranch(repoOption.branch())));
+        }
+        return configs;
     }
 
-    public List<String> getAllRepos() {
-        List<String> all = new ArrayList<>(DEFAULT_REPOS);
-        all.addAll(getCustomRepos());
-        return all;
+    private @Nullable RepoOption sanitizeCustomRepoOption(String repoUrl, @Nullable String branch) {
+        RepoRef ref = parseRepo(repoUrl);
+        if (ref == null) {
+            return null;
+        }
+        String normalized = ref.normalizedUrl();
+        if (isBuiltInRepo(normalized)) {
+            return null;
+        }
+        return new RepoOption(normalized, normalizeBranch(branch), false);
+    }
+
+    private @Nullable RepoOption createBuiltInRepoOption(String repoUrl) {
+        RepoRef ref = parseRepo(repoUrl);
+        if (ref == null) {
+            return null;
+        }
+        return new RepoOption(ref.normalizedUrl(), null, true);
     }
 
     private record RepoRef(String owner, String repoName, String normalizedUrl) {
@@ -975,10 +1177,14 @@ public final class SkillService implements PersistentStateComponent<SkillService
         }
         String marker = "github.com/";
         int idx = url.toLowerCase(Locale.ROOT).indexOf(marker);
-        if (idx < 0) {
+        String suffix;
+        if (idx >= 0) {
+            suffix = url.substring(idx + marker.length());
+        } else if (url.matches("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/.*)?$")) {
+            suffix = url;
+        } else {
             return null;
         }
-        String suffix = url.substring(idx + marker.length());
         String[] parts = suffix.split("/");
         if (parts.length < 2) {
             return null;
@@ -990,6 +1196,55 @@ public final class SkillService implements PersistentStateComponent<SkillService
         }
         String normalized = "https://github.com/" + owner + "/" + repo;
         return new RepoRef(owner, repo, normalized);
+    }
+
+    private static @Nullable String normalizeBranch(@Nullable String rawBranch) {
+        if (rawBranch == null) {
+            return null;
+        }
+        String branch = rawBranch.trim();
+        if (branch.isBlank()) {
+            return null;
+        }
+        String prefix = "refs/heads/";
+        if (branch.startsWith(prefix) && branch.length() > prefix.length()) {
+            branch = branch.substring(prefix.length());
+        }
+        while (branch.endsWith("/")) {
+            branch = branch.substring(0, branch.length() - 1);
+        }
+        return branch.isBlank() ? null : branch;
+    }
+
+    private boolean isBuiltInRepo(String repoUrl) {
+        return containsRepo(DEFAULT_REPOS, repoUrl) || containsRepo(REMOVED_DEFAULT_REPOS, repoUrl);
+    }
+
+    private boolean sameRepoAndBranch(String leftUrl, @Nullable String leftBranch, String rightUrl,
+            @Nullable String rightBranch) {
+        return sameRepo(leftUrl, rightUrl)
+                && Objects.equals(normalizeBranch(leftBranch), normalizeBranch(rightBranch));
+    }
+
+    private boolean containsRepo(List<String> repoList, String repoUrl) {
+        for (String item : repoList) {
+            if (sameRepo(item, repoUrl)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean sameRepo(String left, String right) {
+        RepoRef l = parseRepo(left);
+        RepoRef r = parseRepo(right);
+        if (l == null || r == null) {
+            if (left == null || right == null) {
+                return false;
+            }
+            return left.trim().equalsIgnoreCase(right.trim());
+        }
+        return l.normalizedUrl().equalsIgnoreCase(r.normalizedUrl());
     }
 
     private RepoMeta fetchRepoMeta(RepoRef repoRef) {
@@ -1844,7 +2099,7 @@ public final class SkillService implements PersistentStateComponent<SkillService
     }
 
     private HttpURLConnection openGetConnection(String url) throws IOException {
-        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+        HttpURLConnection conn = openHttpConnection(url);
         conn.setRequestMethod("GET");
         conn.setConnectTimeout(10_000);
         conn.setReadTimeout(15_000);
@@ -1856,7 +2111,7 @@ public final class SkillService implements PersistentStateComponent<SkillService
     }
 
     private HttpURLConnection openZipConnection(String url) throws IOException {
-        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+        HttpURLConnection conn = openHttpConnection(url);
         conn.setRequestMethod("GET");
         conn.setConnectTimeout(10_000);
         conn.setReadTimeout(60_000);
@@ -1864,6 +2119,14 @@ public final class SkillService implements PersistentStateComponent<SkillService
         conn.setRequestProperty("Accept", "*/*");
         applyGitHubAuthHeader(conn);
         return conn;
+    }
+
+    private static HttpURLConnection openHttpConnection(String url) throws IOException {
+        try {
+            return (HttpURLConnection) URI.create(url).toURL().openConnection();
+        } catch (IllegalArgumentException e) {
+            throw new IOException("Invalid URL: " + url, e);
+        }
     }
 
     private void applyGitHubAuthHeader(HttpURLConnection conn) {

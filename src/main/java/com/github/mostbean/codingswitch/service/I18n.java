@@ -57,6 +57,8 @@ public final class I18n {
                 m.put("toolwindow.tab.skills", "Skills");
                 m.put("toolwindow.tab.prompts", "提示词");
                 m.put("toolwindow.tab.settings", "设置");
+                m.put("common.button.ok", "确定");
+                m.put("common.button.cancel", "取消");
 
                 // ── Settings 面板 ──
                 m.put("settings.section.versionStatus", "CLI 版本状态");
@@ -73,13 +75,14 @@ public final class I18n {
                 m.put("settings.status.updatable", "v{0} ⬆ 可更新");
                 m.put("settings.button.checkAllVersions", "检测全部版本");
                 m.put("settings.tooltip.copyClipboard", "复制到剪贴板");
-                m.put("settings.label.uiLanguage", "界面语言:");m.put("settings.label.githubToken", "GitHub Token:");
-                m.put("settings.button.show", "Show");
-                m.put("settings.button.hide", "Hide");
-                m.put("settings.button.saveGithubToken", "Save Token");
-                m.put("settings.hint.githubToken", "Configure GitHub token to increase API rate limits.");
-                m.put("settings.githubToken.title", "Settings");
-                m.put("settings.githubToken.saved", "GitHub token saved");
+                m.put("settings.label.uiLanguage", "界面语言:");
+                m.put("settings.label.githubToken", "GitHub 令牌:");
+                m.put("settings.button.show", "显示");
+                m.put("settings.button.hide", "隐藏");
+                m.put("settings.button.saveGithubToken", "保存令牌");
+                m.put("settings.hint.githubToken", "可选。配置 GitHub 令牌可提升 API 速率限制。");
+                m.put("settings.githubToken.title", "设置");
+                m.put("settings.githubToken.saved", "GitHub 令牌已保存");
                 m.put("settings.hint.restartRequired", "⚠️ 切换语言后需要重启 IDE 才能完全生效");
                 m.put("settings.dialog.languageChanged.message", "语言已切换为 {0}\n\n需要重启 IDE 才能完全生效。\n是否立即重启 IDE？");
                 m.put("settings.dialog.languageChanged.title", "语言设置已更改");
@@ -193,7 +196,9 @@ public final class I18n {
                 m.put("skill.action.scanLocal.tooltip", "扫描 ~/.claude/skills/ 中已安装的 Skills");
                 m.put("skill.action.discoverFromRepos", "发现 Skills");
                 m.put("skill.action.addRepo", "添加仓库");
-                m.put("skill.action.addRepo.tooltip", "添加自定义 GitHub 仓库 URL");
+                m.put("skill.action.addRepo.tooltip", "添加自定义 GitHub 仓库（可选分支）");
+                m.put("skill.action.manageRepo", "仓库管理");
+                m.put("skill.action.manageRepo.tooltip", "新增、移除自定义仓库，并可设置分支");
                 m.put("skill.action.discover", "发现 Skills");
                 m.put("skill.action.discover.tooltip", "从仓库列表发现可安装 Skills");
                 m.put("skill.action.install", "安装 Skill");
@@ -215,6 +220,16 @@ public final class I18n {
                 m.put("skill.dialog.addRepoTitle", "添加自定义仓库");
                 m.put("skill.dialog.addRepoDone", "仓库已添加: {0}");
                 m.put("skill.dialog.addRepoSuccess", "成功");
+                m.put("skill.dialog.repo.urlLabel", "仓库 URL:");
+                m.put("skill.dialog.repo.branchLabel", "分支:");
+                m.put("skill.dialog.repo.branchHint", "留空将使用仓库默认分支（如 main）");
+                m.put("skill.repo.manager.title", "仓库管理");
+                m.put("skill.repo.manager.add", "新增仓库");
+                m.put("skill.repo.manager.remove", "移除仓库");
+                m.put("skill.repo.manager.removeTitle", "确认移除");
+                m.put("skill.repo.manager.removeConfirm", "确认移除仓库 \"{0}\" 吗？");
+                m.put("skill.repo.manager.removeBuiltIn", "内置仓库不支持移除");
+                m.put("skill.repo.manager.builtinTag", "内置");
                 m.put("skill.dialog.saveSuccess", "Skill 同步状态已更新");
                 m.put("skill.dialog.saveTitle", "保存成功");
                 m.put("skill.dialog.bridgeSyncSuccess", "保存成功，已同步 {0} 个已勾选 CLI 的 Skill 配置。");
@@ -333,6 +348,8 @@ public final class I18n {
                 m.put("toolwindow.tab.skills", "Skills");
                 m.put("toolwindow.tab.prompts", "Prompts");
                 m.put("toolwindow.tab.settings", "Settings");
+                m.put("common.button.ok", "OK");
+                m.put("common.button.cancel", "Cancel");
 
                 // ── Settings Panel ──
                 m.put("settings.section.versionStatus", "CLI Version Status");
@@ -473,7 +490,10 @@ public final class I18n {
                 m.put("skill.action.scanLocal.tooltip", "Scan ~/.claude/skills/ for installed Skills");
                 m.put("skill.action.discoverFromRepos", "Discover Skills");
                 m.put("skill.action.addRepo", "Add Repository");
-                m.put("skill.action.addRepo.tooltip", "Add a custom GitHub repository URL");
+                m.put("skill.action.addRepo.tooltip", "Add a custom GitHub repository (optional branch)");
+                m.put("skill.action.manageRepo", "Manage Repositories");
+                m.put("skill.action.manageRepo.tooltip",
+                                "Add or remove custom repositories, with optional branch configuration");
                 m.put("skill.action.discover", "Discover Skills");
                 m.put("skill.action.discover.tooltip", "Discover installable skills from repositories");
                 m.put("skill.action.install", "Install Skill");
@@ -498,6 +518,16 @@ public final class I18n {
                 m.put("skill.dialog.addRepoTitle", "Add Custom Repository");
                 m.put("skill.dialog.addRepoDone", "Repository added: {0}");
                 m.put("skill.dialog.addRepoSuccess", "Success");
+                m.put("skill.dialog.repo.urlLabel", "Repository URL:");
+                m.put("skill.dialog.repo.branchLabel", "Branch:");
+                m.put("skill.dialog.repo.branchHint", "Leave blank to use repository default branch (e.g. main)");
+                m.put("skill.repo.manager.title", "Repository Management");
+                m.put("skill.repo.manager.add", "Add Repository");
+                m.put("skill.repo.manager.remove", "Remove Repository");
+                m.put("skill.repo.manager.removeTitle", "Confirm Remove");
+                m.put("skill.repo.manager.removeConfirm", "Remove repository \"{0}\"?");
+                m.put("skill.repo.manager.removeBuiltIn", "Built-in repositories cannot be removed");
+                m.put("skill.repo.manager.builtinTag", "Built-in");
                 m.put("skill.dialog.saveSuccess", "Skill sync status updated");
                 m.put("skill.dialog.saveTitle", "Save Successful");
                 m.put("skill.dialog.bridgeSyncSuccess", "Saved successfully. Synced skill configuration to {0} selected CLI(s).");
