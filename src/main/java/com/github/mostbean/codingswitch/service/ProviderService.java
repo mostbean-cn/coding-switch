@@ -20,6 +20,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -94,6 +95,23 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
 
     public void updateProvider(Provider provider) {
         List<Provider> providers = new ArrayList<>(getProviders());
+        Provider existing = providers.stream()
+                .filter(p -> p.getId().equals(provider.getId()))
+                .findFirst()
+                .orElse(null);
+
+        if (existing != null) {
+            provider.setActive(existing.isActive());
+            if (existing.isActive()) {
+                boolean syncRelevantChanged = !Objects.equals(existing.getCliType(), provider.getCliType())
+                        || !Objects.equals(existing.getName(), provider.getName())
+                        || !Objects.equals(existing.getSettingsConfig(), provider.getSettingsConfig());
+                provider.setPendingActivation(syncRelevantChanged || existing.isPendingActivation());
+            } else {
+                provider.setPendingActivation(false);
+            }
+        }
+
         providers.replaceAll(p -> p.getId().equals(provider.getId()) ? provider : p);
         saveProviders(providers);
     }
@@ -132,7 +150,9 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         // 同一 CLI 类型下只能有一个 active（OpenCode 除外，它是 additive 模式）
         for (Provider p : providers) {
             if (p.getCliType() == target.getCliType()) {
-                p.setActive(p.getId().equals(providerId));
+                boolean shouldActivate = p.getId().equals(providerId);
+                p.setActive(shouldActivate);
+                p.setPendingActivation(false);
             }
         }
 
@@ -178,6 +198,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             env.remove("ANTHROPIC_DEFAULT_HAIKU_MODEL");
             env.remove("ANTHROPIC_DEFAULT_SONNET_MODEL");
             env.remove("ANTHROPIC_DEFAULT_OPUS_MODEL");
+            env.remove("CLAUDE_CODE_EFFORT_LEVEL");
 
             // 写入新值
             for (String key : newEnv.keySet()) {
@@ -186,9 +207,14 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             existing.add("env", env);
         }
 
+        if (config.has("effortLevel") && !config.get("effortLevel").isJsonNull()) {
+            existing.add("effortLevel", config.get("effortLevel"));
+        } else {
+            existing.remove("effortLevel");
+        }
+
         svc.writeJsonFile(path, existing);
     }
-
     /**
      * Codex: 将 auth 写入 ~/.codex/auth.json，config 写入 ~/.codex/config.toml
      * cc-switch 格式: { "auth": { "OPENAI_API_KEY": "..." }, "config": "toml string"
@@ -238,20 +264,20 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
     }
 
     /**
-     * OpenCode: 将 Provider 配置写入 ~/.config/opencode/opencode.json 的 providers 段
+     * OpenCode: 将 Provider 配置写入 ~/.config/opencode/opencode.json 的 provider 段
      * cc-switch 格式: { "npm": "...", "options": {...}, "models": {...} }
      */
     private void writeOpenCodeLive(ConfigFileService svc, JsonObject config, String name) throws IOException {
         Path path = svc.getProviderConfigPath(CliType.OPENCODE);
         JsonObject existing = svc.readJsonFile(path);
 
-        JsonObject providers = existing.has("providers")
-                ? existing.getAsJsonObject("providers")
+        JsonObject provider = existing.has("provider")
+                ? existing.getAsJsonObject("provider")
                 : new JsonObject();
 
         // OpenCode 用 provider name 作为 key
-        providers.add(name, config);
-        existing.add("providers", providers);
+        provider.add(name, config);
+        existing.add("provider", provider);
 
         svc.writeJsonFile(path, existing);
     }

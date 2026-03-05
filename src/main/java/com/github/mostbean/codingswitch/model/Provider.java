@@ -27,6 +27,7 @@ public class Provider {
     private String name;
     private JsonObject settingsConfig;
     private boolean active;
+    private boolean pendingActivation;
 
     public Provider() {
         this.id = UUID.randomUUID().toString();
@@ -81,6 +82,14 @@ public class Provider {
         this.active = active;
     }
 
+    public boolean isPendingActivation() {
+        return pendingActivation;
+    }
+
+    public void setPendingActivation(boolean pendingActivation) {
+        this.pendingActivation = pendingActivation;
+    }
+
     /**
      * 创建当前 Provider 的深拷贝。
      */
@@ -90,6 +99,7 @@ public class Provider {
         copy.name = this.name + " (Copy)";
         copy.settingsConfig = this.settingsConfig.deepCopy();
         copy.active = false;
+        copy.pendingActivation = false;
         return copy;
     }
 

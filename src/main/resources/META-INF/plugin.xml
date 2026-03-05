@@ -39,6 +39,12 @@
     ]]>    </description>
 
     <change-notes><![CDATA[
+    <h3>0.1.6</h3>
+    <ul>
+        <li><b>JSON 配置能力</b> - 新增 JSON 格式配置支持，统一配置结构并降低维护复杂度。</li>
+        <li><b>模型强度配置增强</b> - Claude Code 与 OpenCode 新增模型推理强度配置，支持更细粒度的性能与成本平衡。</li>
+        <li><b>OpenCode 稳定性修复</b> - 修复 OpenCode 配置场景下的报错问题，提升配置保存与加载的稳定性。</li>
+    </ul>
     <h3>0.1.5</h3>
     <ul>
         <li><b>Skills 闭环管理</b> — 新增 Skills 安装、更新、卸载全流程能力，支持无 Git 环境下 ZIP 下载兜底，并在 Skills 面板提供推荐仓库的一键安装入口。</li>

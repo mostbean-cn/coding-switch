@@ -141,6 +141,7 @@ public final class I18n {
                 m.put("provider.table.col.status", "状态");
                 m.put("provider.table.col.model", "模型");
                 m.put("provider.status.active", "已激活");
+                m.put("provider.status.pendingActivation", "待激活");
                 m.put("provider.action.duplicate", "复制");
                 m.put("provider.action.duplicate.tooltip", "复制选中的配置");
                 m.put("provider.action.activate", "激活");
@@ -321,7 +322,13 @@ public final class I18n {
                 m.put("providerDialog.label.keyFieldName", "Key 字段名:");
                 m.put("providerDialog.label.mainModel", "主模型:");
                 m.put("providerDialog.label.model", "模型:");
+                m.put("providerDialog.label.models", "模型列表:");
+                m.put("providerDialog.button.addModel", "添加模型");
+                m.put("providerDialog.tooltip.removeModel", "移除此模型");
                 m.put("providerDialog.label.reasoningEffort", "推理强度:");
+                m.put("providerDialog.label.effortLevel", "推理强度:");
+                m.put("providerDialog.label.alwaysThinkingEnabled", "扩展思考:");
+                m.put("providerDialog.label.maxThinkingTokens", "思考令牌预算:");
                 m.put("providerDialog.label.npmPackage", "NPM 包:");
                 m.put("providerDialog.border.claude", "Claude Code 配置");
                 m.put("providerDialog.border.codex", "Codex 配置");
@@ -330,10 +337,23 @@ public final class I18n {
                 m.put("providerDialog.validate.nameRequired", "请填写配置名称");
                 m.put("providerDialog.validate.apiKeyRequired", "请填写 API Key");
                 m.put("providerDialog.button.testConnection", "测试连接");
+                m.put("providerDialog.test.hint", "提示：少数供应商可能测试失败，但实际仍可正常使用。");
                 m.put("providerDialog.test.validationTitle", "请先完成必填项");
                 m.put("providerDialog.test.testing", "测试中...");
                 m.put("providerDialog.test.success", "连接成功（{0}ms）");
                 m.put("providerDialog.test.failed", "连接失败: {0}");
+
+                // ── ProviderDialog 预览 ──
+                m.put("providerDialog.label.preview", "配置预览");
+                m.put("providerDialog.preview.authJson", "auth.json");
+                m.put("providerDialog.preview.configToml", "config.toml");
+                m.put("providerDialog.preview.envFile", ".env");
+                m.put("providerDialog.preview.settingsJson", "settings.json");
+                m.put("providerDialog.button.showPreview", "配置预览");
+                m.put("providerDialog.button.hidePreview", "收起");
+                m.put("providerDialog.button.applyToForm", "应用到表单");
+                m.put("providerDialog.preview.parseError", "解析失败: {0}");
+                m.put("providerDialog.preview.parseErrorTitle", "解析错误");
 
                 return m;
         }
@@ -434,6 +454,7 @@ public final class I18n {
                 m.put("provider.table.col.status", "Status");
                 m.put("provider.table.col.model", "Model");
                 m.put("provider.status.active", "Active");
+                m.put("provider.status.pendingActivation", "Pending Activation");
                 m.put("provider.action.duplicate", "Duplicate");
                 m.put("provider.action.duplicate.tooltip", "Duplicate selected config");
                 m.put("provider.action.activate", "Activate");
@@ -627,7 +648,13 @@ public final class I18n {
                 m.put("providerDialog.label.keyFieldName", "Key Field Name:");
                 m.put("providerDialog.label.mainModel", "Main Model:");
                 m.put("providerDialog.label.model", "Model:");
+                m.put("providerDialog.label.models", "Models:");
+                m.put("providerDialog.button.addModel", "Add Model");
+                m.put("providerDialog.tooltip.removeModel", "Remove this model");
                 m.put("providerDialog.label.reasoningEffort", "Reasoning Effort:");
+                m.put("providerDialog.label.effortLevel", "Effort Level:");
+                m.put("providerDialog.label.alwaysThinkingEnabled", "Extended Thinking:");
+                m.put("providerDialog.label.maxThinkingTokens", "Max Thinking Tokens:");
                 m.put("providerDialog.label.npmPackage", "NPM Package:");
                 m.put("providerDialog.border.claude", "Claude Code Config");
                 m.put("providerDialog.border.codex", "Codex Config");
@@ -636,10 +663,24 @@ public final class I18n {
                 m.put("providerDialog.validate.nameRequired", "Config name is required");
                 m.put("providerDialog.validate.apiKeyRequired", "API Key is required");
                 m.put("providerDialog.button.testConnection", "Test Connection");
+                m.put("providerDialog.test.hint",
+                                "Note: Some providers may fail connection tests but still work in actual use.");
                 m.put("providerDialog.test.validationTitle", "Missing Required Fields");
                 m.put("providerDialog.test.testing", "Testing...");
                 m.put("providerDialog.test.success", "Connection successful ({0}ms)");
                 m.put("providerDialog.test.failed", "Connection failed: {0}");
+
+                // ── ProviderDialog Preview ──
+                m.put("providerDialog.label.preview", "Config Preview");
+                m.put("providerDialog.preview.authJson", "auth.json");
+                m.put("providerDialog.preview.configToml", "config.toml");
+                m.put("providerDialog.preview.envFile", ".env");
+                m.put("providerDialog.preview.settingsJson", "settings.json");
+                m.put("providerDialog.button.showPreview", "Config Preview");
+                m.put("providerDialog.button.hidePreview", "Hide");
+                m.put("providerDialog.button.applyToForm", "Apply to Form");
+                m.put("providerDialog.preview.parseError", "Parse error: {0}");
+                m.put("providerDialog.preview.parseErrorTitle", "Parse Error");
 
                 return m;
         }

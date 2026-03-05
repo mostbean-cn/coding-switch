@@ -90,11 +90,17 @@ public class ProviderPanel extends JPanel {
                     boolean isSelected, boolean hasFocus,
                     int row, int column) {
                 Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-                if (I18n.t("provider.status.active").equals(value) && !isSelected) {
-                    c.setForeground(new Color(66, 160, 83)); // 柔和的绿色
-                    setFont(getFont().deriveFont(Font.BOLD));
-                } else if (!isSelected) {
-                    c.setForeground(table.getForeground());
+                if (!isSelected) {
+                    if (I18n.t("provider.status.active").equals(value)) {
+                        c.setForeground(new Color(66, 160, 83)); // 柔和的绿色
+                        setFont(getFont().deriveFont(Font.BOLD));
+                    } else if (I18n.t("provider.status.pendingActivation").equals(value)) {
+                        c.setForeground(new Color(245, 158, 11)); // 柔和橙色
+                        setFont(getFont().deriveFont(Font.BOLD));
+                    } else {
+                        c.setForeground(table.getForeground());
+                        setFont(table.getFont());
+                    }
                 }
                 setHorizontalAlignment(SwingConstants.CENTER);
                 return c;
@@ -271,7 +277,12 @@ public class ProviderPanel extends JPanel {
             return switch (columnIndex) {
                 case 0 -> p.getName();
                 case 1 -> p.getCliType().getDisplayName();
-                case 2 -> p.isActive() ? I18n.t("provider.status.active") : "-";
+                case 2 -> {
+                    if (p.isPendingActivation()) {
+                        yield I18n.t("provider.status.pendingActivation");
+                    }
+                    yield p.isActive() ? I18n.t("provider.status.active") : "-";
+                }
                 // 提取主要模型名称用于显示
                 case 3 -> extractModelName(p.getCliType(), p.getSettingsConfig());
                 default -> "";
@@ -293,7 +304,7 @@ public class ProviderPanel extends JPanel {
                             ? config.getAsJsonObject("env").get("GEMINI_MODEL").getAsString()
                             : "N/A";
                     case OPENCODE -> config.has("models") && !config.getAsJsonObject("models").keySet().isEmpty()
-                            ? config.getAsJsonObject("models").keySet().iterator().next()
+                            ? String.join(", ", config.getAsJsonObject("models").keySet())
                             : "N/A";
                 };
             } catch (Exception e) {
