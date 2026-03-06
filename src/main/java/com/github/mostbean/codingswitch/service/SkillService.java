@@ -764,7 +764,7 @@ public final class SkillService implements PersistentStateComponent<SkillService
     }
 
     /**
-     * 扫描本地 ~/.claude/skills/ 目录中已安装的 Skills。
+     * 扫描本地全局 Skills 目录（~/.config/coding-switch/skills）中已安装的 Skills。
      */
     public List<Skill> scanLocalSkills() {
         List<Skill> localSkills = new ArrayList<>();

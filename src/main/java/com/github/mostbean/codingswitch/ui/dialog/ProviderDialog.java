@@ -25,7 +25,9 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Provider 编辑对话框。
@@ -54,6 +56,7 @@ public class ProviderDialog extends DialogWrapper {
             "", "high", "medium", "low");
     private final JComboBox<String> claudeAlwaysThinkingEnabled = new JComboBox<>(
             new String[] { "", "true", "false" });
+    private final JCheckBox claudeTeamModeEnabled = new JCheckBox();
 
     private final JTextField codexApiKey = new JTextField(30);
     private final JTextField codexBaseUrl = new JTextField(30);
@@ -97,6 +100,7 @@ public class ProviderDialog extends DialogWrapper {
     private final JBLabel testConnectionHintLabel = new JBLabel(I18n.t("providerDialog.test.hint"));
     private final JBLabel testStatusLabel = new JBLabel(" ");
     private final Provider provider;
+    private final Map<CliType, JsonObject> rawSettingsByCli = new EnumMap<>(CliType.class);
     private String selectedPreset = PRESET_NONE;
     private List<ProviderPresets.Preset> currentPresets = List.of();
 
@@ -197,9 +201,14 @@ public class ProviderDialog extends DialogWrapper {
         leftPanel.add(topPanel, BorderLayout.NORTH);
         leftPanel.add(dynamicPanel, BorderLayout.CENTER);
 
+        JScrollPane leftScrollPane = new JScrollPane(leftPanel);
+        leftScrollPane.setBorder(JBUI.Borders.empty());
+        leftScrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        leftScrollPane.getVerticalScrollBar().setUnitIncrement(16);
+
         setupPreviewPanel();
 
-        splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, previewPanel);
+        splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftScrollPane, previewPanel);
         splitPane.setResizeWeight(1.0);
         splitPane.setDividerLocation(9999);
         splitPane.setBorder(JBUI.Borders.empty());
@@ -300,6 +309,9 @@ public class ProviderDialog extends DialogWrapper {
             if (!updatingFromPreview) updatePreview();
         });
         claudeAlwaysThinkingEnabled.addActionListener(e -> {
+            if (!updatingFromPreview) updatePreview();
+        });
+        claudeTeamModeEnabled.addActionListener(e -> {
             if (!updatingFromPreview) updatePreview();
         });
 
@@ -464,7 +476,7 @@ public class ProviderDialog extends DialogWrapper {
 
     private void applyClaudePreviewToForm() {
         String text = previewTextArea.getText().trim();
-        if (text.isEmpty() || text.equals("{}")) {
+        if (text.isEmpty()) {
             return;
         }
 
@@ -476,25 +488,32 @@ public class ProviderDialog extends DialogWrapper {
         }
 
         JsonObject config = JsonParser.parseString(jsonBuilder.toString().trim()).getAsJsonObject();
-        if (config.has("env") || config.has("alwaysThinkingEnabled") || config.has("effortLevel")) {
-            loadClaudeConfig(config);
-        }
+        rememberRawSettings(CliType.CLAUDE, config);
+        loadClaudeConfig(config);
     }
 
     private void applyCodexPreviewToForm() {
+        JsonObject rawCodex = rawSettingsByCli.containsKey(CliType.CODEX)
+                ? rawSettingsByCli.get(CliType.CODEX).deepCopy()
+                : new JsonObject();
+
         String authText = codexAuthPreview.getText().trim();
-        if (!authText.isEmpty() && !authText.equals("{}")) {
+        if (!authText.isEmpty()) {
             try {
                 JsonObject auth = JsonParser.parseString(authText).getAsJsonObject();
+                rawCodex.add("auth", auth.deepCopy());
                 if (auth.has("OPENAI_API_KEY")) {
                     codexApiKey.setText(auth.get("OPENAI_API_KEY").getAsString());
                 }
             } catch (Exception ignored) {
             }
+        } else {
+            rawCodex.remove("auth");
         }
 
         String tomlText = codexTomlPreview.getText().trim();
         if (!tomlText.isEmpty()) {
+            rawCodex.addProperty("config", tomlText);
             for (String line : tomlText.split("\n")) {
                 String trimmed = line.trim();
                 if (trimmed.startsWith("model =")) {
@@ -505,7 +524,11 @@ public class ProviderDialog extends DialogWrapper {
                     codexBaseUrl.setText(extractTomlValue(trimmed));
                 }
             }
+        } else {
+            rawCodex.remove("config");
         }
+
+        rememberRawSettings(CliType.CODEX, rawCodex);
     }
 
     private void applyGeminiPreviewToForm() {
@@ -513,6 +536,11 @@ public class ProviderDialog extends DialogWrapper {
         if (text.isEmpty()) {
             return;
         }
+
+        JsonObject rawGemini = rawSettingsByCli.containsKey(CliType.GEMINI)
+                ? rawSettingsByCli.get(CliType.GEMINI).deepCopy()
+                : new JsonObject();
+        JsonObject env = new JsonObject();
 
         for (String line : text.split("\n")) {
             String trimmed = line.trim();
@@ -523,6 +551,7 @@ public class ProviderDialog extends DialogWrapper {
             if (eqIndex > 0) {
                 String key = trimmed.substring(0, eqIndex).trim();
                 String value = trimmed.substring(eqIndex + 1).trim();
+                env.addProperty(key, value);
                 switch (key) {
                     case "GEMINI_API_KEY" -> geminiApiKey.setText(value);
                     case "GOOGLE_GEMINI_BASE_URL" -> geminiBaseUrl.setText(value);
@@ -530,6 +559,9 @@ public class ProviderDialog extends DialogWrapper {
                 }
             }
         }
+
+        rawGemini.add("env", env);
+        rememberRawSettings(CliType.GEMINI, rawGemini);
     }
 
     private void applyOpenCodePreviewToForm() {
@@ -546,8 +578,9 @@ public class ProviderDialog extends DialogWrapper {
         }
 
         JsonObject config = JsonParser.parseString(jsonBuilder.toString().trim()).getAsJsonObject();
-        if (config.has("provider")) {
+        if (config.has("provider") && config.get("provider").isJsonObject()) {
             JsonObject provider = config.getAsJsonObject("provider");
+            rememberRawSettings(CliType.OPENCODE, provider);
             loadOpenCodeConfig(provider);
         }
     }
@@ -562,54 +595,29 @@ public class ProviderDialog extends DialogWrapper {
     }
 
     private String formatClaudePreview(JsonObject config) {
-        if (!config.has("env") && !config.has("effortLevel") && !config.has("alwaysThinkingEnabled")) {
-            return "{}";
-        }
-        JsonObject preview = new JsonObject();
-        if (config.has("env")) {
-            preview.add("env", config.getAsJsonObject("env"));
-        }
-        if (config.has("effortLevel")) {
-            preview.add("effortLevel", config.get("effortLevel"));
-        }
-        if (config.has("alwaysThinkingEnabled")) {
-            preview.add("alwaysThinkingEnabled", config.get("alwaysThinkingEnabled"));
-        }
-
         StringBuilder sb = new StringBuilder();
         sb.append("// ").append(I18n.t("providerDialog.preview.settingsJson")).append("\n");
-        sb.append(PREVIEW_GSON.toJson(preview)).append("\n");
+        sb.append(PREVIEW_GSON.toJson(config != null ? config : new JsonObject())).append("\n");
         return sb.toString();
     }
     private String formatGeminiPreview(JsonObject config) {
-        if (!config.has("env")) {
-            return "# " + I18n.t("providerDialog.preview.envFile") + "\n";
-        }
-        JsonObject env = config.getAsJsonObject("env");
-
         StringBuilder sb = new StringBuilder();
         sb.append("# ").append(I18n.t("providerDialog.preview.envFile")).append("\n");
-        for (String key : env.keySet()) {
-            sb.append(key).append("=").append(env.get(key).getAsString()).append("\n");
+
+        if (config != null && config.has("env") && config.get("env").isJsonObject()) {
+            JsonObject env = config.getAsJsonObject("env");
+            for (String key : env.keySet()) {
+                if (env.get(key) != null && !env.get(key).isJsonNull()) {
+                    sb.append(key).append("=").append(env.get(key).getAsString()).append("\n");
+                }
+            }
         }
         return sb.toString();
     }
 
     private String formatOpenCodePreview(JsonObject config) {
         JsonObject preview = new JsonObject();
-        JsonObject providerObj = new JsonObject();
-
-        if (config.has("npm")) {
-            providerObj.add("npm", config.get("npm"));
-        }
-        if (config.has("options")) {
-            providerObj.add("options", config.getAsJsonObject("options"));
-        }
-        if (config.has("models")) {
-            providerObj.add("models", config.getAsJsonObject("models"));
-        }
-
-        preview.add("provider", providerObj);
+        preview.add("provider", config != null ? config : new JsonObject());
 
         StringBuilder sb = new StringBuilder();
         sb.append("// opencode.json (provider)\n");
@@ -713,6 +721,7 @@ public class ProviderDialog extends DialogWrapper {
                 claudeOpus.setText("");
                 claudeEffortLevel.setSelectedItem("");
                 claudeAlwaysThinkingEnabled.setSelectedItem("");
+                claudeTeamModeEnabled.setSelected(false);
             }
             case CODEX -> {
                 codexApiKey.setText("");
@@ -748,6 +757,7 @@ public class ProviderDialog extends DialogWrapper {
                 .addSeparator(8)
                 .addLabeledComponent(I18n.t("providerDialog.label.effortLevel"), claudeEffortLevel)
                 .addLabeledComponent(I18n.t("providerDialog.label.alwaysThinkingEnabled"), claudeAlwaysThinkingEnabled)
+                .addLabeledComponent(I18n.t("providerDialog.label.teamModeEnabled"), claudeTeamModeEnabled)
                 .getPanel();
         return wrapWithTitledBorder(form, I18n.t("providerDialog.border.claude"));
     }
@@ -856,13 +866,13 @@ public class ProviderDialog extends DialogWrapper {
     // =====================================================================
 
     private void loadSettingsConfig(CliType cliType, JsonObject config) {
-        if (config == null)
-            return;
+        JsonObject safeConfig = config != null ? config : new JsonObject();
+        rememberRawSettings(cliType, safeConfig);
         switch (cliType) {
-            case CLAUDE -> loadClaudeConfig(config);
-            case CODEX -> loadCodexConfig(config);
-            case GEMINI -> loadGeminiConfig(config);
-            case OPENCODE -> loadOpenCodeConfig(config);
+            case CLAUDE -> loadClaudeConfig(safeConfig);
+            case CODEX -> loadCodexConfig(safeConfig);
+            case GEMINI -> loadGeminiConfig(safeConfig);
+            case OPENCODE -> loadOpenCodeConfig(safeConfig);
         }
     }
 
@@ -896,6 +906,10 @@ public class ProviderDialog extends DialogWrapper {
         } else {
             claudeAlwaysThinkingEnabled.setSelectedItem("");
         }
+
+        boolean teamModeEnabled = env.has("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS")
+                && "1".equals(env.get("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS").getAsString());
+        claudeTeamModeEnabled.setSelected(teamModeEnabled);
     }
     private void loadCodexConfig(JsonObject config) {
         if (config.has("auth")) {
@@ -960,12 +974,15 @@ public class ProviderDialog extends DialogWrapper {
     }
 
     private JsonObject buildSettingsConfig(CliType cliType) {
-        return switch (cliType) {
+        JsonObject structured = switch (cliType) {
             case CLAUDE -> buildClaudeConfig();
             case CODEX -> buildCodexConfig();
             case GEMINI -> buildGeminiConfig();
             case OPENCODE -> buildOpenCodeConfig();
         };
+        JsonObject merged = mergeWithRawSettings(cliType, structured);
+        rememberRawSettings(cliType, merged);
+        return merged;
     }
 
     private JsonObject buildClaudeConfig() {
@@ -978,6 +995,9 @@ public class ProviderDialog extends DialogWrapper {
         addIfNotBlank(env, "ANTHROPIC_DEFAULT_HAIKU_MODEL", claudeHaiku);
         addIfNotBlank(env, "ANTHROPIC_DEFAULT_SONNET_MODEL", claudeSonnet);
         addIfNotBlank(env, "ANTHROPIC_DEFAULT_OPUS_MODEL", claudeOpus);
+        if (claudeTeamModeEnabled.isSelected()) {
+            env.addProperty("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS", "1");
+        }
         String effortLevel = (String) claudeEffortLevel.getSelectedItem();
         if (effortLevel != null && !effortLevel.isEmpty()) {
             config.addProperty("effortLevel", effortLevel);
@@ -1081,6 +1101,137 @@ public class ProviderDialog extends DialogWrapper {
         String value = field.getText().trim();
         if (!value.isEmpty())
             json.addProperty(key, value);
+    }
+
+    private void rememberRawSettings(CliType cliType, JsonObject config) {
+        rawSettingsByCli.put(cliType, config != null ? config.deepCopy() : new JsonObject());
+    }
+
+    private JsonObject mergeWithRawSettings(CliType cliType, JsonObject structured) {
+        JsonObject merged = structured != null ? structured.deepCopy() : new JsonObject();
+        JsonObject raw = rawSettingsByCli.get(cliType);
+        if (raw == null) {
+            return merged;
+        }
+
+        switch (cliType) {
+            case CLAUDE -> mergeClaudeRaw(raw, merged);
+            case CODEX -> mergeCodexRaw(raw, merged);
+            case GEMINI -> mergeGeminiRaw(raw, merged);
+            case OPENCODE -> mergeOpenCodeRaw(raw, merged);
+        }
+
+        return merged;
+    }
+
+    private void mergeClaudeRaw(JsonObject raw, JsonObject merged) {
+        mergeRootUnknownFields(raw, merged, List.of("env", "effortLevel", "alwaysThinkingEnabled"));
+
+        JsonObject mergedEnv = merged.has("env") && merged.get("env").isJsonObject()
+                ? merged.getAsJsonObject("env")
+                : new JsonObject();
+        JsonObject rawEnv = raw.has("env") && raw.get("env").isJsonObject()
+                ? raw.getAsJsonObject("env")
+                : null;
+        mergeObjectUnknownFields(rawEnv, mergedEnv, List.of(
+                "ANTHROPIC_AUTH_TOKEN",
+                "ANTHROPIC_API_KEY",
+                "ANTHROPIC_BASE_URL",
+                "ANTHROPIC_MODEL",
+                "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+                "ANTHROPIC_DEFAULT_SONNET_MODEL",
+                "ANTHROPIC_DEFAULT_OPUS_MODEL",
+                "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"));
+        merged.add("env", mergedEnv);
+    }
+
+    private void mergeCodexRaw(JsonObject raw, JsonObject merged) {
+        mergeRootUnknownFields(raw, merged, List.of("auth", "config"));
+
+        JsonObject mergedAuth = merged.has("auth") && merged.get("auth").isJsonObject()
+                ? merged.getAsJsonObject("auth")
+                : new JsonObject();
+        JsonObject rawAuth = raw.has("auth") && raw.get("auth").isJsonObject()
+                ? raw.getAsJsonObject("auth")
+                : null;
+        mergeObjectUnknownFields(rawAuth, mergedAuth, List.of("OPENAI_API_KEY"));
+        merged.add("auth", mergedAuth);
+    }
+
+    private void mergeGeminiRaw(JsonObject raw, JsonObject merged) {
+        mergeRootUnknownFields(raw, merged, List.of("env"));
+
+        JsonObject mergedEnv = merged.has("env") && merged.get("env").isJsonObject()
+                ? merged.getAsJsonObject("env")
+                : new JsonObject();
+        JsonObject rawEnv = raw.has("env") && raw.get("env").isJsonObject()
+                ? raw.getAsJsonObject("env")
+                : null;
+        mergeObjectUnknownFields(rawEnv, mergedEnv, List.of(
+                "GEMINI_API_KEY",
+                "GOOGLE_GEMINI_BASE_URL",
+                "GEMINI_MODEL"));
+        merged.add("env", mergedEnv);
+    }
+
+    private void mergeOpenCodeRaw(JsonObject raw, JsonObject merged) {
+        mergeRootUnknownFields(raw, merged, List.of("npm", "options", "models"));
+
+        JsonObject mergedOptions = merged.has("options") && merged.get("options").isJsonObject()
+                ? merged.getAsJsonObject("options")
+                : new JsonObject();
+        JsonObject rawOptions = raw.has("options") && raw.get("options").isJsonObject()
+                ? raw.getAsJsonObject("options")
+                : null;
+        mergeObjectUnknownFields(rawOptions, mergedOptions, List.of("apiKey", "baseURL"));
+        merged.add("options", mergedOptions);
+
+        JsonObject mergedModels = merged.has("models") && merged.get("models").isJsonObject()
+                ? merged.getAsJsonObject("models")
+                : new JsonObject();
+        JsonObject rawModels = raw.has("models") && raw.get("models").isJsonObject()
+                ? raw.getAsJsonObject("models")
+                : null;
+        if (rawModels != null) {
+            for (String modelKey : rawModels.keySet()) {
+                if (!mergedModels.has(modelKey)) {
+                    mergedModels.add(modelKey, rawModels.get(modelKey).deepCopy());
+                } else if (rawModels.get(modelKey).isJsonObject() && mergedModels.get(modelKey).isJsonObject()) {
+                    JsonObject rawModelDef = rawModels.getAsJsonObject(modelKey);
+                    JsonObject mergedModelDef = mergedModels.getAsJsonObject(modelKey);
+                    mergeObjectUnknownFields(rawModelDef, mergedModelDef, List.of("name", "options"));
+
+                    JsonObject mergedModelOptions = mergedModelDef.has("options") && mergedModelDef.get("options").isJsonObject()
+                            ? mergedModelDef.getAsJsonObject("options")
+                            : new JsonObject();
+                    JsonObject rawModelOptions = rawModelDef.has("options") && rawModelDef.get("options").isJsonObject()
+                            ? rawModelDef.getAsJsonObject("options")
+                            : null;
+                    mergeObjectUnknownFields(rawModelOptions, mergedModelOptions, List.of("reasoningEffort"));
+                    if (rawModelOptions != null || !mergedModelOptions.keySet().isEmpty()) {
+                        mergedModelDef.add("options", mergedModelOptions);
+                    }
+                }
+            }
+        }
+        if (!mergedModels.keySet().isEmpty()) {
+            merged.add("models", mergedModels);
+        }
+    }
+
+    private void mergeRootUnknownFields(JsonObject raw, JsonObject merged, List<String> knownKeys) {
+        mergeObjectUnknownFields(raw, merged, knownKeys);
+    }
+
+    private void mergeObjectUnknownFields(JsonObject raw, JsonObject merged, List<String> knownKeys) {
+        if (raw == null) {
+            return;
+        }
+        for (String key : raw.keySet()) {
+            if (!knownKeys.contains(key) && !merged.has(key)) {
+                merged.add(key, raw.get(key).deepCopy());
+            }
+        }
     }
 
     private String extractTomlValue(String line) {

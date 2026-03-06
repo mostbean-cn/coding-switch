@@ -18,6 +18,7 @@ import org.jetbrains.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -68,7 +69,13 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             List<Provider> list = GSON.fromJson(myState.providersJson,
                     new TypeToken<List<Provider>>() {
                     }.getType());
-            return list != null ? list : new ArrayList<>();
+            List<Provider> providers = list != null ? list : new ArrayList<>();
+            providers.sort(Comparator
+                    .comparing((Provider p) -> p.getCliType() != null ? p.getCliType().getDisplayName() : "",
+                            String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing((Provider p) -> p.getCreatedAt() != null ? p.getCreatedAt() : 0L)
+                    .thenComparing(Provider::getId, Comparator.nullsLast(String::compareTo)));
+            return providers;
         } catch (Exception e) {
             LOG.warn("Failed to parse providers", e);
             return new ArrayList<>();

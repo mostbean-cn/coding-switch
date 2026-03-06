@@ -188,7 +188,7 @@ public final class SessionScannerService {
                     continue;
 
                 JsonObject message = obj.getAsJsonObject("message");
-                String role = getStr(message, "role", "unknown");
+                String role = normalizeClaudeRole(message);
                 String content = extractText(message.get("content"));
                 if (content == null || content.isBlank())
                     continue;
@@ -719,6 +719,28 @@ public final class SessionScannerService {
         }
 
         return null;
+    }
+
+    private String normalizeClaudeRole(JsonObject message) {
+        String role = getStr(message, "role", "unknown");
+        if (!"user".equalsIgnoreCase(role)) {
+            return role;
+        }
+
+        if (message.has("content") && message.get("content").isJsonArray()) {
+            for (JsonElement elem : message.getAsJsonArray("content")) {
+                if (!elem.isJsonObject()) {
+                    continue;
+                }
+                JsonObject item = elem.getAsJsonObject();
+                String type = getStr(item, "type", "").toLowerCase();
+                if ("tool_result".equals(type)) {
+                    return "tool";
+                }
+            }
+        }
+
+        return role;
     }
 
     private String getStr(JsonObject obj, String key, String defaultVal) {

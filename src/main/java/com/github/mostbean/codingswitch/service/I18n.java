@@ -109,6 +109,11 @@ public final class I18n {
                 m.put("session.time.daysAgo", "{0} 天前");
                 m.put("session.time.created", "创建: {0}");
                 m.put("session.time.lastActive", "最后活跃: {0}");
+                m.put("session.role.assistant", "AI");
+                m.put("session.role.user", "用户");
+                m.put("session.role.system", "系统");
+                m.put("session.role.tool", "工具");
+                m.put("session.role.unknown", "未知");
 
                 // ── MCP 面板 ──
                 m.put("mcp.table.empty", "暂无 MCP 服务器，点击 + 新增或从 CLI 导入");
@@ -194,7 +199,7 @@ public final class I18n {
                 m.put("skill.action.uninstall", "卸载 Skill");
                 m.put("skill.action.remove", "移除");
                 m.put("skill.action.scanLocal", "扫描本地");
-                m.put("skill.action.scanLocal.tooltip", "扫描 ~/.claude/skills/ 中已安装的 Skills");
+                m.put("skill.action.scanLocal.tooltip", "扫描 ~/.config/coding-switch/skills 中已安装的 Skills");
                 m.put("skill.action.discoverFromRepos", "发现 Skills");
                 m.put("skill.action.addRepo", "添加仓库");
                 m.put("skill.action.addRepo.tooltip", "添加自定义 GitHub 仓库（可选分支）");
@@ -208,7 +213,9 @@ public final class I18n {
                 m.put("skill.action.update.tooltip", "更新本地已安装的 Skill");
                 m.put("skill.action.installZip", "ZIP 添加");
                 m.put("skill.action.installZip.tooltip", "从本地 ZIP 包导入 Skill");
-                m.put("skill.dialog.scanEmpty", "未在 ~/.claude/skills/ 中发现已安装的 Skills");
+                m.put("skill.dialog.scanEmpty", "未在 ~/.config/coding-switch/skills 中发现已安装的 Skills");
+                m.put("skill.dialog.scanDone", "扫描完成，发现 {0} 个本地 Skills。");
+                m.put("skill.dialog.scanWithBridgeSyncFailed", "扫描完成，发现 {0} 个本地 Skills，但同步到 CLI 失败 {1} 个。\n详情：{2}");
                 m.put("skill.dialog.scanTitle", "扫描结果");
                 m.put("skill.dialog.uninstallConfirm", "卸载技能 \"{0}\" 吗？将删除本地目录。");
                 m.put("skill.dialog.uninstallTitle", "确认卸载");
@@ -328,6 +335,7 @@ public final class I18n {
                 m.put("providerDialog.label.reasoningEffort", "推理强度:");
                 m.put("providerDialog.label.effortLevel", "推理强度:");
                 m.put("providerDialog.label.alwaysThinkingEnabled", "扩展思考:");
+                m.put("providerDialog.label.teamModeEnabled", "Team 模式:");
                 m.put("providerDialog.label.maxThinkingTokens", "思考令牌预算:");
                 m.put("providerDialog.label.npmPackage", "NPM 包:");
                 m.put("providerDialog.border.claude", "Claude Code 配置");
@@ -421,6 +429,11 @@ public final class I18n {
                 m.put("session.time.daysAgo", "{0} days ago");
                 m.put("session.time.created", "Created: {0}");
                 m.put("session.time.lastActive", "Last active: {0}");
+                m.put("session.role.assistant", "AI");
+                m.put("session.role.user", "User");
+                m.put("session.role.system", "System");
+                m.put("session.role.tool", "Tool");
+                m.put("session.role.unknown", "Unknown");
 
                 // ── MCP Panel ──
                 m.put("mcp.table.empty", "No MCP servers. Click + to add or import from CLI");
@@ -508,7 +521,7 @@ public final class I18n {
                 m.put("skill.action.uninstall", "Uninstall Skill");
                 m.put("skill.action.remove", "Remove");
                 m.put("skill.action.scanLocal", "Scan Local");
-                m.put("skill.action.scanLocal.tooltip", "Scan ~/.claude/skills/ for installed Skills");
+                m.put("skill.action.scanLocal.tooltip", "Scan ~/.config/coding-switch/skills for installed Skills");
                 m.put("skill.action.discoverFromRepos", "Discover Skills");
                 m.put("skill.action.addRepo", "Add Repository");
                 m.put("skill.action.addRepo.tooltip", "Add a custom GitHub repository (optional branch)");
@@ -523,7 +536,9 @@ public final class I18n {
                 m.put("skill.action.update.tooltip", "Update selected installed skill");
                 m.put("skill.action.installZip", "ZIP Add");
                 m.put("skill.action.installZip.tooltip", "Import a Skill from local ZIP package");
-                m.put("skill.dialog.scanEmpty", "No installed Skills found in ~/.claude/skills/");
+                m.put("skill.dialog.scanEmpty", "No installed Skills found in ~/.config/coding-switch/skills");
+                m.put("skill.dialog.scanDone", "Scan complete. Found {0} local Skills.");
+                m.put("skill.dialog.scanWithBridgeSyncFailed", "Scan complete. Found {0} local Skills, but syncing to CLI failed for {1}.\nDetails: {2}");
                 m.put("skill.dialog.scanTitle", "Scan Result");
                 m.put("skill.dialog.uninstallConfirm",
                                 "Uninstall skill \"{0}\"?\nThis will delete the local directory.");
@@ -654,6 +669,7 @@ public final class I18n {
                 m.put("providerDialog.label.reasoningEffort", "Reasoning Effort:");
                 m.put("providerDialog.label.effortLevel", "Effort Level:");
                 m.put("providerDialog.label.alwaysThinkingEnabled", "Extended Thinking:");
+                m.put("providerDialog.label.teamModeEnabled", "Team Mode:");
                 m.put("providerDialog.label.maxThinkingTokens", "Max Thinking Tokens:");
                 m.put("providerDialog.label.npmPackage", "NPM Package:");
                 m.put("providerDialog.border.claude", "Claude Code Config");

@@ -28,10 +28,12 @@ public class Provider {
     private JsonObject settingsConfig;
     private boolean active;
     private boolean pendingActivation;
+    private Long createdAt;
 
     public Provider() {
         this.id = UUID.randomUUID().toString();
         this.settingsConfig = new JsonObject();
+        this.createdAt = System.currentTimeMillis();
     }
 
     public Provider(CliType cliType, String name) {
@@ -88,6 +90,14 @@ public class Provider {
 
     public void setPendingActivation(boolean pendingActivation) {
         this.pendingActivation = pendingActivation;
+    }
+
+    public Long getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Long createdAt) {
+        this.createdAt = createdAt;
     }
 
     /**

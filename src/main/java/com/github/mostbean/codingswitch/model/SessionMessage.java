@@ -43,18 +43,4 @@ public class SessionMessage {
         this.timestamp = timestamp;
     }
 
-    /**
-     * 返回角色的显示标签。
-     */
-    public String getRoleLabel() {
-        if (role == null)
-            return "Unknown";
-        return switch (role.toLowerCase()) {
-            case "assistant" -> "AI";
-            case "user" -> "用户";
-            case "system" -> "系统";
-            case "tool" -> "工具";
-            default -> role;
-        };
-    }
 }

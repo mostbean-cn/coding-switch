@@ -162,13 +162,27 @@ public class SkillPanel extends JPanel {
         SkillService service = SkillService.getInstance();
         List<Skill> localSkills = service.scanLocalSkills();
         service.syncLocalSkills(localSkills);
-        service.syncSkillBridgesToCli();
+        SkillService.SkillBridgeSyncResult syncResult = service.syncSkillBridgesToCli();
         refreshTable();
+
+        if (syncResult.failed() > 0) {
+            Messages.showWarningDialog(
+                    I18n.t("skill.dialog.scanWithBridgeSyncFailed", localSkills.size(), syncResult.failed(),
+                            syncResult.detail()),
+                    I18n.t("skill.dialog.scanTitle"));
+            return;
+        }
+
         if (localSkills.isEmpty()) {
             Messages.showInfoMessage(
                     I18n.t("skill.dialog.scanEmpty"),
                     I18n.t("skill.dialog.scanTitle"));
+            return;
         }
+
+        Messages.showInfoMessage(
+                I18n.t("skill.dialog.scanDone", localSkills.size()),
+                I18n.t("skill.dialog.scanTitle"));
     }
 
     private void onOpenDiscoveryDialog() {

@@ -377,7 +377,7 @@ public class SessionPanel extends JPanel {
         JPanel headerPanel = new JPanel(new BorderLayout());
         headerPanel.setOpaque(false);
 
-        JBLabel roleLabel = new JBLabel(message.getRoleLabel());
+        JBLabel roleLabel = new JBLabel(getRoleLabel(message.getRole()));
         roleLabel.setFont(roleLabel.getFont().deriveFont(Font.BOLD, 11f));
         roleLabel.setForeground(getRoleColor(message.getRole()));
         headerPanel.add(roleLabel, BorderLayout.WEST);
@@ -506,6 +506,19 @@ public class SessionPanel extends JPanel {
             case "gemini" -> "Gemini CLI";
             case "opencode" -> "OpenCode";
             default -> providerId;
+        };
+    }
+
+    private String getRoleLabel(String role) {
+        if (role == null) {
+            return I18n.t("session.role.unknown");
+        }
+        return switch (role.toLowerCase()) {
+            case "assistant" -> I18n.t("session.role.assistant");
+            case "user" -> I18n.t("session.role.user");
+            case "system" -> I18n.t("session.role.system");
+            case "tool" -> I18n.t("session.role.tool");
+            default -> role;
         };
     }
 
