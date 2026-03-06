@@ -220,6 +220,18 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             existing.remove("effortLevel");
         }
 
+        if (config.has("dangerouslySkipPermissions") && config.get("dangerouslySkipPermissions").getAsBoolean()) {
+            existing.addProperty("dangerouslySkipPermissions", true);
+        } else {
+            existing.remove("dangerouslySkipPermissions");
+        }
+
+        if (config.has("skipDangerousModePermissionPrompt") && config.get("skipDangerousModePermissionPrompt").getAsBoolean()) {
+            existing.addProperty("skipDangerousModePermissionPrompt", true);
+        } else {
+            existing.remove("skipDangerousModePermissionPrompt");
+        }
+
         svc.writeJsonFile(path, existing);
     }
     /**

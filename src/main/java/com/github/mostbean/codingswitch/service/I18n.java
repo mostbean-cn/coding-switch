@@ -80,7 +80,7 @@ public final class I18n {
                 m.put("settings.button.show", "显示");
                 m.put("settings.button.hide", "隐藏");
                 m.put("settings.button.saveGithubToken", "保存令牌");
-                m.put("settings.hint.githubToken", "可选。配置 GitHub 令牌可提升 API 速率限制。");
+                m.put("settings.hint.githubToken", "可选。配置 GitHub 令牌可提升 API 速率限制（仅影响 GitHub Skills 仓库）。");
                 m.put("settings.githubToken.title", "设置");
                 m.put("settings.githubToken.saved", "GitHub 令牌已保存");
                 m.put("settings.hint.restartRequired", "⚠️ 切换语言后需要重启 IDE 才能完全生效");
@@ -336,6 +336,9 @@ public final class I18n {
                 m.put("providerDialog.label.effortLevel", "推理强度:");
                 m.put("providerDialog.label.alwaysThinkingEnabled", "扩展思考:");
                 m.put("providerDialog.label.teamModeEnabled", "Team 模式:");
+                m.put("providerDialog.label.dangerousMode", "危险模式:");
+                m.put("providerDialog.dangerousMode.skipPermissions", "跳过确认");
+                m.put("providerDialog.dangerousMode.skipAll", "跳过确认和提示");
                 m.put("providerDialog.label.maxThinkingTokens", "思考令牌预算:");
                 m.put("providerDialog.label.npmPackage", "NPM 包:");
                 m.put("providerDialog.border.claude", "Claude Code 配置");
@@ -399,7 +402,7 @@ public final class I18n {
                 m.put("settings.button.show", "Show");
                 m.put("settings.button.hide", "Hide");
                 m.put("settings.button.saveGithubToken", "Save Token");
-                m.put("settings.hint.githubToken", "Optional. Increases GitHub API quota and is stored in local IDE settings only.");
+                m.put("settings.hint.githubToken", "Optional. Increases GitHub API rate limit (only affects GitHub Skills repositories).");
                 m.put("settings.githubToken.title", "Settings");
                 m.put("settings.githubToken.saved", "GitHub token saved");
                 m.put("settings.hint.restartRequired", "⚠️ Restart IDE after switching language for full effect");
@@ -670,6 +673,9 @@ public final class I18n {
                 m.put("providerDialog.label.effortLevel", "Effort Level:");
                 m.put("providerDialog.label.alwaysThinkingEnabled", "Extended Thinking:");
                 m.put("providerDialog.label.teamModeEnabled", "Team Mode:");
+                m.put("providerDialog.label.dangerousMode", "Dangerous Mode:");
+                m.put("providerDialog.dangerousMode.skipPermissions", "Skip Permissions");
+                m.put("providerDialog.dangerousMode.skipAll", "Skip Permissions & Prompt");
                 m.put("providerDialog.label.maxThinkingTokens", "Max Thinking Tokens:");
                 m.put("providerDialog.label.npmPackage", "NPM Package:");
                 m.put("providerDialog.border.claude", "Claude Code Config");

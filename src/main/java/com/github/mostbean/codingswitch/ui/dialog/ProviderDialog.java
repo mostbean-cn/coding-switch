@@ -57,6 +57,9 @@ public class ProviderDialog extends DialogWrapper {
     private final JComboBox<String> claudeAlwaysThinkingEnabled = new JComboBox<>(
             new String[] { "", "true", "false" });
     private final JCheckBox claudeTeamModeEnabled = new JCheckBox();
+    private final JComboBox<String> claudeDangerousMode = new JComboBox<>(new String[] {
+            "", I18n.t("providerDialog.dangerousMode.skipPermissions"),
+            I18n.t("providerDialog.dangerousMode.skipAll") });
 
     private final JTextField codexApiKey = new JTextField(30);
     private final JTextField codexBaseUrl = new JTextField(30);
@@ -312,6 +315,9 @@ public class ProviderDialog extends DialogWrapper {
             if (!updatingFromPreview) updatePreview();
         });
         claudeTeamModeEnabled.addActionListener(e -> {
+            if (!updatingFromPreview) updatePreview();
+        });
+        claudeDangerousMode.addActionListener(e -> {
             if (!updatingFromPreview) updatePreview();
         });
 
@@ -745,6 +751,25 @@ public class ProviderDialog extends DialogWrapper {
     // =====================================================================
 
     private JPanel buildClaudePanel() {
+        JPanel thinkingRow = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.anchor = GridBagConstraints.WEST;
+
+        gbc.gridx = 0; gbc.weightx = 0; gbc.fill = GridBagConstraints.NONE;
+        gbc.insets = JBUI.insets(0, 0, 0, 8);
+        thinkingRow.add(claudeAlwaysThinkingEnabled, gbc);
+
+        gbc.gridx = 1; gbc.weightx = 0; gbc.fill = GridBagConstraints.NONE;
+        gbc.insets = JBUI.insets(0, 12, 0, 4);
+        thinkingRow.add(new JBLabel(I18n.t("providerDialog.label.effortLevel")), gbc);
+
+        gbc.gridx = 2; gbc.weightx = 0; gbc.fill = GridBagConstraints.NONE;
+        gbc.insets = JBUI.insets(0, 0, 0, 0);
+        thinkingRow.add(claudeEffortLevel, gbc);
+
+        gbc.gridx = 3; gbc.weightx = 1.0; gbc.fill = GridBagConstraints.HORIZONTAL;
+        thinkingRow.add(Box.createHorizontalGlue(), gbc);
+
         JPanel form = FormBuilder.createFormBuilder()
                 .addLabeledComponent(I18n.t("providerDialog.label.keyFieldName"), claudeApiKeyField)
                 .addLabeledComponent("API Key:", claudeApiKey)
@@ -755,8 +780,8 @@ public class ProviderDialog extends DialogWrapper {
                 .addLabeledComponent("Sonnet:", claudeSonnet)
                 .addLabeledComponent("Opus:", claudeOpus)
                 .addSeparator(8)
-                .addLabeledComponent(I18n.t("providerDialog.label.effortLevel"), claudeEffortLevel)
-                .addLabeledComponent(I18n.t("providerDialog.label.alwaysThinkingEnabled"), claudeAlwaysThinkingEnabled)
+                .addLabeledComponent(I18n.t("providerDialog.label.alwaysThinkingEnabled"), thinkingRow)
+                .addLabeledComponent(I18n.t("providerDialog.label.dangerousMode"), claudeDangerousMode)
                 .addLabeledComponent(I18n.t("providerDialog.label.teamModeEnabled"), claudeTeamModeEnabled)
                 .getPanel();
         return wrapWithTitledBorder(form, I18n.t("providerDialog.border.claude"));
@@ -910,6 +935,18 @@ public class ProviderDialog extends DialogWrapper {
         boolean teamModeEnabled = env.has("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS")
                 && "1".equals(env.get("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS").getAsString());
         claudeTeamModeEnabled.setSelected(teamModeEnabled);
+
+        boolean dangerousSkip = config.has("dangerouslySkipPermissions")
+                && config.get("dangerouslySkipPermissions").getAsBoolean();
+        boolean promptSkip = config.has("skipDangerousModePermissionPrompt")
+                && config.get("skipDangerousModePermissionPrompt").getAsBoolean();
+        if (dangerousSkip && promptSkip) {
+            claudeDangerousMode.setSelectedItem(I18n.t("providerDialog.dangerousMode.skipAll"));
+        } else if (dangerousSkip) {
+            claudeDangerousMode.setSelectedItem(I18n.t("providerDialog.dangerousMode.skipPermissions"));
+        } else {
+            claudeDangerousMode.setSelectedIndex(0);
+        }
     }
     private void loadCodexConfig(JsonObject config) {
         if (config.has("auth")) {
@@ -1008,6 +1045,17 @@ public class ProviderDialog extends DialogWrapper {
         if ("true".equalsIgnoreCase(alwaysThinkingEnabled) || "false".equalsIgnoreCase(alwaysThinkingEnabled)) {
             config.addProperty("alwaysThinkingEnabled", Boolean.parseBoolean(alwaysThinkingEnabled));
         }
+
+        String dangerousMode = (String) claudeDangerousMode.getSelectedItem();
+        String skipPermissionsLabel = I18n.t("providerDialog.dangerousMode.skipPermissions");
+        String skipAllLabel = I18n.t("providerDialog.dangerousMode.skipAll");
+        if (skipAllLabel.equals(dangerousMode)) {
+            config.addProperty("dangerouslySkipPermissions", true);
+            config.addProperty("skipDangerousModePermissionPrompt", true);
+        } else if (skipPermissionsLabel.equals(dangerousMode)) {
+            config.addProperty("dangerouslySkipPermissions", true);
+        }
+
         return config;
     }
     private JsonObject buildCodexConfig() {
@@ -1125,7 +1173,9 @@ public class ProviderDialog extends DialogWrapper {
     }
 
     private void mergeClaudeRaw(JsonObject raw, JsonObject merged) {
-        mergeRootUnknownFields(raw, merged, List.of("env", "effortLevel", "alwaysThinkingEnabled"));
+        mergeRootUnknownFields(raw, merged, List.of(
+                "env", "effortLevel", "alwaysThinkingEnabled",
+                "dangerouslySkipPermissions", "skipDangerousModePermissionPrompt"));
 
         JsonObject mergedEnv = merged.has("env") && merged.get("env").isJsonObject()
                 ? merged.getAsJsonObject("env")
