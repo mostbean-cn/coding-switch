@@ -84,6 +84,20 @@ public final class I18n {
                 m.put("settings.githubToken.title", "设置");
                 m.put("settings.githubToken.saved", "GitHub 令牌已保存");
                 m.put("settings.hint.restartRequired", "⚠️ 切换语言后需要重启 IDE 才能完全生效");
+
+                // ── OpenCode Plugin 预设 ──
+                m.put("settings.section.opencodePlugin", "OpenCode 插件框架");
+                m.put("settings.opencodePlugin.none", "无");
+                m.put("settings.opencodePlugin.ohmyopencode", "Oh My OpenCode");
+                m.put("settings.opencodePlugin.ohmyopencodeslim", "Oh My OpenCode Slim");
+                m.put("settings.opencodePlugin.hint", "选择 OpenCode 的插件框架。标准版功能全面，Slim 版更轻量省 token。");
+                m.put("settings.opencodePlugin.activated", "已切换到 {0}，已更新 opencode.json");
+                m.put("settings.opencodePlugin.deactivated", "已停用插件框架，已更新 opencode.json");
+                m.put("settings.opencodePlugin.failed", "切换失败: {0}");
+                m.put("settings.opencodePlugin.generateConfig", "是否生成 {0} 的默认配置文件？");
+                m.put("settings.opencodePlugin.generateConfigTitle", "生成配置");
+                m.put("settings.opencodePlugin.configGenerated", "已生成默认配置文件: {0}");
+                m.put("settings.opencodePlugin.title", "OpenCode 插件");
                 m.put("settings.dialog.languageChanged.message", "语言已切换为 {0}\n\n需要重启 IDE 才能完全生效。\n是否立即重启 IDE？");
                 m.put("settings.dialog.languageChanged.title", "语言设置已更改");
                 m.put("settings.dialog.languageChanged.restartNow", "立即重启");
@@ -147,15 +161,28 @@ public final class I18n {
                 m.put("provider.table.col.model", "模型");
                 m.put("provider.status.active", "已激活");
                 m.put("provider.status.pendingActivation", "待激活");
+                m.put("provider.status.synced", "已同步");
+                m.put("provider.status.notSynced", "未同步");
+                m.put("provider.status.applied", "已应用");
+                m.put("provider.status.notApplied", "未应用");
                 m.put("provider.action.duplicate", "复制");
                 m.put("provider.action.duplicate.tooltip", "复制选中的配置");
                 m.put("provider.action.activate", "激活");
                 m.put("provider.action.activate.tooltip", "激活选中的配置并同步到 CLI");
+                m.put("provider.action.sync", "同步");
+                m.put("provider.action.sync.tooltip", "将当前 OpenCode provider 同步到 live opencode.json");
+                m.put("provider.action.removeSync", "移除同步");
+                m.put("provider.action.removeSync.tooltip", "从 live opencode.json 中移除当前 OpenCode provider");
+                m.put("provider.action.apply", "应用");
+                m.put("provider.action.apply.tooltip", "应用当前 OMO 配置并写入对应配置文件");
+                m.put("provider.action.disable", "停用");
+                m.put("provider.action.disable.tooltip", "停用当前 OMO 配置并移除对应 plugin/文件");
                 m.put("provider.dialog.deleteConfirm", "确定删除配置 \"{0}\" 吗？");
                 m.put("provider.dialog.deleteTitle", "确认删除");
                 m.put("provider.dialog.activateSuccess", "配置 \"{0}\" 已激活\n已同步到 {1}");
                 m.put("provider.dialog.activateTitle", "激活成功");
                 m.put("provider.dialog.activateFailed", "激活失败: {0}");
+                m.put("provider.dialog.actionFailed", "操作失败: {0}");
                 m.put("provider.dialog.error", "错误");
                 m.put("provider.dialog.precheckFailedTitle", "连接预检失败");
                 m.put("provider.dialog.precheckFailed", "连接测试未通过：{0}\n\n仍要继续激活吗？");
@@ -353,6 +380,7 @@ public final class I18n {
                 m.put("providerDialog.test.testing", "测试中...");
                 m.put("providerDialog.test.success", "连接成功（{0}ms）");
                 m.put("providerDialog.test.failed", "连接失败: {0}");
+                m.put("providerDialog.test.unsupportedOmo", "OMO / OMO Slim 不支持连接测试，请先保存，再到列表页执行应用。");
 
                 // ── ProviderDialog 预览 ──
                 m.put("providerDialog.label.preview", "配置预览");
@@ -365,6 +393,14 @@ public final class I18n {
                 m.put("providerDialog.button.applyToForm", "应用到表单");
                 m.put("providerDialog.preview.parseError", "解析失败: {0}");
                 m.put("providerDialog.preview.parseErrorTitle", "解析错误");
+
+                // ── ProviderDialog Extra Options ──
+                m.put("providerDialog.label.extraOptions", "额外选项");
+                m.put("providerDialog.button.addOption", "+ 添加");
+                m.put("providerDialog.tooltip.removeOption", "移除此选项");
+                m.put("providerDialog.hint.extraOptions", "配置额外的 SDK 选项，如 timeout、setCacheKey 等。值会自动解析类型（数字、布尔值等）。");
+                m.put("providerDialog.extraOption.key", "键名");
+                m.put("providerDialog.extraOption.value", "值");
 
                 return m;
         }
@@ -406,6 +442,20 @@ public final class I18n {
                 m.put("settings.githubToken.title", "Settings");
                 m.put("settings.githubToken.saved", "GitHub token saved");
                 m.put("settings.hint.restartRequired", "⚠️ Restart IDE after switching language for full effect");
+
+                // ── OpenCode Plugin Preset ──
+                m.put("settings.section.opencodePlugin", "OpenCode Plugin Framework");
+                m.put("settings.opencodePlugin.none", "None");
+                m.put("settings.opencodePlugin.ohmyopencode", "Oh My OpenCode");
+                m.put("settings.opencodePlugin.ohmyopencodeslim", "Oh My OpenCode Slim");
+                m.put("settings.opencodePlugin.hint", "Choose a plugin framework for OpenCode. Standard has full features; Slim is lighter and uses fewer tokens.");
+                m.put("settings.opencodePlugin.activated", "Switched to {0}, opencode.json updated");
+                m.put("settings.opencodePlugin.deactivated", "Plugin framework deactivated, opencode.json updated");
+                m.put("settings.opencodePlugin.failed", "Switch failed: {0}");
+                m.put("settings.opencodePlugin.generateConfig", "Generate default config file for {0}?");
+                m.put("settings.opencodePlugin.generateConfigTitle", "Generate Config");
+                m.put("settings.opencodePlugin.configGenerated", "Default config file generated: {0}");
+                m.put("settings.opencodePlugin.title", "OpenCode Plugin");
                 m.put("settings.dialog.languageChanged.message",
                                 "Language switched to {0}\n\nRestart IDE for full effect.\nRestart now?");
                 m.put("settings.dialog.languageChanged.title", "Language Changed");
@@ -471,15 +521,28 @@ public final class I18n {
                 m.put("provider.table.col.model", "Model");
                 m.put("provider.status.active", "Active");
                 m.put("provider.status.pendingActivation", "Pending Activation");
+                m.put("provider.status.synced", "Synced");
+                m.put("provider.status.notSynced", "Not Synced");
+                m.put("provider.status.applied", "Applied");
+                m.put("provider.status.notApplied", "Not Applied");
                 m.put("provider.action.duplicate", "Duplicate");
                 m.put("provider.action.duplicate.tooltip", "Duplicate selected config");
                 m.put("provider.action.activate", "Activate");
                 m.put("provider.action.activate.tooltip", "Activate selected config and sync to CLI");
+                m.put("provider.action.sync", "Sync");
+                m.put("provider.action.sync.tooltip", "Sync this OpenCode provider to live opencode.json");
+                m.put("provider.action.removeSync", "Remove Sync");
+                m.put("provider.action.removeSync.tooltip", "Remove this OpenCode provider from live opencode.json");
+                m.put("provider.action.apply", "Apply");
+                m.put("provider.action.apply.tooltip", "Apply this OMO config and write the local config file");
+                m.put("provider.action.disable", "Disable");
+                m.put("provider.action.disable.tooltip", "Disable this OMO config and remove its plugin/file");
                 m.put("provider.dialog.deleteConfirm", "Delete config \"{0}\"?");
                 m.put("provider.dialog.deleteTitle", "Confirm Delete");
                 m.put("provider.dialog.activateSuccess", "Config \"{0}\" activated\nSynced to {1}");
                 m.put("provider.dialog.activateTitle", "Activation Successful");
                 m.put("provider.dialog.activateFailed", "Activation failed: {0}");
+                m.put("provider.dialog.actionFailed", "Action failed: {0}");
                 m.put("provider.dialog.error", "Error");
                 m.put("provider.dialog.precheckFailedTitle", "Connection Pre-check Failed");
                 m.put("provider.dialog.precheckFailed", "Connection test failed: {0}\n\nContinue activation anyway?");
@@ -691,6 +754,7 @@ public final class I18n {
                 m.put("providerDialog.test.testing", "Testing...");
                 m.put("providerDialog.test.success", "Connection successful ({0}ms)");
                 m.put("providerDialog.test.failed", "Connection failed: {0}");
+                m.put("providerDialog.test.unsupportedOmo", "OMO / OMO Slim does not support connection tests. Save it first, then apply it from the provider list.");
 
                 // ── ProviderDialog Preview ──
                 m.put("providerDialog.label.preview", "Config Preview");
@@ -703,6 +767,14 @@ public final class I18n {
                 m.put("providerDialog.button.applyToForm", "Apply to Form");
                 m.put("providerDialog.preview.parseError", "Parse error: {0}");
                 m.put("providerDialog.preview.parseErrorTitle", "Parse Error");
+
+                // ── ProviderDialog Extra Options ──
+                m.put("providerDialog.label.extraOptions", "Extra Options");
+                m.put("providerDialog.button.addOption", "+ Add");
+                m.put("providerDialog.tooltip.removeOption", "Remove this option");
+                m.put("providerDialog.hint.extraOptions", "Configure extra SDK options like timeout, setCacheKey, etc. Values are auto-parsed (numbers, booleans).");
+                m.put("providerDialog.extraOption.key", "Key");
+                m.put("providerDialog.extraOption.value", "Value");
 
                 return m;
         }

@@ -74,6 +74,8 @@ public class ProviderDialog extends DialogWrapper {
 
     private final JTextField opencodeApiKey = new JTextField(30);
     private final JTextField opencodeBaseUrl = new JTextField(30);
+    private final JPanel opencodeExtraOptionsPanel = new JPanel();
+    private final List<ExtraOptionRow> opencodeExtraOptionRows = new ArrayList<>();
     private final JPanel opencodeModelsPanel = new JPanel();
     private final List<ModelRow> opencodeModelRows = new ArrayList<>();
     private final JComboBox<String> opencodeNpm = createEditableCombo(
@@ -98,11 +100,24 @@ public class ProviderDialog extends DialogWrapper {
         }
     }
 
+    private static class ExtraOptionRow {
+        final JTextField keyField;
+        final JTextField valueField;
+        final JPanel panel;
+
+        ExtraOptionRow(JTextField keyField, JTextField valueField, JPanel panel) {
+            this.keyField = keyField;
+            this.valueField = valueField;
+            this.panel = panel;
+        }
+    }
+
     private final JPanel dynamicPanel = new JPanel(new CardLayout());
     private final JButton testConnectionButton = new JButton(I18n.t("providerDialog.button.testConnection"));
     private final JBLabel testConnectionHintLabel = new JBLabel(I18n.t("providerDialog.test.hint"));
     private final JBLabel testStatusLabel = new JBLabel(" ");
     private final Provider provider;
+    private final OpenCodeProviderEditorPanel openCodeEditorPanel;
     private final Map<CliType, JsonObject> rawSettingsByCli = new EnumMap<>(CliType.class);
     private String selectedPreset = PRESET_NONE;
     private List<ProviderPresets.Preset> currentPresets = List.of();
@@ -133,19 +148,21 @@ public class ProviderDialog extends DialogWrapper {
     public ProviderDialog(@Nullable Provider existing) {
         super(true);
         this.provider = existing != null ? existing : new Provider();
+        this.openCodeEditorPanel = new OpenCodeProviderEditorPanel(existing);
 
         setTitle(existing != null ? I18n.t("providerDialog.title.edit") : I18n.t("providerDialog.title.add"));
 
         dynamicPanel.add(buildClaudePanel(), CliType.CLAUDE.name());
         dynamicPanel.add(buildCodexPanel(), CliType.CODEX.name());
         dynamicPanel.add(buildGeminiPanel(), CliType.GEMINI.name());
-        dynamicPanel.add(buildOpenCodePanel(), CliType.OPENCODE.name());
+        dynamicPanel.add(openCodeEditorPanel.getComponent(), CliType.OPENCODE.name());
 
         cliTypeCombo.addActionListener(e -> {
             CliType selected = (CliType) cliTypeCombo.getSelectedItem();
             if (selected != null) {
                 ((CardLayout) dynamicPanel.getLayout()).show(dynamicPanel, selected.name());
                 refreshPresetButtons(selected);
+                refreshTestConnectionUi();
                 updatePreview();
             }
         });
@@ -153,9 +170,10 @@ public class ProviderDialog extends DialogWrapper {
         if (existing != null) {
             cliTypeCombo.setSelectedItem(existing.getCliType());
             nameField.setText(existing.getName());
-            loadSettingsConfig(existing.getCliType(), existing.getSettingsConfig());
+            loadSettingsConfig(existing.getCliType(), existing.getSettingsConfig(),
+                    existing.getNormalizedCategory(), existing.getProviderKey());
         } else {
-            opencodeNpm.setSelectedItem("@ai-sdk/openai-compatible");
+            openCodeEditorPanel.setCategory(Provider.CATEGORY_CUSTOM);
         }
 
         testConnectionButton.addActionListener(e -> onTestConnection());
@@ -171,6 +189,13 @@ public class ProviderDialog extends DialogWrapper {
 
         setupInputListeners();
         setupPreviewSyncListeners();
+        openCodeEditorPanel.addChangeListener(() -> {
+            refreshTestConnectionUi();
+            if (!updatingFromPreview) {
+                updatePreview();
+            }
+        });
+        refreshTestConnectionUi();
         updatePreview();
     }
 
@@ -331,11 +356,21 @@ public class ProviderDialog extends DialogWrapper {
         addTextFieldListener(geminiApiKey);
         addTextFieldListener(geminiBaseUrl);
         addTextFieldListener(geminiModel);
+        nameField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                openCodeEditorPanel.onProviderNameChanged(nameField.getText().trim());
+            }
 
-        addTextFieldListener(opencodeApiKey);
-        addTextFieldListener(opencodeBaseUrl);
-        opencodeNpm.addActionListener(e -> {
-            if (!updatingFromPreview) updatePreview();
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                openCodeEditorPanel.onProviderNameChanged(nameField.getText().trim());
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                openCodeEditorPanel.onProviderNameChanged(nameField.getText().trim());
+            }
         });
     }
 
@@ -370,6 +405,10 @@ public class ProviderDialog extends DialogWrapper {
 
     private void syncPreviewToFormIfNeeded() {
         if (!previewVisible || updatingFromPreview) {
+            return;
+        }
+        CliType cliType = (CliType) cliTypeCombo.getSelectedItem();
+        if (cliType == CliType.OPENCODE && !openCodeEditorPanel.isPreviewEditable()) {
             return;
         }
         applyPreviewToForm(false);
@@ -440,6 +479,7 @@ public class ProviderDialog extends DialogWrapper {
                     BorderFactory.createEtchedBorder(),
                     I18n.t("providerDialog.label.preview")));
             previewPanel.add(scrollPane, BorderLayout.CENTER);
+            previewTextArea.setEditable(cliType != CliType.OPENCODE || openCodeEditorPanel.isPreviewEditable());
 
             String preview = formatPreviewContent(cliType, config);
             withPreviewSyncMuted(() -> previewTextArea.setText(preview));
@@ -447,6 +487,18 @@ public class ProviderDialog extends DialogWrapper {
 
         previewPanel.revalidate();
         previewPanel.repaint();
+    }
+
+    private void refreshTestConnectionUi() {
+        CliType cliType = (CliType) cliTypeCombo.getSelectedItem();
+        boolean supported = cliType != CliType.OPENCODE || openCodeEditorPanel.supportsConnectionTest();
+        testConnectionButton.setEnabled(supported);
+        testConnectionHintLabel.setText(supported
+                ? I18n.t("providerDialog.test.hint")
+                : I18n.t("providerDialog.test.unsupportedOmo"));
+        if (!supported) {
+            testStatusLabel.setText(" ");
+        }
     }
 
     // =====================================================================
@@ -465,7 +517,7 @@ public class ProviderDialog extends DialogWrapper {
                 case CLAUDE -> applyClaudePreviewToForm();
                 case CODEX -> applyCodexPreviewToForm();
                 case GEMINI -> applyGeminiPreviewToForm();
-                case OPENCODE -> applyOpenCodePreviewToForm();
+                case OPENCODE -> openCodeEditorPanel.applyPreviewToForm(previewTextArea.getText());
             }
 
             testStatusLabel.setText(" ");
@@ -595,7 +647,7 @@ public class ProviderDialog extends DialogWrapper {
         return switch (cliType) {
             case CLAUDE -> formatClaudePreview(config);
             case GEMINI -> formatGeminiPreview(config);
-            case OPENCODE -> formatOpenCodePreview(config);
+            case OPENCODE -> openCodeEditorPanel.formatPreviewContent(config);
             case CODEX -> "";
         };
     }
@@ -673,6 +725,10 @@ public class ProviderDialog extends DialogWrapper {
         if (PRESET_NONE.equals(presetName)) {
             presetHintLabel.setText(" ");
             testStatusLabel.setText(" ");
+            if (cliTypeCombo.getSelectedItem() == CliType.OPENCODE) {
+                clearAllFields(CliType.OPENCODE);
+            }
+            refreshTestConnectionUi();
             updatePreview();
             return;
         }
@@ -682,7 +738,7 @@ public class ProviderDialog extends DialogWrapper {
             if (preset.name().equals(presetName)) {
                 nameField.setText(preset.name());
                 clearAllFields(cliType);
-                loadSettingsConfig(cliType, preset.settingsConfig());
+                loadSettingsConfig(cliType, preset.settingsConfig(), preset.category(), null);
 
                 if ("Official Login".equals(preset.name())) {
                     presetHintLabel.setText(OFFICIAL_HINT);
@@ -690,6 +746,7 @@ public class ProviderDialog extends DialogWrapper {
                     presetHintLabel.setText(I18n.t("providerDialog.preset.fillHint"));
                 }
                 testStatusLabel.setText(" ");
+                refreshTestConnectionUi();
                 updatePreview();
                 return;
             }
@@ -739,11 +796,7 @@ public class ProviderDialog extends DialogWrapper {
                 geminiBaseUrl.setText("");
                 geminiModel.setText("");
             }
-            case OPENCODE -> {
-                opencodeApiKey.setText("");
-                opencodeBaseUrl.setText("");
-                clearOpenCodeModelFields();
-            }
+            case OPENCODE -> openCodeEditorPanel.clear();
         }
     }
 
@@ -808,6 +861,25 @@ public class ProviderDialog extends DialogWrapper {
     }
 
     private JPanel buildOpenCodePanel() {
+        opencodeExtraOptionsPanel.setLayout(new BoxLayout(opencodeExtraOptionsPanel, BoxLayout.Y_AXIS));
+
+        JButton addOptionBtn = new JButton(I18n.t("providerDialog.button.addOption"));
+        addOptionBtn.addActionListener(e -> addOpenCodeExtraOptionField("", ""));
+
+        JBLabel extraOptionsHint = new JBLabel(I18n.t("providerDialog.hint.extraOptions"));
+        extraOptionsHint.setForeground(JBUI.CurrentTheme.ContextHelp.FOREGROUND);
+
+        JPanel extraOptionsContainer = new JPanel(new BorderLayout(0, 4));
+        extraOptionsContainer.add(opencodeExtraOptionsPanel, BorderLayout.CENTER);
+
+        JPanel extraOptionsBottom = new JPanel(new BorderLayout());
+        extraOptionsBottom.add(addOptionBtn, BorderLayout.WEST);
+        extraOptionsContainer.add(extraOptionsBottom, BorderLayout.SOUTH);
+
+        JPanel extraOptionsSection = new JPanel(new BorderLayout(0, 2));
+        extraOptionsSection.add(extraOptionsContainer, BorderLayout.CENTER);
+        extraOptionsSection.add(extraOptionsHint, BorderLayout.SOUTH);
+
         opencodeModelsPanel.setLayout(new BoxLayout(opencodeModelsPanel, BoxLayout.Y_AXIS));
         addOpenCodeModelField("");
 
@@ -822,9 +894,61 @@ public class ProviderDialog extends DialogWrapper {
                 .addLabeledComponent(I18n.t("providerDialog.label.npmPackage"), opencodeNpm)
                 .addLabeledComponent("API Key:", opencodeApiKey)
                 .addLabeledComponent("Base URL:", opencodeBaseUrl)
+                .addSeparator(8)
+                .addLabeledComponent(I18n.t("providerDialog.label.extraOptions"), extraOptionsSection)
+                .addSeparator(8)
                 .addLabeledComponent(I18n.t("providerDialog.label.models"), modelsContainer)
                 .getPanel();
         return wrapWithTitledBorder(form, I18n.t("providerDialog.border.opencode"));
+    }
+
+    private void addOpenCodeExtraOptionField(String key, String value) {
+        JPanel row = new JPanel(new BorderLayout(4, 0));
+
+        JTextField keyField = new JTextField(12);
+        keyField.setText(key);
+
+        JTextField valueField = new JTextField(16);
+        valueField.setText(value);
+
+        keyField.getDocument().addDocumentListener(createDocumentListener());
+        valueField.getDocument().addDocumentListener(createDocumentListener());
+
+        JPanel centerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        centerPanel.add(new JLabel(I18n.t("providerDialog.extraOption.key")));
+        centerPanel.add(keyField);
+        centerPanel.add(new JLabel(I18n.t("providerDialog.extraOption.value")));
+        centerPanel.add(valueField);
+
+        JButton removeBtn = new JButton("x");
+        removeBtn.setToolTipText(I18n.t("providerDialog.tooltip.removeOption"));
+        removeBtn.setMargin(JBUI.insets(0, 6));
+
+        ExtraOptionRow optionRow = new ExtraOptionRow(keyField, valueField, row);
+        opencodeExtraOptionRows.add(optionRow);
+
+        removeBtn.addActionListener(e -> {
+            opencodeExtraOptionRows.remove(optionRow);
+            opencodeExtraOptionsPanel.remove(row);
+            opencodeExtraOptionsPanel.revalidate();
+            opencodeExtraOptionsPanel.repaint();
+            if (!updatingFromPreview) updatePreview();
+        });
+
+        row.add(centerPanel, BorderLayout.CENTER);
+        row.add(removeBtn, BorderLayout.EAST);
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
+
+        opencodeExtraOptionsPanel.add(row);
+        opencodeExtraOptionsPanel.revalidate();
+        opencodeExtraOptionsPanel.repaint();
+    }
+
+    private void clearOpenCodeExtraOptionFields() {
+        opencodeExtraOptionRows.clear();
+        opencodeExtraOptionsPanel.removeAll();
+        opencodeExtraOptionsPanel.revalidate();
+        opencodeExtraOptionsPanel.repaint();
     }
 
     private void addOpenCodeModelField(String modelName) {
@@ -891,13 +1015,25 @@ public class ProviderDialog extends DialogWrapper {
     // =====================================================================
 
     private void loadSettingsConfig(CliType cliType, JsonObject config) {
+        loadSettingsConfig(cliType, config, Provider.CATEGORY_CUSTOM, null);
+    }
+
+    private void loadSettingsConfig(CliType cliType, JsonObject config,
+                                    @Nullable String opencodeCategory,
+                                    @Nullable String opencodeProviderKey) {
         JsonObject safeConfig = config != null ? config : new JsonObject();
+        if (cliType == CliType.OPENCODE) {
+            openCodeEditorPanel.loadSettingsConfig(opencodeCategory, safeConfig, opencodeProviderKey);
+            refreshTestConnectionUi();
+            return;
+        }
         rememberRawSettings(cliType, safeConfig);
         switch (cliType) {
             case CLAUDE -> loadClaudeConfig(safeConfig);
             case CODEX -> loadCodexConfig(safeConfig);
             case GEMINI -> loadGeminiConfig(safeConfig);
-            case OPENCODE -> loadOpenCodeConfig(safeConfig);
+            case OPENCODE -> {
+            }
         }
     }
 
@@ -977,6 +1113,8 @@ public class ProviderDialog extends DialogWrapper {
         setFieldFromJson(env, "GEMINI_MODEL", geminiModel);
     }
 
+    private static final List<String> OPENCODE_KNOWN_OPTION_KEYS = List.of("apiKey", "baseURL");
+
     private void loadOpenCodeConfig(JsonObject config) {
         if (config.has("npm")) {
             opencodeNpm.setSelectedItem(config.get("npm").getAsString());
@@ -985,6 +1123,15 @@ public class ProviderDialog extends DialogWrapper {
             JsonObject opts = config.getAsJsonObject("options");
             setFieldFromJson(opts, "apiKey", opencodeApiKey);
             setFieldFromJson(opts, "baseURL", opencodeBaseUrl);
+            clearOpenCodeExtraOptionFields();
+            for (String key : opts.keySet()) {
+                if (!OPENCODE_KNOWN_OPTION_KEYS.contains(key)) {
+                    String value = opts.get(key).isJsonPrimitive()
+                            ? opts.get(key).getAsString()
+                            : opts.get(key).toString();
+                    addOpenCodeExtraOptionField(key, value);
+                }
+            }
         }
         if (config.has("models")) {
             JsonObject models = config.getAsJsonObject("models");
@@ -1011,11 +1158,14 @@ public class ProviderDialog extends DialogWrapper {
     }
 
     private JsonObject buildSettingsConfig(CliType cliType) {
+        if (cliType == CliType.OPENCODE) {
+            return openCodeEditorPanel.buildSettingsConfig();
+        }
         JsonObject structured = switch (cliType) {
             case CLAUDE -> buildClaudeConfig();
             case CODEX -> buildCodexConfig();
             case GEMINI -> buildGeminiConfig();
-            case OPENCODE -> buildOpenCodeConfig();
+            case OPENCODE -> new JsonObject();
         };
         JsonObject merged = mergeWithRawSettings(cliType, structured);
         rememberRawSettings(cliType, merged);
@@ -1114,6 +1264,25 @@ public class ProviderDialog extends DialogWrapper {
         JsonObject options = new JsonObject();
         addIfNotBlank(options, "baseURL", opencodeBaseUrl);
         addIfNotBlank(options, "apiKey", opencodeApiKey);
+        for (ExtraOptionRow row : opencodeExtraOptionRows) {
+            String k = row.keyField.getText().trim();
+            String v = row.valueField.getText().trim();
+            if (!k.isEmpty()) {
+                if ("true".equalsIgnoreCase(v) || "false".equalsIgnoreCase(v)) {
+                    options.addProperty(k, Boolean.parseBoolean(v));
+                } else {
+                    try {
+                        options.addProperty(k, Long.parseLong(v));
+                    } catch (NumberFormatException e1) {
+                        try {
+                            options.addProperty(k, Double.parseDouble(v));
+                        } catch (NumberFormatException e2) {
+                            options.addProperty(k, v);
+                        }
+                    }
+                }
+            }
+        }
         config.add("options", options);
 
         JsonObject models = new JsonObject();
@@ -1233,7 +1402,14 @@ public class ProviderDialog extends DialogWrapper {
         JsonObject rawOptions = raw.has("options") && raw.get("options").isJsonObject()
                 ? raw.getAsJsonObject("options")
                 : null;
-        mergeObjectUnknownFields(rawOptions, mergedOptions, List.of("apiKey", "baseURL"));
+        List<String> knownOptionKeys = new ArrayList<>(OPENCODE_KNOWN_OPTION_KEYS);
+        for (ExtraOptionRow row : opencodeExtraOptionRows) {
+            String k = row.keyField.getText().trim();
+            if (!k.isEmpty()) {
+                knownOptionKeys.add(k);
+            }
+        }
+        mergeObjectUnknownFields(rawOptions, mergedOptions, knownOptionKeys);
         merged.add("options", mergedOptions);
 
         JsonObject mergedModels = merged.has("models") && merged.get("models").isJsonObject()
@@ -1296,10 +1472,10 @@ public class ProviderDialog extends DialogWrapper {
         if (nameField.getText().isBlank()) {
             return new ValidationInfo(I18n.t("providerDialog.validate.nameRequired"), nameField);
         }
-        if ("Official Login".equals(selectedPreset))
+        CliType cli = (CliType) cliTypeCombo.getSelectedItem();
+        if ("Official Login".equals(selectedPreset) && cli != CliType.OPENCODE)
             return null;
 
-        CliType cli = (CliType) cliTypeCombo.getSelectedItem();
         if (cli == null) {
             return null;
         }
@@ -1313,9 +1489,7 @@ public class ProviderDialog extends DialogWrapper {
             case GEMINI -> geminiApiKey.getText().isBlank()
                     ? new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), geminiApiKey)
                     : null;
-            case OPENCODE -> opencodeApiKey.getText().isBlank()
-                    ? new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), opencodeApiKey)
-                    : null;
+            case OPENCODE -> openCodeEditorPanel.validate();
         };
     }
 
@@ -1324,6 +1498,13 @@ public class ProviderDialog extends DialogWrapper {
         provider.setCliType(cliType);
         provider.setName(nameField.getText().trim());
         provider.setSettingsConfig(buildSettingsConfig(cliType));
+        if (cliType == CliType.OPENCODE) {
+            provider.setCategory(openCodeEditorPanel.getCategory());
+            provider.setProviderKey(openCodeEditorPanel.getProviderKey());
+        } else {
+            provider.setCategory(null);
+            provider.setProviderKey(null);
+        }
         return provider;
     }
 
@@ -1336,6 +1517,11 @@ public class ProviderDialog extends DialogWrapper {
     private void onTestConnection() {
         CliType cliType = (CliType) cliTypeCombo.getSelectedItem();
         if (cliType == null) {
+            return;
+        }
+        if (cliType == CliType.OPENCODE && !openCodeEditorPanel.supportsConnectionTest()) {
+            Messages.showInfoMessage(I18n.t("providerDialog.test.unsupportedOmo"),
+                    I18n.t("providerDialog.test.validationTitle"));
             return;
         }
 
@@ -1353,7 +1539,7 @@ public class ProviderDialog extends DialogWrapper {
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
             ProviderConnectionTestService.TestResult result = ProviderConnectionTestService.getInstance().test(cliType, config);
             ApplicationManager.getApplication().invokeLater(() -> {
-                testConnectionButton.setEnabled(true);
+                refreshTestConnectionUi();
                 if (result.success()) {
                     testStatusLabel.setText(I18n.t("providerDialog.test.success", result.durationMs()));
                     testStatusLabel.setForeground(new JBColor(new Color(66, 160, 83), new Color(66, 160, 83)));

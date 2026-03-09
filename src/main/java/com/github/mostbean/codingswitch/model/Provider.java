@@ -22,9 +22,15 @@ import java.util.UUID;
  */
 public class Provider {
 
+    public static final String CATEGORY_CUSTOM = "custom";
+    public static final String CATEGORY_OMO = "omo";
+    public static final String CATEGORY_OMO_SLIM = "omo-slim";
+
     private String id;
     private CliType cliType;
     private String name;
+    private String providerKey;
+    private String category;
     private JsonObject settingsConfig;
     private boolean active;
     private boolean pendingActivation;
@@ -68,6 +74,22 @@ public class Provider {
         this.name = name;
     }
 
+    public String getProviderKey() {
+        return providerKey;
+    }
+
+    public void setProviderKey(String providerKey) {
+        this.providerKey = providerKey;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
+    }
+
     public JsonObject getSettingsConfig() {
         return settingsConfig;
     }
@@ -100,6 +122,25 @@ public class Provider {
         this.createdAt = createdAt;
     }
 
+    public boolean isOpenCodeProvider() {
+        return cliType == CliType.OPENCODE;
+    }
+
+    public String getNormalizedCategory() {
+        if (category == null || category.isBlank()) {
+            return CATEGORY_CUSTOM;
+        }
+        return category.trim();
+    }
+
+    public boolean isOmoCategory() {
+        return CATEGORY_OMO.equals(getNormalizedCategory()) || CATEGORY_OMO_SLIM.equals(getNormalizedCategory());
+    }
+
+    public boolean isOpenCodeCustomCategory() {
+        return isOpenCodeProvider() && !isOmoCategory();
+    }
+
     /**
      * 创建当前 Provider 的深拷贝。
      */
@@ -108,6 +149,8 @@ public class Provider {
         copy.cliType = this.cliType;
         copy.name = this.name + " (Copy)";
         copy.settingsConfig = this.settingsConfig.deepCopy();
+        copy.category = this.category;
+        copy.providerKey = isOpenCodeCustomCategory() ? null : this.providerKey;
         copy.active = false;
         copy.pendingActivation = false;
         return copy;

@@ -20,7 +20,7 @@ public final class ProviderPresets {
         // 预设数据
         // =====================================================================
 
-        public record Preset(String name, CliType cliType, JsonObject settingsConfig) {
+        public record Preset(String name, CliType cliType, JsonObject settingsConfig, String category) {
         }
 
         /**
@@ -68,6 +68,8 @@ public final class ProviderPresets {
                                 "https://api.minimaxi.com/v1", "MiniMax-M2.5"));
                 presets.add(opencodePreset("Kimi",
                                 "https://api.moonshot.cn/v1", "kimi-for-coding"));
+                presets.add(omoPreset("Oh My OpenCode", Provider.CATEGORY_OMO));
+                presets.add(omoPreset("Oh My OpenCode Slim", Provider.CATEGORY_OMO_SLIM));
                 presets.add(opencodePreset("阿里 Plan",
                                 "https://coding.dashscope.aliyuncs.com/v1", "qwen3.5-plus"));
 
@@ -87,6 +89,7 @@ public final class ProviderPresets {
         public static Provider toProvider(Preset preset) {
                 Provider p = new Provider(preset.cliType, preset.name);
                 p.setSettingsConfig(preset.settingsConfig.deepCopy());
+                p.setCategory(preset.category);
                 return p;
         }
 
@@ -115,7 +118,7 @@ public final class ProviderPresets {
                         env.addProperty("ANTHROPIC_DEFAULT_OPUS_MODEL", opusModel);
                 }
                 config.add("env", env);
-                return new Preset(name, CliType.CLAUDE, config);
+                return new Preset(name, CliType.CLAUDE, config, null);
         }
 
         private static Preset codexPreset(String name, String baseUrl, String model) {
@@ -136,7 +139,7 @@ public final class ProviderPresets {
                 toml.append("requires_openai_auth = true\n");
                 config.addProperty("config", toml.toString());
 
-                return new Preset(name, CliType.CODEX, config);
+                return new Preset(name, CliType.CODEX, config, null);
         }
 
         private static Preset opencodePreset(String name, String baseUrl, String model) {
@@ -154,7 +157,11 @@ public final class ProviderPresets {
                 models.add(model, modelDef);
                 config.add("models", models);
 
-                return new Preset(name, CliType.OPENCODE, config);
+                return new Preset(name, CliType.OPENCODE, config, Provider.CATEGORY_CUSTOM);
+        }
+
+        private static Preset omoPreset(String name, String category) {
+                return new Preset(name, CliType.OPENCODE, new JsonObject(), category);
         }
 
         // ===== Official（恢复官方认证）预设 =====
@@ -162,19 +169,19 @@ public final class ProviderPresets {
         private static Preset claudeOfficial() {
                 JsonObject config = new JsonObject();
                 config.add("env", new JsonObject()); // 空 env → 清除第三方变量，回退到 Anthropic OAuth
-                return new Preset("Official Login", CliType.CLAUDE, config);
+                return new Preset("Official Login", CliType.CLAUDE, config, null);
         }
 
         private static Preset codexOfficial() {
                 JsonObject config = new JsonObject();
                 config.add("auth", new JsonObject()); // 空 auth → 清除 OPENAI_API_KEY
                 config.addProperty("config", ""); // 空 config → 清除 config.toml 内容
-                return new Preset("Official Login", CliType.CODEX, config);
+                return new Preset("Official Login", CliType.CODEX, config, null);
         }
 
         private static Preset geminiOfficial() {
                 JsonObject config = new JsonObject();
                 config.add("env", new JsonObject()); // 空 env → 清除第三方变量，回退到 Google OAuth
-                return new Preset("Official Login", CliType.GEMINI, config);
+                return new Preset("Official Login", CliType.GEMINI, config, null);
         }
 }
