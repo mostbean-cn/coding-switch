@@ -2,6 +2,7 @@ package com.github.mostbean.codingswitch.service;
 
 import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.Provider;
+import com.github.mostbean.codingswitch.model.Provider.AuthMode;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
@@ -16,6 +17,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -70,6 +72,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
                     new TypeToken<List<Provider>>() {
                     }.getType());
             List<Provider> providers = list != null ? list : new ArrayList<>();
+            providers.forEach(this::normalizeProvider);
             providers.sort(Comparator
                     .comparing((Provider p) -> p.getCliType() != null ? p.getCliType().getDisplayName() : "",
                             String.CASE_INSENSITIVE_ORDER)
@@ -111,6 +114,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             provider.setActive(existing.isActive());
             if (existing.isActive()) {
                 boolean syncRelevantChanged = !Objects.equals(existing.getCliType(), provider.getCliType())
+                        || !Objects.equals(existing.getAuthMode(), provider.getAuthMode())
                         || !Objects.equals(existing.getName(), provider.getName())
                         || !Objects.equals(existing.getSettingsConfig(), provider.getSettingsConfig());
                 provider.setPendingActivation(syncRelevantChanged || existing.isPendingActivation());
@@ -178,7 +182,13 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
 
         switch (cliType) {
             case CLAUDE -> writeClaudeLive(svc, config);
-            case CODEX -> writeCodexLive(svc, config);
+            case CODEX -> {
+                if (provider.getAuthMode() == AuthMode.OFFICIAL_LOGIN) {
+                    writeCodexOfficialLive(svc, config);
+                } else {
+                    writeCodexLive(svc, config);
+                }
+            }
             case GEMINI -> writeGeminiLive(svc, config);
             case OPENCODE -> writeOpenCodeLive(svc, config, provider.getName());
         }
@@ -241,7 +251,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
      */
     private void writeCodexLive(ConfigFileService svc, JsonObject config) throws IOException {
         // 写 auth.json
-        if (config.has("auth")) {
+        if (hasCodexApiKey(config)) {
             Path authPath = svc.getProviderConfigPath(CliType.CODEX);
             svc.writeJsonFile(authPath, config.getAsJsonObject("auth"));
         }
@@ -262,6 +272,34 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             String merged = prependManagedBlock(sanitized, managedBlock);
             svc.writeFile(tomlPath, merged);
         }
+    }
+
+    private void writeCodexOfficialLive(ConfigFileService svc, JsonObject config) throws IOException {
+        Path tomlPath = svc.getConfigDir(CliType.CODEX).resolve("config.toml");
+        boolean existed = Files.exists(tomlPath);
+        String existing = svc.readFile(tomlPath);
+        String withoutManagedBlock = removeManagedBlock(
+                existing,
+                "# >>> coding-switch:provider:start",
+                "# <<< coding-switch:provider:end");
+        String providerToml = config != null && config.has("config") && !config.get("config").isJsonNull()
+                ? config.get("config").getAsString().trim()
+                : "";
+        String sanitized = removeConflictingCodexProviderEntries(withoutManagedBlock, providerToml);
+        String finalContent = providerToml.isBlank()
+                ? sanitized.stripLeading()
+                : prependManagedBlock(
+                        sanitized,
+                        "# >>> coding-switch:provider:start\n"
+                                + providerToml + "\n"
+                                + "# <<< coding-switch:provider:end\n");
+        if (!existed && finalContent.isBlank()) {
+            return;
+        }
+        if (existing.equals(finalContent)) {
+            return;
+        }
+        svc.writeFile(tomlPath, finalContent);
     }
 
     /**
@@ -320,6 +358,24 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         }
     }
 
+    private void normalizeProvider(Provider provider) {
+        if (provider == null || provider.getStoredAuthMode() != null) {
+            return;
+        }
+        provider.setAuthMode(Provider.inferAuthMode(provider.getCliType(), provider.getSettingsConfig()));
+    }
+
+    private static boolean hasCodexApiKey(JsonObject config) {
+        if (config == null || !config.has("auth") || !config.get("auth").isJsonObject()) {
+            return false;
+        }
+        JsonObject auth = config.getAsJsonObject("auth");
+        if (!auth.has("OPENAI_API_KEY") || auth.get("OPENAI_API_KEY").isJsonNull()) {
+            return false;
+        }
+        return !auth.get("OPENAI_API_KEY").getAsString().isBlank();
+    }
+
     private static String removeManagedBlock(String existing, String startMarker, String endMarker) {
         String safeExisting = existing == null ? "" : existing;
         int start = safeExisting.indexOf(startMarker);
@@ -353,6 +409,10 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
                 "model_provider",
                 "model",
                 "model_reasoning_effort",
+                "model_context_window",
+                "model_auto_compact_token_limit",
+                "multi_agent",
+                "fast_mode",
                 "disable_response_storage");
 
         StringBuilder out = new StringBuilder();

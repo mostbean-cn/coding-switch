@@ -3,7 +3,6 @@ package com.github.mostbean.codingswitch.ui.panel;
 import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.Provider;
 import com.github.mostbean.codingswitch.service.I18n;
-import com.github.mostbean.codingswitch.service.ProviderConnectionTestService;
 import com.github.mostbean.codingswitch.service.ProviderService;
 import com.github.mostbean.codingswitch.ui.dialog.ProviderDialog;
 import com.google.gson.JsonObject;
@@ -195,20 +194,6 @@ public class ProviderPanel extends JPanel {
         Provider selected = getSelectedProvider();
         if (selected == null)
             return;
-
-        ProviderConnectionTestService.TestResult testResult = ProviderConnectionTestService.getInstance()
-                .test(selected.getCliType(), selected.getSettingsConfig());
-        if (!testResult.success()) {
-            int choice = Messages.showYesNoDialog(
-                    I18n.t("provider.dialog.precheckFailed", testResult.message()),
-                    I18n.t("provider.dialog.precheckFailedTitle"),
-                    I18n.t("provider.dialog.precheckContinue"),
-                    I18n.t("provider.dialog.precheckCancel"),
-                    Messages.getWarningIcon());
-            if (choice != Messages.YES) {
-                return;
-            }
-        }
 
         try {
             ProviderService.getInstance().activateProvider(selected.getId());

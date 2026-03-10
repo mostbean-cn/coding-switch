@@ -333,6 +333,7 @@ public final class I18n {
                 m.put("providerDialog.button.addModel", "添加模型");
                 m.put("providerDialog.tooltip.removeModel", "移除此模型");
                 m.put("providerDialog.label.reasoningEffort", "推理强度:");
+                m.put("providerDialog.label.1mContext", "1M 上下文:");
                 m.put("providerDialog.label.effortLevel", "推理强度:");
                 m.put("providerDialog.label.alwaysThinkingEnabled", "扩展思考:");
                 m.put("providerDialog.label.teamModeEnabled", "Team 模式:");
@@ -341,18 +342,24 @@ public final class I18n {
                 m.put("providerDialog.dangerousMode.skipAll", "跳过确认和提示");
                 m.put("providerDialog.label.maxThinkingTokens", "思考令牌预算:");
                 m.put("providerDialog.label.npmPackage", "NPM 包:");
+                m.put("providerDialog.label.multiAgent", "多智能体");
+                m.put("providerDialog.label.fastMode", "快速模式");
                 m.put("providerDialog.border.claude", "Claude Code 配置");
                 m.put("providerDialog.border.codex", "Codex 配置");
                 m.put("providerDialog.border.gemini", "Gemini CLI 配置");
                 m.put("providerDialog.border.opencode", "OpenCode 配置");
                 m.put("providerDialog.validate.nameRequired", "请填写配置名称");
                 m.put("providerDialog.validate.apiKeyRequired", "请填写 API Key");
+                m.put("providerDialog.validate.baseUrlRequired", "请填写 Base URL");
+                m.put("providerDialog.validate.modelRequired", "请填写主模型");
                 m.put("providerDialog.button.testConnection", "测试连接");
                 m.put("providerDialog.test.hint", "提示：少数供应商可能测试失败，但实际仍可正常使用。");
                 m.put("providerDialog.test.validationTitle", "请先完成必填项");
                 m.put("providerDialog.test.testing", "测试中...");
                 m.put("providerDialog.test.success", "连接成功（{0}ms）");
                 m.put("providerDialog.test.failed", "连接失败: {0}");
+                m.put("providerDialog.test.skipOfficialLogin", "官方登录模式无需测试连接，激活后首次运行 CLI 会自动拉起登录流程。");
+                m.put("providerDialog.test.skipOfficialLoginTitle", "无需测试连接");
 
                 // ── ProviderDialog 预览 ──
                 m.put("providerDialog.label.preview", "配置预览");
@@ -670,6 +677,7 @@ public final class I18n {
                 m.put("providerDialog.button.addModel", "Add Model");
                 m.put("providerDialog.tooltip.removeModel", "Remove this model");
                 m.put("providerDialog.label.reasoningEffort", "Reasoning Effort:");
+                m.put("providerDialog.label.1mContext", "1M Context:");
                 m.put("providerDialog.label.effortLevel", "Effort Level:");
                 m.put("providerDialog.label.alwaysThinkingEnabled", "Extended Thinking:");
                 m.put("providerDialog.label.teamModeEnabled", "Team Mode:");
@@ -678,12 +686,16 @@ public final class I18n {
                 m.put("providerDialog.dangerousMode.skipAll", "Skip Permissions & Prompt");
                 m.put("providerDialog.label.maxThinkingTokens", "Max Thinking Tokens:");
                 m.put("providerDialog.label.npmPackage", "NPM Package:");
+                m.put("providerDialog.label.multiAgent", "Multi-Agent");
+                m.put("providerDialog.label.fastMode", "Fast Mode");
                 m.put("providerDialog.border.claude", "Claude Code Config");
                 m.put("providerDialog.border.codex", "Codex Config");
                 m.put("providerDialog.border.gemini", "Gemini CLI Config");
                 m.put("providerDialog.border.opencode", "OpenCode Config");
                 m.put("providerDialog.validate.nameRequired", "Config name is required");
                 m.put("providerDialog.validate.apiKeyRequired", "API Key is required");
+                m.put("providerDialog.validate.baseUrlRequired", "Base URL is required");
+                m.put("providerDialog.validate.modelRequired", "Main model is required");
                 m.put("providerDialog.button.testConnection", "Test Connection");
                 m.put("providerDialog.test.hint",
                                 "Note: Some providers may fail connection tests but still work in actual use.");
@@ -691,6 +703,9 @@ public final class I18n {
                 m.put("providerDialog.test.testing", "Testing...");
                 m.put("providerDialog.test.success", "Connection successful ({0}ms)");
                 m.put("providerDialog.test.failed", "Connection failed: {0}");
+                m.put("providerDialog.test.skipOfficialLogin",
+                                "Official login mode does not require a connection test. The CLI will start its login flow on first run after activation.");
+                m.put("providerDialog.test.skipOfficialLoginTitle", "Connection Test Not Needed");
 
                 // ── ProviderDialog Preview ──
                 m.put("providerDialog.label.preview", "Config Preview");

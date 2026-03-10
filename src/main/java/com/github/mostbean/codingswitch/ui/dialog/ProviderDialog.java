@@ -2,6 +2,7 @@ package com.github.mostbean.codingswitch.ui.dialog;
 
 import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.Provider;
+import com.github.mostbean.codingswitch.model.Provider.AuthMode;
 import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.ProviderConnectionTestService;
 import com.github.mostbean.codingswitch.service.ProviderPresets;
@@ -47,6 +48,9 @@ public class ProviderDialog extends DialogWrapper {
     private final JTextField claudeApiKey = new JTextField(30);
     private final JTextField claudeBaseUrl = new JTextField(30);
     private final JTextField claudeModel = new JTextField(30);
+    private final JBLabel claudeApiKeyLabel = requiredLabel("API Key:");
+    private final JBLabel claudeBaseUrlLabel = requiredLabel("Base URL:");
+    private final JBLabel claudeModelLabel = requiredLabel(I18n.t("providerDialog.label.mainModel"));
     private final JTextField claudeHaiku = new JTextField(30);
     private final JTextField claudeSonnet = new JTextField(30);
     private final JTextField claudeOpus = new JTextField(30);
@@ -64,13 +68,22 @@ public class ProviderDialog extends DialogWrapper {
     private final JTextField codexApiKey = new JTextField(30);
     private final JTextField codexBaseUrl = new JTextField(30);
     private final JTextField codexModel = new JTextField(30);
+    private final JBLabel codexApiKeyLabel = requiredLabel("API Key:");
+    private final JBLabel codexBaseUrlLabel = requiredLabel("Base URL:");
+    private final JBLabel codexModelLabel = requiredLabel(I18n.t("providerDialog.label.model"));
     private final JComboBox<String> codexReasoningEffort = new JComboBox<>(
             new String[] { "xhigh", "high", "medium", "low" });
+    private final JCheckBox codex1MContext = new JCheckBox();
+    private final JCheckBox codexMultiAgent = new JCheckBox();
+    private final JCheckBox codexFastMode = new JCheckBox();
     private static final String CODEX_PROVIDER_SLUG = "custom";
 
     private final JTextField geminiApiKey = new JTextField(30);
     private final JTextField geminiBaseUrl = new JTextField(30);
     private final JTextField geminiModel = new JTextField(30);
+    private final JBLabel geminiApiKeyLabel = requiredLabel("API Key:");
+    private final JBLabel geminiBaseUrlLabel = requiredLabel("Base URL:");
+    private final JBLabel geminiModelLabel = requiredLabel(I18n.t("providerDialog.label.model"));
 
     private final JTextField opencodeApiKey = new JTextField(30);
     private final JTextField opencodeBaseUrl = new JTextField(30);
@@ -104,6 +117,7 @@ public class ProviderDialog extends DialogWrapper {
     private final JBLabel testStatusLabel = new JBLabel(" ");
     private final Provider provider;
     private final Map<CliType, JsonObject> rawSettingsByCli = new EnumMap<>(CliType.class);
+    private final Map<CliType, AuthMode> authModeByCli = new EnumMap<>(CliType.class);
     private String selectedPreset = PRESET_NONE;
     private List<ProviderPresets.Preset> currentPresets = List.of();
 
@@ -133,6 +147,7 @@ public class ProviderDialog extends DialogWrapper {
     public ProviderDialog(@Nullable Provider existing) {
         super(true);
         this.provider = existing != null ? existing : new Provider();
+        initializeAuthModes();
 
         setTitle(existing != null ? I18n.t("providerDialog.title.edit") : I18n.t("providerDialog.title.add"));
 
@@ -146,6 +161,7 @@ public class ProviderDialog extends DialogWrapper {
             if (selected != null) {
                 ((CardLayout) dynamicPanel.getLayout()).show(dynamicPanel, selected.name());
                 refreshPresetButtons(selected);
+                applyAuthModeUi(selected);
                 updatePreview();
             }
         });
@@ -153,7 +169,7 @@ public class ProviderDialog extends DialogWrapper {
         if (existing != null) {
             cliTypeCombo.setSelectedItem(existing.getCliType());
             nameField.setText(existing.getName());
-            loadSettingsConfig(existing.getCliType(), existing.getSettingsConfig());
+            loadSettingsConfig(existing.getCliType(), existing.getSettingsConfig(), existing.getAuthMode());
         } else {
             opencodeNpm.setSelectedItem("@ai-sdk/openai-compatible");
         }
@@ -167,6 +183,7 @@ public class ProviderDialog extends DialogWrapper {
         if (initial != null) {
             ((CardLayout) dynamicPanel.getLayout()).show(dynamicPanel, initial.name());
             refreshPresetButtons(initial);
+            applyAuthModeUi(initial);
         }
 
         setupInputListeners();
@@ -325,6 +342,15 @@ public class ProviderDialog extends DialogWrapper {
         addTextFieldListener(codexBaseUrl);
         addTextFieldListener(codexModel);
         codexReasoningEffort.addActionListener(e -> {
+            if (!updatingFromPreview) updatePreview();
+        });
+        codex1MContext.addActionListener(e -> {
+            if (!updatingFromPreview) updatePreview();
+        });
+        codexMultiAgent.addActionListener(e -> {
+            if (!updatingFromPreview) updatePreview();
+        });
+        codexFastMode.addActionListener(e -> {
             if (!updatingFromPreview) updatePreview();
         });
 
@@ -520,6 +546,7 @@ public class ProviderDialog extends DialogWrapper {
         String tomlText = codexTomlPreview.getText().trim();
         if (!tomlText.isEmpty()) {
             rawCodex.addProperty("config", tomlText);
+            boolean has1MContext = false;
             for (String line : tomlText.split("\n")) {
                 String trimmed = line.trim();
                 if (trimmed.startsWith("model =")) {
@@ -528,8 +555,14 @@ public class ProviderDialog extends DialogWrapper {
                     codexReasoningEffort.setSelectedItem(extractTomlValue(trimmed));
                 } else if (trimmed.startsWith("base_url =")) {
                     codexBaseUrl.setText(extractTomlValue(trimmed));
+                } else if (trimmed.startsWith("model_context_window =")) {
+                    String value = extractTomlValue(trimmed);
+                    if ("1000000".equals(value)) {
+                        has1MContext = true;
+                    }
                 }
             }
+            codex1MContext.setSelected(has1MContext);
         } else {
             rawCodex.remove("config");
         }
@@ -646,8 +679,8 @@ public class ProviderDialog extends DialogWrapper {
             presetButtonsPanel.add(btn);
         }
 
-        selectedPreset = PRESET_NONE;
-        presetHintLabel.setText(" ");
+        selectedPreset = resolveSelectedPreset(cliType);
+        presetHintLabel.setText(getCurrentAuthMode(cliType) == AuthMode.OFFICIAL_LOGIN ? OFFICIAL_HINT : " ");
         updatePresetButtonStyles();
 
         presetButtonsPanel.revalidate();
@@ -670,21 +703,26 @@ public class ProviderDialog extends DialogWrapper {
         selectedPreset = presetName;
         updatePresetButtonStyles();
 
+        CliType cliType = (CliType) cliTypeCombo.getSelectedItem();
+        if (cliType == null) {
+            return;
+        }
+
         if (PRESET_NONE.equals(presetName)) {
+            setAuthMode(cliType, AuthMode.API_KEY);
             presetHintLabel.setText(" ");
             testStatusLabel.setText(" ");
             updatePreview();
             return;
         }
 
-        CliType cliType = (CliType) cliTypeCombo.getSelectedItem();
         for (ProviderPresets.Preset preset : currentPresets) {
             if (preset.name().equals(presetName)) {
                 nameField.setText(preset.name());
                 clearAllFields(cliType);
-                loadSettingsConfig(cliType, preset.settingsConfig());
+                loadSettingsConfig(cliType, preset.settingsConfig(), preset.authMode());
 
-                if ("Official Login".equals(preset.name())) {
+                if (preset.authMode() == AuthMode.OFFICIAL_LOGIN) {
                     presetHintLabel.setText(OFFICIAL_HINT);
                 } else {
                     presetHintLabel.setText(I18n.t("providerDialog.preset.fillHint"));
@@ -716,9 +754,86 @@ public class ProviderDialog extends DialogWrapper {
         }
     }
 
+    private void initializeAuthModes() {
+        for (CliType cliType : CliType.values()) {
+            AuthMode authMode = cliType == provider.getCliType() ? provider.getAuthMode() : AuthMode.API_KEY;
+            authModeByCli.put(cliType, cliType == CliType.OPENCODE ? AuthMode.API_KEY : authMode);
+        }
+    }
+
+    private AuthMode getCurrentAuthMode(CliType cliType) {
+        if (cliType == null || cliType == CliType.OPENCODE) {
+            return AuthMode.API_KEY;
+        }
+        return authModeByCli.getOrDefault(cliType, AuthMode.API_KEY);
+    }
+
+    private void setAuthMode(CliType cliType, AuthMode authMode) {
+        if (cliType == null || cliType == CliType.OPENCODE) {
+            return;
+        }
+        authModeByCli.put(cliType, authMode != null ? authMode : AuthMode.API_KEY);
+        if (cliType == cliTypeCombo.getSelectedItem()) {
+            applyAuthModeUi(cliType);
+        }
+    }
+
+    private String resolveSelectedPreset(CliType cliType) {
+        if (getCurrentAuthMode(cliType) != AuthMode.OFFICIAL_LOGIN) {
+            return PRESET_NONE;
+        }
+        return currentPresets.stream()
+                .filter(preset -> preset.authMode() == AuthMode.OFFICIAL_LOGIN)
+                .map(ProviderPresets.Preset::name)
+                .findFirst()
+                .orElse(PRESET_NONE);
+    }
+
+    private void applyAuthModeUi(CliType cliType) {
+        boolean officialLogin = getCurrentAuthMode(cliType) == AuthMode.OFFICIAL_LOGIN;
+
+        switch (cliType) {
+            case CLAUDE -> {
+                claudeApiKeyField.setEnabled(!officialLogin);
+                claudeApiKey.setEnabled(!officialLogin);
+                claudeBaseUrl.setEnabled(!officialLogin);
+                claudeModel.setEnabled(!officialLogin);
+                claudeHaiku.setEnabled(!officialLogin);
+                claudeSonnet.setEnabled(!officialLogin);
+                claudeOpus.setEnabled(!officialLogin);
+                setRequiredState(claudeApiKeyLabel, !officialLogin);
+                setRequiredState(claudeBaseUrlLabel, !officialLogin);
+                setRequiredState(claudeModelLabel, !officialLogin);
+            }
+            case CODEX -> {
+                codexApiKey.setEnabled(!officialLogin);
+                codexBaseUrl.setEnabled(!officialLogin);
+                codexModel.setEnabled(true);
+                codexReasoningEffort.setEnabled(true);
+                codex1MContext.setEnabled(true);
+                codexMultiAgent.setEnabled(true);
+                codexFastMode.setEnabled(true);
+                setRequiredState(codexApiKeyLabel, !officialLogin);
+                setRequiredState(codexBaseUrlLabel, !officialLogin);
+                setRequiredState(codexModelLabel, !officialLogin);
+            }
+            case GEMINI -> {
+                geminiApiKey.setEnabled(!officialLogin);
+                geminiBaseUrl.setEnabled(!officialLogin);
+                geminiModel.setEnabled(!officialLogin);
+                setRequiredState(geminiApiKeyLabel, !officialLogin);
+                setRequiredState(geminiBaseUrlLabel, !officialLogin);
+                setRequiredState(geminiModelLabel, !officialLogin);
+            }
+            case OPENCODE -> {
+            }
+        }
+    }
+
     private void clearAllFields(CliType cliType) {
         switch (cliType) {
             case CLAUDE -> {
+                claudeApiKeyField.setSelectedItem("ANTHROPIC_AUTH_TOKEN");
                 claudeApiKey.setText("");
                 claudeBaseUrl.setText("");
                 claudeModel.setText("");
@@ -728,11 +843,16 @@ public class ProviderDialog extends DialogWrapper {
                 claudeEffortLevel.setSelectedItem("");
                 claudeAlwaysThinkingEnabled.setSelectedItem("");
                 claudeTeamModeEnabled.setSelected(false);
+                claudeDangerousMode.setSelectedIndex(0);
             }
             case CODEX -> {
                 codexApiKey.setText("");
                 codexBaseUrl.setText("");
                 codexModel.setText("");
+                codexReasoningEffort.setSelectedItem("xhigh");
+                codex1MContext.setSelected(false);
+                codexMultiAgent.setSelected(false);
+                codexFastMode.setSelected(false);
             }
             case GEMINI -> {
                 geminiApiKey.setText("");
@@ -772,10 +892,10 @@ public class ProviderDialog extends DialogWrapper {
 
         JPanel form = FormBuilder.createFormBuilder()
                 .addLabeledComponent(I18n.t("providerDialog.label.keyFieldName"), claudeApiKeyField)
-                .addLabeledComponent("API Key:", claudeApiKey)
-                .addLabeledComponent("Base URL:", claudeBaseUrl)
+                .addLabeledComponent(claudeApiKeyLabel, claudeApiKey)
+                .addLabeledComponent(claudeBaseUrlLabel, claudeBaseUrl)
                 .addSeparator(8)
-                .addLabeledComponent(I18n.t("providerDialog.label.mainModel"), claudeModel)
+                .addLabeledComponent(claudeModelLabel, claudeModel)
                 .addLabeledComponent("Haiku:", claudeHaiku)
                 .addLabeledComponent("Sonnet:", claudeSonnet)
                 .addLabeledComponent("Opus:", claudeOpus)
@@ -789,20 +909,39 @@ public class ProviderDialog extends DialogWrapper {
 
     private JPanel buildCodexPanel() {
         JPanel form = FormBuilder.createFormBuilder()
-                .addLabeledComponent("API Key:", codexApiKey)
-                .addLabeledComponent("Base URL:", codexBaseUrl)
-                .addLabeledComponent(I18n.t("providerDialog.label.model"), codexModel)
+                .addLabeledComponent(codexApiKeyLabel, codexApiKey)
+                .addLabeledComponent(codexBaseUrlLabel, codexBaseUrl)
+                .addLabeledComponent(codexModelLabel, codexModel)
                 .addSeparator(8)
                 .addLabeledComponent(I18n.t("providerDialog.label.reasoningEffort"), codexReasoningEffort)
+                .addComponent(buildCodexOptionsRow())
                 .getPanel();
         return wrapWithTitledBorder(form, I18n.t("providerDialog.border.codex"));
     }
 
+    /**
+     * 构建 Codex 选项行（三个复选框并排）
+     */
+    private JPanel buildCodexOptionsRow() {
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 16, 0));
+        row.add(createCheckboxWithLabel(codex1MContext, I18n.t("providerDialog.label.1mContext")));
+        row.add(createCheckboxWithLabel(codexMultiAgent, I18n.t("providerDialog.label.multiAgent")));
+        row.add(createCheckboxWithLabel(codexFastMode, I18n.t("providerDialog.label.fastMode")));
+        return row;
+    }
+
+    private JPanel createCheckboxWithLabel(JCheckBox checkbox, String labelText) {
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        panel.add(checkbox);
+        panel.add(new JLabel(labelText));
+        return panel;
+    }
+
     private JPanel buildGeminiPanel() {
         JPanel form = FormBuilder.createFormBuilder()
-                .addLabeledComponent("API Key:", geminiApiKey)
-                .addLabeledComponent("Base URL:", geminiBaseUrl)
-                .addLabeledComponent(I18n.t("providerDialog.label.model"), geminiModel)
+                .addLabeledComponent(geminiApiKeyLabel, geminiApiKey)
+                .addLabeledComponent(geminiBaseUrlLabel, geminiBaseUrl)
+                .addLabeledComponent(geminiModelLabel, geminiModel)
                 .getPanel();
         return wrapWithTitledBorder(form, I18n.t("providerDialog.border.gemini"));
     }
@@ -820,9 +959,9 @@ public class ProviderDialog extends DialogWrapper {
 
         JPanel form = FormBuilder.createFormBuilder()
                 .addLabeledComponent(I18n.t("providerDialog.label.npmPackage"), opencodeNpm)
-                .addLabeledComponent("API Key:", opencodeApiKey)
-                .addLabeledComponent("Base URL:", opencodeBaseUrl)
-                .addLabeledComponent(I18n.t("providerDialog.label.models"), modelsContainer)
+                .addLabeledComponent(requiredLabel("API Key:"), opencodeApiKey)
+                .addLabeledComponent(requiredLabel("Base URL:"), opencodeBaseUrl)
+                .addLabeledComponent(requiredLabel(I18n.t("providerDialog.label.models")), modelsContainer)
                 .getPanel();
         return wrapWithTitledBorder(form, I18n.t("providerDialog.border.opencode"));
     }
@@ -887,11 +1026,33 @@ public class ProviderDialog extends DialogWrapper {
         return wrapper;
     }
 
+    /**
+     * 生成带红色星号的必填标签
+     */
+    private JBLabel requiredLabel(String labelText) {
+        JBLabel label = new JBLabel();
+        label.putClientProperty("baseText", labelText);
+        setRequiredState(label, true);
+        return label;
+    }
+
+    private void setRequiredState(JBLabel label, boolean required) {
+        String baseText = (String) label.getClientProperty("baseText");
+        label.setText(required
+                ? "<html>" + baseText + " <font color='red'>*</font></html>"
+                : baseText);
+    }
+
     // =====================================================================
     // =====================================================================
 
     private void loadSettingsConfig(CliType cliType, JsonObject config) {
+        loadSettingsConfig(cliType, config, Provider.inferAuthMode(cliType, config));
+    }
+
+    private void loadSettingsConfig(CliType cliType, JsonObject config, AuthMode authMode) {
         JsonObject safeConfig = config != null ? config : new JsonObject();
+        setAuthMode(cliType, authMode);
         rememberRawSettings(cliType, safeConfig);
         switch (cliType) {
             case CLAUDE -> loadClaudeConfig(safeConfig);
@@ -955,6 +1116,9 @@ public class ProviderDialog extends DialogWrapper {
         }
         if (config.has("config")) {
             String toml = config.get("config").getAsString();
+            boolean has1MContext = false;
+            boolean hasMultiAgent = false;
+            boolean hasFastMode = false;
             for (String line : toml.split("\n")) {
                 String trimmed = line.trim();
                 if (trimmed.startsWith("model =")) {
@@ -963,8 +1127,20 @@ public class ProviderDialog extends DialogWrapper {
                     codexReasoningEffort.setSelectedItem(extractTomlValue(trimmed));
                 } else if (trimmed.startsWith("base_url =")) {
                     codexBaseUrl.setText(extractTomlValue(trimmed));
+                } else if (trimmed.startsWith("model_context_window =")) {
+                    String value = extractTomlValue(trimmed);
+                    if ("1000000".equals(value)) {
+                        has1MContext = true;
+                    }
+                } else if (trimmed.startsWith("multi_agent =")) {
+                    hasMultiAgent = "true".equalsIgnoreCase(extractTomlValue(trimmed));
+                } else if (trimmed.startsWith("fast_mode =")) {
+                    hasFastMode = "true".equalsIgnoreCase(extractTomlValue(trimmed));
                 }
             }
+            codex1MContext.setSelected(has1MContext);
+            codexMultiAgent.setSelected(hasMultiAgent);
+            codexFastMode.setSelected(hasFastMode);
         }
     }
 
@@ -1011,15 +1187,22 @@ public class ProviderDialog extends DialogWrapper {
     }
 
     private JsonObject buildSettingsConfig(CliType cliType) {
+        AuthMode authMode = getCurrentAuthMode(cliType);
         JsonObject structured = switch (cliType) {
-            case CLAUDE -> buildClaudeConfig();
-            case CODEX -> buildCodexConfig();
-            case GEMINI -> buildGeminiConfig();
+            case CLAUDE -> authMode == AuthMode.OFFICIAL_LOGIN ? buildClaudeOfficialConfig() : buildClaudeConfig();
+            case CODEX -> authMode == AuthMode.OFFICIAL_LOGIN ? buildCodexOfficialConfig() : buildCodexConfig();
+            case GEMINI -> authMode == AuthMode.OFFICIAL_LOGIN ? buildGeminiOfficialConfig() : buildGeminiConfig();
             case OPENCODE -> buildOpenCodeConfig();
         };
         JsonObject merged = mergeWithRawSettings(cliType, structured);
         rememberRawSettings(cliType, merged);
         return merged;
+    }
+
+    private JsonObject buildClaudeOfficialConfig() {
+        JsonObject config = new JsonObject();
+        config.add("env", new JsonObject());
+        return config;
     }
 
     private JsonObject buildClaudeConfig() {
@@ -1063,11 +1246,18 @@ public class ProviderDialog extends DialogWrapper {
         JsonObject auth = new JsonObject();
         addIfNotBlank(auth, "OPENAI_API_KEY", codexApiKey);
         config.add("auth", auth);
+        config.addProperty("config", buildCodexToml(false));
+        return config;
+    }
 
+    private String buildCodexToml(boolean officialLogin) {
         String provider = CODEX_PROVIDER_SLUG;
         String model = codexModel.getText().trim();
         String effort = (String) codexReasoningEffort.getSelectedItem();
         String baseUrl = codexBaseUrl.getText().trim();
+        boolean enable1MContext = codex1MContext.isSelected();
+        boolean enableMultiAgent = codexMultiAgent.isSelected();
+        boolean enableFastMode = codexFastMode.isSelected();
 
         if (!baseUrl.isEmpty()) {
             baseUrl = baseUrl.replaceAll("/+$", "");
@@ -1077,20 +1267,42 @@ public class ProviderDialog extends DialogWrapper {
         }
 
         StringBuilder toml = new StringBuilder();
-        toml.append("model_provider = \"").append(provider).append("\"\n");
+        if (!officialLogin) {
+            toml.append("model_provider = \"").append(provider).append("\"\n");
+        }
         if (!model.isEmpty())
             toml.append("model = \"").append(model).append("\"\n");
         if (effort != null && !effort.isEmpty())
             toml.append("model_reasoning_effort = \"").append(effort).append("\"\n");
-        toml.append("disable_response_storage = true\n\n");
-        toml.append("[model_providers.").append(provider).append("]\n");
-        toml.append("name = \"").append(provider).append("\"\n");
-        if (!baseUrl.isEmpty())
-            toml.append("base_url = \"").append(baseUrl).append("\"\n");
-        toml.append("wire_api = \"responses\"\n");
-        toml.append("requires_openai_auth = true\n");
+        if (enable1MContext) {
+            toml.append("model_context_window = 1000000\n");
+            toml.append("model_auto_compact_token_limit = 900000\n");
+        }
+        if (enableMultiAgent) {
+            toml.append("multi_agent = true\n");
+        }
+        if (enableFastMode) {
+            toml.append("fast_mode = true\n");
+        }
+        toml.append("disable_response_storage = true\n");
 
-        config.addProperty("config", toml.toString());
+        if (!officialLogin) {
+            toml.append("\n");
+            toml.append("[model_providers.").append(provider).append("]\n");
+            toml.append("name = \"").append(provider).append("\"\n");
+            if (!baseUrl.isEmpty())
+                toml.append("base_url = \"").append(baseUrl).append("\"\n");
+            toml.append("wire_api = \"responses\"\n");
+            toml.append("requires_openai_auth = true\n");
+        }
+
+        return toml.toString();
+    }
+
+    private JsonObject buildCodexOfficialConfig() {
+        JsonObject config = new JsonObject();
+        config.add("auth", new JsonObject());
+        config.addProperty("config", buildCodexToml(true));
         return config;
     }
 
@@ -1101,6 +1313,12 @@ public class ProviderDialog extends DialogWrapper {
         addIfNotBlank(env, "GOOGLE_GEMINI_BASE_URL", geminiBaseUrl);
         addIfNotBlank(env, "GEMINI_MODEL", geminiModel);
         config.add("env", env);
+        return config;
+    }
+
+    private JsonObject buildGeminiOfficialConfig() {
+        JsonObject config = new JsonObject();
+        config.add("env", new JsonObject());
         return config;
     }
 
@@ -1296,33 +1514,83 @@ public class ProviderDialog extends DialogWrapper {
         if (nameField.getText().isBlank()) {
             return new ValidationInfo(I18n.t("providerDialog.validate.nameRequired"), nameField);
         }
-        if ("Official Login".equals(selectedPreset))
-            return null;
 
         CliType cli = (CliType) cliTypeCombo.getSelectedItem();
         if (cli == null) {
             return null;
         }
+        if (getCurrentAuthMode(cli) == AuthMode.OFFICIAL_LOGIN) {
+            return null;
+        }
         return switch (cli) {
-            case CLAUDE -> claudeApiKey.getText().isBlank()
-                    ? new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), claudeApiKey)
-                    : null;
-            case CODEX -> codexApiKey.getText().isBlank()
-                    ? new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), codexApiKey)
-                    : null;
-            case GEMINI -> geminiApiKey.getText().isBlank()
-                    ? new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), geminiApiKey)
-                    : null;
-            case OPENCODE -> opencodeApiKey.getText().isBlank()
-                    ? new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), opencodeApiKey)
-                    : null;
+            case CLAUDE -> validateClaude();
+            case CODEX -> validateCodex();
+            case GEMINI -> validateGemini();
+            case OPENCODE -> validateOpenCode();
         };
+    }
+
+    private ValidationInfo validateClaude() {
+        if (claudeApiKey.getText().isBlank()) {
+            return new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), claudeApiKey);
+        }
+        if (claudeBaseUrl.getText().isBlank()) {
+            return new ValidationInfo(I18n.t("providerDialog.validate.baseUrlRequired"), claudeBaseUrl);
+        }
+        if (claudeModel.getText().isBlank()) {
+            return new ValidationInfo(I18n.t("providerDialog.validate.modelRequired"), claudeModel);
+        }
+        return null;
+    }
+
+    private ValidationInfo validateCodex() {
+        if (codexApiKey.getText().isBlank()) {
+            return new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), codexApiKey);
+        }
+        if (codexBaseUrl.getText().isBlank()) {
+            return new ValidationInfo(I18n.t("providerDialog.validate.baseUrlRequired"), codexBaseUrl);
+        }
+        if (codexModel.getText().isBlank()) {
+            return new ValidationInfo(I18n.t("providerDialog.validate.modelRequired"), codexModel);
+        }
+        return null;
+    }
+
+    private ValidationInfo validateGemini() {
+        if (geminiApiKey.getText().isBlank()) {
+            return new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), geminiApiKey);
+        }
+        if (geminiBaseUrl.getText().isBlank()) {
+            return new ValidationInfo(I18n.t("providerDialog.validate.baseUrlRequired"), geminiBaseUrl);
+        }
+        if (geminiModel.getText().isBlank()) {
+            return new ValidationInfo(I18n.t("providerDialog.validate.modelRequired"), geminiModel);
+        }
+        return null;
+    }
+
+    private ValidationInfo validateOpenCode() {
+        if (opencodeApiKey.getText().isBlank()) {
+            return new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), opencodeApiKey);
+        }
+        if (opencodeBaseUrl.getText().isBlank()) {
+            return new ValidationInfo(I18n.t("providerDialog.validate.baseUrlRequired"), opencodeBaseUrl);
+        }
+        // OpenCode 的模型是动态列表，检查是否至少有一个模型
+        boolean hasModel = opencodeModelRows.stream()
+                .anyMatch(row -> !row.nameField.getText().isBlank());
+        if (!hasModel) {
+            return new ValidationInfo(I18n.t("providerDialog.validate.modelRequired"),
+                    opencodeModelRows.isEmpty() ? opencodeModelsPanel : opencodeModelRows.get(0).nameField);
+        }
+        return null;
     }
 
     public Provider getProvider() {
         CliType cliType = (CliType) cliTypeCombo.getSelectedItem();
         provider.setCliType(cliType);
         provider.setName(nameField.getText().trim());
+        provider.setAuthMode(getCurrentAuthMode(cliType));
         provider.setSettingsConfig(buildSettingsConfig(cliType));
         return provider;
     }
@@ -1336,6 +1604,12 @@ public class ProviderDialog extends DialogWrapper {
     private void onTestConnection() {
         CliType cliType = (CliType) cliTypeCombo.getSelectedItem();
         if (cliType == null) {
+            return;
+        }
+        if (getCurrentAuthMode(cliType) == AuthMode.OFFICIAL_LOGIN) {
+            Messages.showInfoMessage(
+                    I18n.t("providerDialog.test.skipOfficialLogin"),
+                    I18n.t("providerDialog.test.skipOfficialLoginTitle"));
             return;
         }
 

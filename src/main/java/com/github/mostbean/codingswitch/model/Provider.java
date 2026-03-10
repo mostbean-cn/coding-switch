@@ -22,10 +22,16 @@ import java.util.UUID;
  */
 public class Provider {
 
+    public enum AuthMode {
+        API_KEY,
+        OFFICIAL_LOGIN
+    }
+
     private String id;
     private CliType cliType;
     private String name;
     private JsonObject settingsConfig;
+    private AuthMode authMode;
     private boolean active;
     private boolean pendingActivation;
     private Long createdAt;
@@ -33,6 +39,7 @@ public class Provider {
     public Provider() {
         this.id = UUID.randomUUID().toString();
         this.settingsConfig = new JsonObject();
+        this.authMode = AuthMode.API_KEY;
         this.createdAt = System.currentTimeMillis();
     }
 
@@ -76,6 +83,22 @@ public class Provider {
         this.settingsConfig = settingsConfig;
     }
 
+    public AuthMode getAuthMode() {
+        return authMode != null ? authMode : inferAuthMode(cliType, settingsConfig);
+    }
+
+    public AuthMode getStoredAuthMode() {
+        return authMode;
+    }
+
+    public void setAuthMode(AuthMode authMode) {
+        this.authMode = authMode;
+    }
+
+    public boolean usesOfficialLogin() {
+        return getAuthMode() == AuthMode.OFFICIAL_LOGIN;
+    }
+
     public boolean isActive() {
         return active;
     }
@@ -108,9 +131,43 @@ public class Provider {
         copy.cliType = this.cliType;
         copy.name = this.name + " (Copy)";
         copy.settingsConfig = this.settingsConfig.deepCopy();
+        copy.authMode = this.getAuthMode();
         copy.active = false;
         copy.pendingActivation = false;
         return copy;
+    }
+
+    public static AuthMode inferAuthMode(CliType cliType, JsonObject settingsConfig) {
+        if (cliType == null) {
+            return AuthMode.API_KEY;
+        }
+
+        JsonObject safeConfig = settingsConfig != null ? settingsConfig : new JsonObject();
+
+        return switch (cliType) {
+            case CLAUDE, GEMINI -> {
+                JsonObject env = safeConfig.has("env") && safeConfig.get("env").isJsonObject()
+                        ? safeConfig.getAsJsonObject("env")
+                        : null;
+                yield env == null || env.keySet().isEmpty() ? AuthMode.OFFICIAL_LOGIN : AuthMode.API_KEY;
+            }
+            case CODEX -> {
+                JsonObject auth = safeConfig.has("auth") && safeConfig.get("auth").isJsonObject()
+                        ? safeConfig.getAsJsonObject("auth")
+                        : null;
+                String config = safeConfig.has("config") && !safeConfig.get("config").isJsonNull()
+                        ? safeConfig.get("config").getAsString()
+                        : "";
+                boolean authEmpty = auth == null || auth.keySet().isEmpty();
+                boolean officialManagedConfig = config == null || config.isBlank()
+                        || (!config.contains("model_provider =")
+                                && !config.contains("[model_providers.")
+                                && !config.contains("base_url =")
+                                && !config.contains("requires_openai_auth ="));
+                yield authEmpty && officialManagedConfig ? AuthMode.OFFICIAL_LOGIN : AuthMode.API_KEY;
+            }
+            case OPENCODE -> AuthMode.API_KEY;
+        };
     }
 
     @Override
