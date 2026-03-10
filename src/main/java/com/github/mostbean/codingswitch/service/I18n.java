@@ -333,7 +333,7 @@ public final class I18n {
                 m.put("providerDialog.button.addModel", "添加模型");
                 m.put("providerDialog.tooltip.removeModel", "移除此模型");
                 m.put("providerDialog.label.reasoningEffort", "推理强度:");
-                m.put("providerDialog.label.1mContext", "1M 上下文:");
+                m.put("providerDialog.label.1mContext", "1M 上下文");
                 m.put("providerDialog.label.effortLevel", "推理强度:");
                 m.put("providerDialog.label.alwaysThinkingEnabled", "扩展思考:");
                 m.put("providerDialog.label.teamModeEnabled", "Team 模式:");
@@ -683,7 +683,7 @@ public final class I18n {
                 m.put("providerDialog.button.addModel", "Add Model");
                 m.put("providerDialog.tooltip.removeModel", "Remove this model");
                 m.put("providerDialog.label.reasoningEffort", "Reasoning Effort:");
-                m.put("providerDialog.label.1mContext", "1M Context:");
+                m.put("providerDialog.label.1mContext", "1M Context");
                 m.put("providerDialog.label.effortLevel", "Effort Level:");
                 m.put("providerDialog.label.alwaysThinkingEnabled", "Extended Thinking:");
                 m.put("providerDialog.label.teamModeEnabled", "Team Mode:");
