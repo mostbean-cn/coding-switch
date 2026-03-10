@@ -110,6 +110,7 @@
         <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.PromptService"/>
         <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.ConfigFileService"/>
         <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.CliVersionService"/>
+        <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.CodexAuthSnapshotService"/>
         <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.PluginSettings"/>
         <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.SessionScannerService"/>
 

@@ -373,6 +373,12 @@ public final class I18n {
                 m.put("providerDialog.preview.parseError", "解析失败: {0}");
                 m.put("providerDialog.preview.parseErrorTitle", "解析错误");
 
+                m.put("provider.dialog.codexAuth.restored",
+                                "\u5df2\u6062\u590d\u8be5 Codex \u8ba2\u9605\u914d\u7f6e\u7684\u767b\u5f55\u72b6\u6001\u3002");
+                m.put("provider.dialog.codexAuth.loginRequired",
+                                "\u5f53\u524d\u914d\u7f6e\u5c1a\u65e0\u5df2\u7ed1\u5b9a\u767b\u5f55\u72b6\u6001\uff0c\u4e0b\u6b21\u8fdb\u5165 Codex \u9700\u8981\u91cd\u65b0\u767b\u5f55\u3002");
+                m.put("provider.dialog.codexAuth.snapshotInvalid",
+                                "\u5386\u53f2\u767b\u5f55\u5feb\u7167\u5df2\u5931\u6548\uff0c\u5df2\u6e05\u7a7a\u4e3a\u672a\u767b\u5f55\u72b6\u6001\uff0c\u4e0b\u6b21\u8fdb\u5165 Codex \u9700\u8981\u91cd\u65b0\u767b\u5f55\u3002");
                 return m;
         }
 
@@ -719,6 +725,12 @@ public final class I18n {
                 m.put("providerDialog.preview.parseError", "Parse error: {0}");
                 m.put("providerDialog.preview.parseErrorTitle", "Parse Error");
 
+                m.put("provider.dialog.codexAuth.restored",
+                                "Restored the saved login state for this Codex subscription config.");
+                m.put("provider.dialog.codexAuth.loginRequired",
+                                "This config has no saved login state yet. Codex will ask you to sign in the next time it starts.");
+                m.put("provider.dialog.codexAuth.snapshotInvalid",
+                                "The saved login snapshot is no longer valid. It was cleared, and Codex will ask you to sign in next time.");
                 return m;
         }
 }

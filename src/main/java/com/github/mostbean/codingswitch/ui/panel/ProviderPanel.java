@@ -2,6 +2,7 @@ package com.github.mostbean.codingswitch.ui.panel;
 
 import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.Provider;
+import com.github.mostbean.codingswitch.service.CodexActivationResult;
 import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.ProviderService;
 import com.github.mostbean.codingswitch.ui.dialog.ProviderDialog;
@@ -197,9 +198,9 @@ public class ProviderPanel extends JPanel {
 
         try {
             ProviderService.getInstance().activateProvider(selected.getId());
+            CodexActivationResult activationResult = ProviderService.getInstance().getLastActivationResult();
             Messages.showInfoMessage(
-                    I18n.t("provider.dialog.activateSuccess", selected.getName(),
-                            selected.getCliType().getDisplayName()),
+                    buildActivationMessage(selected, activationResult),
                     I18n.t("provider.dialog.activateTitle"));
         } catch (IOException ex) {
             Messages.showErrorDialog(I18n.t("provider.dialog.activateFailed", ex.getMessage()),
@@ -221,6 +222,22 @@ public class ProviderPanel extends JPanel {
                 ? ProviderService.getInstance().getProviders()
                 : ProviderService.getInstance().getProvidersByType(filter);
         tableModel.setProviders(providers);
+    }
+
+    private String buildActivationMessage(Provider provider, CodexActivationResult activationResult) {
+        String base = I18n.t("provider.dialog.activateSuccess", provider.getName(),
+                provider.getCliType().getDisplayName());
+        if (provider.getCliType() != CliType.CODEX || provider.getAuthMode() != Provider.AuthMode.OFFICIAL_LOGIN) {
+            return base;
+        }
+
+        String extra = switch (activationResult.getAuthSwitchState()) {
+            case SNAPSHOT_RESTORED -> I18n.t("provider.dialog.codexAuth.restored");
+            case LOGIN_REQUIRED -> I18n.t("provider.dialog.codexAuth.loginRequired");
+            case SNAPSHOT_INVALID -> I18n.t("provider.dialog.codexAuth.snapshotInvalid");
+            case NOT_APPLICABLE -> "";
+        };
+        return extra.isBlank() ? base : base + "\n" + extra;
     }
 
     // =====================================================================

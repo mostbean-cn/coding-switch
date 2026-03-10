@@ -46,6 +46,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
 
     private State myState = new State();
     private final List<Runnable> changeListeners = new ArrayList<>();
+    private CodexActivationResult lastActivationResult = CodexActivationResult.notApplicable();
 
     public static ProviderService getInstance() {
         return ApplicationManager.getApplication().getService(ProviderService.class);
@@ -128,6 +129,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
     }
 
     public void removeProvider(String providerId) {
+        CodexAuthSnapshotService.getInstance().clearSnapshot(providerId);
         List<Provider> providers = new ArrayList<>(getProviders());
         providers.removeIf(p -> p.getId().equals(providerId));
         saveProviders(providers);
@@ -147,16 +149,21 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
     public void activateProvider(String providerId) throws IOException {
         List<Provider> providers = new ArrayList<>(getProviders());
         Provider target = null;
+        Provider previousActive = null;
 
         for (Provider p : providers) {
             if (p.getId().equals(providerId)) {
                 target = p;
+            }
+            if (p.isActive() && p.getCliType() != CliType.OPENCODE) {
+                previousActive = p;
             }
         }
 
         if (target == null) {
             throw new IllegalArgumentException("Provider not found: " + providerId);
         }
+        capturePreviousCodexSnapshot(previousActive);
 
         // 同一 CLI 类型下只能有一个 active（OpenCode 除外，它是 additive 模式）
         for (Provider p : providers) {
@@ -169,6 +176,11 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
 
         saveProviders(providers);
         writeToLiveConfig(target);
+        lastActivationResult = switchCodexAuthStateIfNeeded(target);
+    }
+
+    public CodexActivationResult getLastActivationResult() {
+        return lastActivationResult;
     }
 
     /**
@@ -252,8 +264,9 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
     private void writeCodexLive(ConfigFileService svc, JsonObject config) throws IOException {
         // 写 auth.json
         if (hasCodexApiKey(config)) {
-            Path authPath = svc.getProviderConfigPath(CliType.CODEX);
-            svc.writeJsonFile(authPath, config.getAsJsonObject("auth"));
+            svc.writeCodexAuthJson(config.getAsJsonObject("auth"));
+        } else {
+            svc.deleteCodexAuthFile();
         }
 
         // 写 config.toml
@@ -374,6 +387,28 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             return false;
         }
         return !auth.get("OPENAI_API_KEY").getAsString().isBlank();
+    }
+
+    private void capturePreviousCodexSnapshot(Provider previousActive) {
+        if (previousActive == null || previousActive.getCliType() != CliType.CODEX
+                || previousActive.getAuthMode() != AuthMode.OFFICIAL_LOGIN) {
+            return;
+        }
+        CodexAuthSnapshotService.getInstance().captureFromLive(previousActive.getId());
+    }
+
+    private CodexActivationResult switchCodexAuthStateIfNeeded(Provider target) throws IOException {
+        if (target.getCliType() != CliType.CODEX || target.getAuthMode() != AuthMode.OFFICIAL_LOGIN) {
+            return CodexActivationResult.notApplicable();
+        }
+
+        CodexAuthSnapshotService.RestoreResult restoreResult = CodexAuthSnapshotService.getInstance()
+                .restoreToLive(target.getId());
+        return switch (restoreResult) {
+            case RESTORED -> CodexActivationResult.snapshotRestored();
+            case NO_SNAPSHOT -> CodexActivationResult.loginRequired();
+            case INVALID_SNAPSHOT -> CodexActivationResult.snapshotInvalid();
+        };
     }
 
     private static String removeManagedBlock(String existing, String startMarker, String endMarker) {

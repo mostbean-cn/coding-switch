@@ -109,6 +109,10 @@ public final class ConfigFileService {
         return getConfigDir(CliType.CODEX).resolve("skills");
     }
 
+    public Path getCodexAuthFilePath() {
+        return getProviderConfigPath(CliType.CODEX);
+    }
+
     public Path getGeminiSkillsDir() {
         return getConfigDir(CliType.GEMINI).resolve("skills");
     }
@@ -174,6 +178,38 @@ public final class ConfigFileService {
      */
     public void writeJsonFile(Path path, JsonObject json) throws IOException {
         writeFile(path, GSON.toJson(json));
+    }
+
+    public String readCodexAuthRaw() {
+        return readFile(getCodexAuthFilePath());
+    }
+
+    public JsonObject readCodexAuthJson() {
+        return readJsonFile(getCodexAuthFilePath());
+    }
+
+    public void writeCodexAuthJson(JsonObject json) throws IOException {
+        writeJsonFile(getCodexAuthFilePath(), json);
+    }
+
+    public void writeCodexAuthRaw(String rawAuthJson) throws IOException {
+        writeFile(getCodexAuthFilePath(), rawAuthJson);
+    }
+
+    public void deleteCodexAuthFile() throws IOException {
+        Files.deleteIfExists(getCodexAuthFilePath());
+    }
+
+    public CodexAuthSupport.CodexAuthState detectCodexAuthState() {
+        return CodexAuthSupport.detectState(readCodexAuthRaw());
+    }
+
+    public boolean isValidCodexOfficialAuth(String rawAuthJson) {
+        return CodexAuthSupport.isValidOfficialLoginAuth(rawAuthJson);
+    }
+
+    public boolean isValidCodexOfficialAuth(JsonObject authJson) {
+        return CodexAuthSupport.isValidOfficialLoginAuth(authJson);
     }
 
     /**
