@@ -12,7 +12,19 @@ import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.util.ui.FormBuilder;
 import com.intellij.util.ui.JBUI;
-
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Rectangle;
+import java.awt.Toolkit;
+import java.awt.datatransfer.StringSelection;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -24,21 +36,10 @@ import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.JTextField;
 import javax.swing.JToggleButton;
+import javax.swing.Scrollable;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Dimension;
-import java.awt.FlowLayout;
-import java.awt.Font;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Toolkit;
-import java.awt.datatransfer.StringSelection;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 /**
  * 设置面板：CLI 版本检测 + 安装命令 + 语言设置。
@@ -56,7 +57,7 @@ public class SettingsPanel extends JPanel {
     }
 
     private JPanel buildContent() {
-        JPanel mainPanel = new JPanel();
+        JPanel mainPanel = new VerticalScrollablePanel();
         mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
 
         mainPanel.add(buildVersionSection());
@@ -74,8 +75,12 @@ public class SettingsPanel extends JPanel {
 
     private JPanel buildVersionSection() {
         JPanel section = new JPanel(new BorderLayout(0, 8));
-        section.setBorder(BorderFactory.createTitledBorder(
-                BorderFactory.createEtchedBorder(), I18n.t("settings.section.versionStatus")));
+        section.setBorder(
+            BorderFactory.createTitledBorder(
+                BorderFactory.createEtchedBorder(),
+                I18n.t("settings.section.versionStatus")
+            )
+        );
 
         JPanel grid = new JPanel(new GridBagLayout());
         grid.setBorder(JBUI.Borders.empty(12));
@@ -89,9 +94,15 @@ public class SettingsPanel extends JPanel {
         gbc.gridx = 1;
         grid.add(bold(new JBLabel(I18n.t("settings.table.cli"))), gbc);
         gbc.gridx = 2;
-        grid.add(bold(new JBLabel(I18n.t("settings.table.currentVersion"))), gbc);
+        grid.add(
+            bold(new JBLabel(I18n.t("settings.table.currentVersion"))),
+            gbc
+        );
         gbc.gridx = 3;
-        grid.add(bold(new JBLabel(I18n.t("settings.table.latestVersion"))), gbc);
+        grid.add(
+            bold(new JBLabel(I18n.t("settings.table.latestVersion"))),
+            gbc
+        );
 
         int row = 1;
         for (CliType cli : CliType.values()) {
@@ -124,7 +135,9 @@ public class SettingsPanel extends JPanel {
             row++;
         }
 
-        JButton refreshBtn = new JButton(I18n.t("settings.button.checkAllVersions"));
+        JButton refreshBtn = new JButton(
+            I18n.t("settings.button.checkAllVersions")
+        );
         refreshBtn.setIcon(AllIcons.Actions.Refresh);
         refreshBtn.addActionListener(e -> checkAllVersions());
 
@@ -138,13 +151,19 @@ public class SettingsPanel extends JPanel {
 
     private JPanel buildInstallSection() {
         JPanel section = new JPanel(new BorderLayout());
-        section.setBorder(BorderFactory.createTitledBorder(
-                BorderFactory.createEtchedBorder(), I18n.t("settings.section.installCommands")));
+        section.setBorder(
+            BorderFactory.createTitledBorder(
+                BorderFactory.createEtchedBorder(),
+                I18n.t("settings.section.installCommands")
+            )
+        );
 
         FormBuilder form = FormBuilder.createFormBuilder();
         for (CliType cli : CliType.values()) {
             String cmd = CliVersionService.getInstance().getInstallCommand(cli);
-            form.addComponent(createCopyableCommandRow(cli.getDisplayName(), cmd));
+            form.addComponent(
+                createCopyableCommandRow(cli.getDisplayName(), cmd)
+            );
         }
 
         JPanel content = form.getPanel();
@@ -159,21 +178,29 @@ public class SettingsPanel extends JPanel {
 
         JBLabel label = new JBLabel(cliName + ":");
         label.setFont(label.getFont().deriveFont(Font.BOLD));
-        label.setPreferredSize(new Dimension(JBUI.scale(100), label.getPreferredSize().height));
+        label.setPreferredSize(
+            new Dimension(JBUI.scale(100), label.getPreferredSize().height)
+        );
 
         JTextField cmdField = new JTextField(command);
         cmdField.setEditable(false);
         cmdField.setFont(new Font(Font.MONOSPACED, Font.PLAIN, JBUI.scale(11)));
         cmdField.setBorder(JBUI.Borders.empty(4, 8));
+        cmdField.setMinimumSize(
+            new Dimension(0, cmdField.getMinimumSize().height)
+        );
 
         JButton copyBtn = new JButton(AllIcons.Actions.Copy);
         copyBtn.setToolTipText(I18n.t("settings.tooltip.copyClipboard"));
         copyBtn.setPreferredSize(new Dimension(JBUI.scale(28), JBUI.scale(28)));
         copyBtn.addActionListener(e -> {
-            Toolkit.getDefaultToolkit().getSystemClipboard()
-                    .setContents(new StringSelection(command), null);
+            Toolkit.getDefaultToolkit()
+                .getSystemClipboard()
+                .setContents(new StringSelection(command), null);
             copyBtn.setIcon(AllIcons.Actions.Commit);
-            Timer timer = new Timer(1000, evt -> copyBtn.setIcon(AllIcons.Actions.Copy));
+            Timer timer = new Timer(1000, evt ->
+                copyBtn.setIcon(AllIcons.Actions.Copy)
+            );
             timer.setRepeats(false);
             timer.start();
         });
@@ -186,8 +213,12 @@ public class SettingsPanel extends JPanel {
 
     private JPanel buildLanguageSection() {
         JPanel section = new JPanel(new BorderLayout());
-        section.setBorder(BorderFactory.createTitledBorder(
-                BorderFactory.createEtchedBorder(), I18n.t("settings.section.preferences")));
+        section.setBorder(
+            BorderFactory.createTitledBorder(
+                BorderFactory.createEtchedBorder(),
+                I18n.t("settings.section.preferences")
+            )
+        );
 
         JPanel content = new JPanel();
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
@@ -195,19 +226,34 @@ public class SettingsPanel extends JPanel {
         JPanel langRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
         langRow.add(new JBLabel(I18n.t("settings.label.uiLanguage")));
 
-        JComboBox<PluginSettings.Language> langCombo = new JComboBox<>(PluginSettings.Language.values());
+        JComboBox<PluginSettings.Language> langCombo = new JComboBox<>(
+            PluginSettings.Language.values()
+        );
         langCombo.setSelectedItem(PluginSettings.getInstance().getLanguage());
-        langCombo.setRenderer(new DefaultListCellRenderer() {
-            @Override
-            public Component getListCellRendererComponent(JList<?> list, Object value,
-                                                          int index, boolean isSelected, boolean cellHasFocus) {
-                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                if (value instanceof PluginSettings.Language lang) {
-                    setText(lang.getDisplayName(I18n.currentLanguage()));
+        langCombo.setRenderer(
+            new DefaultListCellRenderer() {
+                @Override
+                public Component getListCellRendererComponent(
+                    JList<?> list,
+                    Object value,
+                    int index,
+                    boolean isSelected,
+                    boolean cellHasFocus
+                ) {
+                    super.getListCellRendererComponent(
+                        list,
+                        value,
+                        index,
+                        isSelected,
+                        cellHasFocus
+                    );
+                    if (value instanceof PluginSettings.Language lang) {
+                        setText(lang.getDisplayName(I18n.currentLanguage()));
+                    }
+                    return this;
                 }
-                return this;
             }
-        });
+        );
         langCombo.addActionListener(e -> onLanguageChanged(langCombo));
         langRow.add(langCombo);
         content.add(langRow);
@@ -218,34 +264,51 @@ public class SettingsPanel extends JPanel {
         tokenField.setText(PluginSettings.getInstance().getGithubToken());
         tokenRow.add(tokenField);
 
-        JToggleButton showToggle = new JToggleButton(I18n.t("settings.button.show"));
+        JToggleButton showToggle = new JToggleButton(
+            I18n.t("settings.button.show")
+        );
         char defaultEcho = tokenField.getEchoChar();
         showToggle.addActionListener(e -> {
             boolean selected = showToggle.isSelected();
             tokenField.setEchoChar(selected ? (char) 0 : defaultEcho);
-            showToggle.setText(I18n.t(selected ? "settings.button.hide" : "settings.button.show"));
+            showToggle.setText(
+                I18n.t(
+                    selected ? "settings.button.hide" : "settings.button.show"
+                )
+            );
         });
         tokenRow.add(showToggle);
 
-        JButton saveTokenBtn = new JButton(I18n.t("settings.button.saveGithubToken"));
+        JButton saveTokenBtn = new JButton(
+            I18n.t("settings.button.saveGithubToken")
+        );
         saveTokenBtn.addActionListener(e -> {
             String token = new String(tokenField.getPassword()).trim();
             PluginSettings.getInstance().setGithubToken(token);
             Messages.showInfoMessage(
-                    I18n.t("settings.githubToken.saved"),
-                    I18n.t("settings.githubToken.title"));
+                I18n.t("settings.githubToken.saved"),
+                I18n.t("settings.githubToken.title")
+            );
         });
         tokenRow.add(saveTokenBtn);
         content.add(tokenRow);
 
-        JPanel tokenHintRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
-        JBLabel tokenHintLabel = new JBLabel(I18n.t("settings.hint.githubToken"));
+        JPanel tokenHintRow = new JPanel(
+            new FlowLayout(FlowLayout.LEFT, 12, 0)
+        );
+        JBLabel tokenHintLabel = new JBLabel(
+            I18n.t("settings.hint.githubToken")
+        );
         tokenHintLabel.setForeground(JBColor.GRAY);
         tokenHintRow.add(tokenHintLabel);
         content.add(tokenHintRow);
 
-        JBLabel hintLabel = new JBLabel(I18n.t("settings.hint.restartRequired"));
-        hintLabel.setForeground(new JBColor(new Color(200, 130, 0), new Color(230, 180, 80)));
+        JBLabel hintLabel = new JBLabel(
+            I18n.t("settings.hint.restartRequired")
+        );
+        hintLabel.setForeground(
+            new JBColor(new Color(200, 130, 0), new Color(230, 180, 80))
+        );
         hintLabel.setBorder(JBUI.Borders.empty(0, 12, 8, 12));
 
         section.add(content, BorderLayout.NORTH);
@@ -253,20 +316,30 @@ public class SettingsPanel extends JPanel {
         return section;
     }
 
-    private void onLanguageChanged(JComboBox<PluginSettings.Language> langCombo) {
-        PluginSettings.Language selected = (PluginSettings.Language) langCombo.getSelectedItem();
-        if (selected == null || selected == PluginSettings.getInstance().getLanguage()) {
+    private void onLanguageChanged(
+        JComboBox<PluginSettings.Language> langCombo
+    ) {
+        PluginSettings.Language selected =
+            (PluginSettings.Language) langCombo.getSelectedItem();
+        if (
+            selected == null ||
+            selected == PluginSettings.getInstance().getLanguage()
+        ) {
             return;
         }
 
         PluginSettings.getInstance().setLanguage(selected);
 
         int result = Messages.showYesNoDialog(
-                I18n.t("settings.dialog.languageChanged.message", selected.getDisplayName(I18n.currentLanguage())),
-                I18n.t("settings.dialog.languageChanged.title"),
-                I18n.t("settings.dialog.languageChanged.restartNow"),
-                I18n.t("settings.dialog.languageChanged.restartLater"),
-                Messages.getQuestionIcon());
+            I18n.t(
+                "settings.dialog.languageChanged.message",
+                selected.getDisplayName(I18n.currentLanguage())
+            ),
+            I18n.t("settings.dialog.languageChanged.title"),
+            I18n.t("settings.dialog.languageChanged.restartNow"),
+            I18n.t("settings.dialog.languageChanged.restartLater"),
+            Messages.getQuestionIcon()
+        );
 
         if (result == Messages.YES) {
             ApplicationManager.getApplication().restart();
@@ -285,20 +358,28 @@ public class SettingsPanel extends JPanel {
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
             CliVersionService service = CliVersionService.getInstance();
             for (CliType cli : CliType.values()) {
-                CliVersionService.VersionResult current = service.getVersionResult(cli);
+                CliVersionService.VersionResult current =
+                    service.getVersionResult(cli);
                 String latest = service.getLatestVersion(cli);
-                SwingUtilities.invokeLater(() -> updateDisplay(cli, current, latest));
+                SwingUtilities.invokeLater(() ->
+                    updateDisplay(cli, current, latest)
+                );
             }
         });
     }
 
-    private void updateDisplay(CliType cli, CliVersionService.VersionResult currentResult, String latest) {
+    private void updateDisplay(
+        CliType cli,
+        CliVersionService.VersionResult currentResult,
+        String latest
+    ) {
         JBLabel icon = statusIcons.get(cli);
         JBLabel curLabel = currentLabels.get(cli);
         JBLabel latLabel = latestLabels.get(cli);
 
         String current = currentResult != null ? currentResult.version() : null;
-        CliVersionService.VersionStatus status = currentResult != null
+        CliVersionService.VersionStatus status =
+            currentResult != null
                 ? currentResult.status()
                 : CliVersionService.VersionStatus.NOT_INSTALLED;
 
@@ -326,10 +407,17 @@ public class SettingsPanel extends JPanel {
         }
 
         if (latest != null) {
-            if (status == CliVersionService.VersionStatus.INSTALLED && current != null && current.equals(latest)) {
+            if (
+                status == CliVersionService.VersionStatus.INSTALLED &&
+                current != null &&
+                current.equals(latest)
+            ) {
                 latLabel.setText(I18n.t("settings.status.latest", latest));
                 latLabel.setForeground(new Color(66, 160, 83));
-            } else if (status == CliVersionService.VersionStatus.INSTALLED && current != null) {
+            } else if (
+                status == CliVersionService.VersionStatus.INSTALLED &&
+                current != null
+            ) {
                 latLabel.setText(I18n.t("settings.status.updatable", latest));
                 latLabel.setForeground(new Color(200, 130, 0));
             } else {
@@ -345,5 +433,49 @@ public class SettingsPanel extends JPanel {
     private JBLabel bold(JBLabel label) {
         label.setFont(label.getFont().deriveFont(Font.BOLD));
         return label;
+    }
+
+    /**
+     * 实现 Scrollable 接口的面板，声明跟随视口宽度。
+     * 这样 JScrollPane 始终将内容宽度约束为视口宽度，
+     * 不会出现水平滚动条，BorderLayout 中的 EAST（复制按钮）永远固定在右侧可见。
+     */
+    private static class VerticalScrollablePanel
+        extends JPanel
+        implements Scrollable
+    {
+
+        @Override
+        public Dimension getPreferredScrollableViewportSize() {
+            return getPreferredSize();
+        }
+
+        @Override
+        public int getScrollableUnitIncrement(
+            Rectangle visibleRect,
+            int orientation,
+            int direction
+        ) {
+            return 16;
+        }
+
+        @Override
+        public int getScrollableBlockIncrement(
+            Rectangle visibleRect,
+            int orientation,
+            int direction
+        ) {
+            return visibleRect.height;
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportWidth() {
+            return true; // 强制内容宽度 = 视口宽度，文本框收缩，按钮始终在右侧
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportHeight() {
+            return false;
+        }
     }
 }
