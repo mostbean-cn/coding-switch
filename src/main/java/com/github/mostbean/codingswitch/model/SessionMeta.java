@@ -14,6 +14,7 @@ public class SessionMeta {
     private Long createdAt;
     private Long lastActiveAt;
     private String sourcePath;
+    private String deletePath;
     private String resumeCommand;
 
     public SessionMeta() {
@@ -88,6 +89,14 @@ public class SessionMeta {
 
     public void setSourcePath(String sourcePath) {
         this.sourcePath = sourcePath;
+    }
+
+    public String getDeletePath() {
+        return deletePath;
+    }
+
+    public void setDeletePath(String deletePath) {
+        this.deletePath = deletePath;
     }
 
     public String getResumeCommand() {

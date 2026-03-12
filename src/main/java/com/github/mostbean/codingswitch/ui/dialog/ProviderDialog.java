@@ -4,6 +4,8 @@ import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.Provider;
 import com.github.mostbean.codingswitch.model.Provider.AuthMode;
 import com.github.mostbean.codingswitch.service.I18n;
+import com.github.mostbean.codingswitch.service.PluginSettings;
+import com.github.mostbean.codingswitch.service.PluginSettings.SecurityPolicy;
 import com.github.mostbean.codingswitch.service.ProviderConnectionTestService;
 import com.github.mostbean.codingswitch.service.ProviderPresets;
 import com.google.gson.Gson;
@@ -38,6 +40,8 @@ public class ProviderDialog extends DialogWrapper {
 
     private static final String PRESET_NONE = I18n.t("providerDialog.preset.custom");
     private static final String OFFICIAL_HINT = I18n.t("providerDialog.preset.officialHint");
+    private static final String DEFAULT_OPTION_LABEL = I18n.t("providerDialog.option.default");
+    private static final int TEST_STATUS_MAX_LENGTH = 72;
 
     private final JPanel presetButtonsPanel = new JPanel(new GridLayout(0, 5, 8, 8));
     private final JBLabel presetHintLabel = new JBLabel(" ");
@@ -59,10 +63,10 @@ public class ProviderDialog extends DialogWrapper {
     private final JComboBox<String> claudeEffortLevel = createEditableCombo(
             "", "high", "medium", "low");
     private final JComboBox<String> claudeAlwaysThinkingEnabled = new JComboBox<>(
-            new String[] { "", "true", "false" });
+            new String[] { DEFAULT_OPTION_LABEL, "true", "false" });
     private final JCheckBox claudeTeamModeEnabled = new JCheckBox();
     private final JComboBox<String> claudeDangerousMode = new JComboBox<>(new String[] {
-            "", I18n.t("providerDialog.dangerousMode.skipPermissions"),
+            DEFAULT_OPTION_LABEL, I18n.t("providerDialog.dangerousMode.skipPermissions"),
             I18n.t("providerDialog.dangerousMode.skipAll") });
 
     private final JTextField codexApiKey = new JTextField(30);
@@ -73,6 +77,7 @@ public class ProviderDialog extends DialogWrapper {
     private final JBLabel codexModelLabel = requiredLabel(I18n.t("providerDialog.label.model"));
     private final JComboBox<String> codexReasoningEffort = new JComboBox<>(
             new String[] { "xhigh", "high", "medium", "low" });
+    private final JComboBox<SecurityPolicy> codexSecurityPolicy = new JComboBox<>(SecurityPolicy.values());
     private final JCheckBox codex1MContext = new JCheckBox();
     private final JCheckBox codexMultiAgent = new JCheckBox();
     private final JCheckBox codexFastMode = new JCheckBox();
@@ -136,6 +141,17 @@ public class ProviderDialog extends DialogWrapper {
     private int expandedLeftWidth = -1;
     private static final int PREVIEW_PANEL_WIDTH = 420;
 
+    static String abbreviateTestStatus(String text) {
+        if (text == null) {
+            return "";
+        }
+        String normalized = text.replace('\n', ' ').replace('\r', ' ').trim();
+        if (normalized.length() <= TEST_STATUS_MAX_LENGTH) {
+            return normalized;
+        }
+        return normalized.substring(0, TEST_STATUS_MAX_LENGTH - 3) + "...";
+    }
+
     private static JTextArea createPreviewTextArea(boolean editable) {
         JTextArea textArea = new JTextArea();
         textArea.setEditable(editable);
@@ -197,14 +213,18 @@ public class ProviderDialog extends DialogWrapper {
         presetHintLabel.setBorder(JBUI.Borders.empty(0, 0, 4, 0));
         testConnectionHintLabel.setForeground(JBUI.CurrentTheme.ContextHelp.FOREGROUND);
         testConnectionHintLabel.setBorder(JBUI.Borders.empty(2, 0, 4, 0));
-        testStatusLabel.setBorder(JBUI.Borders.empty(0, 0, 4, 0));
+        testStatusLabel.setBorder(JBUI.Borders.emptyLeft(8));
 
-        JPanel testPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        testPanel.add(testConnectionButton);
-        testPanel.add(Box.createHorizontalStrut(8));
-        testPanel.add(togglePreviewButton);
-        testPanel.add(Box.createHorizontalStrut(8));
-        testPanel.add(testStatusLabel);
+        JPanel testButtonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        testButtonsPanel.add(testConnectionButton);
+        testButtonsPanel.add(Box.createHorizontalStrut(8));
+        testButtonsPanel.add(togglePreviewButton);
+        testButtonsPanel.add(testStatusLabel);
+
+        JPanel testPanel = new JPanel();
+        testPanel.setLayout(new BoxLayout(testPanel, BoxLayout.Y_AXIS));
+        testButtonsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        testPanel.add(testButtonsPanel);
 
         JPanel topPanel = FormBuilder.createFormBuilder()
                 .addLabeledComponent(I18n.t("providerDialog.label.preset"), presetButtonsPanel)
@@ -841,7 +861,7 @@ public class ProviderDialog extends DialogWrapper {
                 claudeSonnet.setText("");
                 claudeOpus.setText("");
                 claudeEffortLevel.setSelectedItem("");
-                claudeAlwaysThinkingEnabled.setSelectedItem("");
+                claudeAlwaysThinkingEnabled.setSelectedIndex(0);
                 claudeTeamModeEnabled.setSelected(false);
                 claudeDangerousMode.setSelectedIndex(0);
             }
@@ -908,11 +928,34 @@ public class ProviderDialog extends DialogWrapper {
     }
 
     private JPanel buildCodexPanel() {
+        // 初始化安全策略下拉框渲染器
+        codexSecurityPolicy.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(
+                JList<?> list,
+                Object value,
+                int index,
+                boolean isSelected,
+                boolean cellHasFocus
+            ) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                if (value instanceof SecurityPolicy policy) {
+                    setText(policy.getDisplayName(I18n.currentLanguage()));
+                }
+                return this;
+            }
+        });
+        codexSecurityPolicy.setSelectedItem(SecurityPolicy.DEFAULT);
+        codexSecurityPolicy.addActionListener(e -> {
+            if (!updatingFromPreview) updatePreview();
+        });
+
         JPanel form = FormBuilder.createFormBuilder()
                 .addLabeledComponent(codexApiKeyLabel, codexApiKey)
                 .addLabeledComponent(codexBaseUrlLabel, codexBaseUrl)
                 .addLabeledComponent(codexModelLabel, codexModel)
                 .addSeparator(8)
+                .addLabeledComponent(I18n.t("providerDialog.label.securityPolicy"), codexSecurityPolicy)
                 .addLabeledComponent(I18n.t("providerDialog.label.reasoningEffort"), codexReasoningEffort)
                 .addComponent(buildCodexOptionsRow())
                 .getPanel();
@@ -1087,10 +1130,10 @@ public class ProviderDialog extends DialogWrapper {
             if ("true".equalsIgnoreCase(alwaysThinkingValue) || "false".equalsIgnoreCase(alwaysThinkingValue)) {
                 claudeAlwaysThinkingEnabled.setSelectedItem(alwaysThinkingValue.toLowerCase());
             } else {
-                claudeAlwaysThinkingEnabled.setSelectedItem("");
+                claudeAlwaysThinkingEnabled.setSelectedIndex(0);
             }
         } else {
-            claudeAlwaysThinkingEnabled.setSelectedItem("");
+            claudeAlwaysThinkingEnabled.setSelectedIndex(0);
         }
 
         boolean teamModeEnabled = env.has("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS")
@@ -1119,6 +1162,8 @@ public class ProviderDialog extends DialogWrapper {
             boolean has1MContext = false;
             boolean hasMultiAgent = false;
             boolean hasFastMode = false;
+            String approvalPolicy = null;
+            String sandboxMode = null;
             for (String line : toml.split("\n")) {
                 String trimmed = line.trim();
                 if (trimmed.startsWith("model =")) {
@@ -1136,12 +1181,37 @@ public class ProviderDialog extends DialogWrapper {
                     hasMultiAgent = "true".equalsIgnoreCase(extractTomlValue(trimmed));
                 } else if (trimmed.startsWith("fast_mode =")) {
                     hasFastMode = "true".equalsIgnoreCase(extractTomlValue(trimmed));
+                } else if (trimmed.startsWith("approval_policy =")) {
+                    approvalPolicy = extractTomlValue(trimmed);
+                } else if (trimmed.startsWith("sandbox_mode =")) {
+                    sandboxMode = extractTomlValue(trimmed);
                 }
             }
             codex1MContext.setSelected(has1MContext);
             codexMultiAgent.setSelected(hasMultiAgent);
             codexFastMode.setSelected(hasFastMode);
+
+            // 根据读取的 approval_policy 和 sandbox_mode 设置安全策略下拉框
+            codexSecurityPolicy.setSelectedItem(resolveSecurityPolicy(approvalPolicy, sandboxMode));
         }
+    }
+
+    /**
+     * 根据 approval_policy 和 sandbox_mode 解析对应的 SecurityPolicy。
+     */
+    private SecurityPolicy resolveSecurityPolicy(String approvalPolicy, String sandboxMode) {
+        if (approvalPolicy == null && sandboxMode == null) {
+            return SecurityPolicy.DEFAULT;
+        }
+        for (SecurityPolicy policy : SecurityPolicy.values()) {
+            if (policy.getApprovalPolicy() != null
+                && policy.getApprovalPolicy().equals(approvalPolicy)
+                && policy.getSandboxMode() != null
+                && policy.getSandboxMode().equals(sandboxMode)) {
+                return policy;
+            }
+        }
+        return SecurityPolicy.DEFAULT;
     }
 
     private void loadGeminiConfig(JsonObject config) {
@@ -1258,6 +1328,7 @@ public class ProviderDialog extends DialogWrapper {
         boolean enable1MContext = codex1MContext.isSelected();
         boolean enableMultiAgent = codexMultiAgent.isSelected();
         boolean enableFastMode = codexFastMode.isSelected();
+        SecurityPolicy securityPolicy = (SecurityPolicy) codexSecurityPolicy.getSelectedItem();
 
         if (!baseUrl.isEmpty()) {
             baseUrl = baseUrl.replaceAll("/+$", "");
@@ -1274,6 +1345,17 @@ public class ProviderDialog extends DialogWrapper {
             toml.append("model = \"").append(model).append("\"\n");
         if (effort != null && !effort.isEmpty())
             toml.append("model_reasoning_effort = \"").append(effort).append("\"\n");
+
+        // 写入安全策略配置（非默认时）
+        if (securityPolicy != null && !securityPolicy.isDefault()) {
+            if (securityPolicy.getApprovalPolicy() != null) {
+                toml.append("approval_policy = \"").append(securityPolicy.getApprovalPolicy()).append("\"\n");
+            }
+            if (securityPolicy.getSandboxMode() != null) {
+                toml.append("sandbox_mode = \"").append(securityPolicy.getSandboxMode()).append("\"\n");
+            }
+        }
+
         if (enable1MContext) {
             toml.append("model_context_window = 1000000\n");
             toml.append("model_auto_compact_token_limit = 900000\n");
@@ -1622,6 +1704,7 @@ public class ProviderDialog extends DialogWrapper {
         JsonObject config = buildSettingsConfig(cliType);
         testConnectionButton.setEnabled(false);
         testStatusLabel.setText(I18n.t("providerDialog.test.testing"));
+        testStatusLabel.setToolTipText(null);
         testStatusLabel.setForeground(JBColor.GRAY);
 
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
@@ -1629,10 +1712,14 @@ public class ProviderDialog extends DialogWrapper {
             ApplicationManager.getApplication().invokeLater(() -> {
                 testConnectionButton.setEnabled(true);
                 if (result.success()) {
-                    testStatusLabel.setText(I18n.t("providerDialog.test.success", result.durationMs()));
+                    String successMessage = I18n.t("providerDialog.test.success", result.durationMs());
+                    testStatusLabel.setText(successMessage);
+                    testStatusLabel.setToolTipText(null);
                     testStatusLabel.setForeground(new JBColor(new Color(66, 160, 83), new Color(66, 160, 83)));
                 } else {
-                    testStatusLabel.setText(I18n.t("providerDialog.test.failed", result.message()));
+                    String failureMessage = I18n.t("providerDialog.test.failed", result.message());
+                    testStatusLabel.setText(abbreviateTestStatus(failureMessage));
+                    testStatusLabel.setToolTipText(failureMessage);
                     testStatusLabel.setForeground(JBColor.RED);
                 }
             }, ModalityState.any());

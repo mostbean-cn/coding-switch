@@ -14,6 +14,8 @@ import com.intellij.openapi.diagnostic.Logger;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.attribute.DosFileAttributeView;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.*;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -84,6 +86,42 @@ public final class SessionScannerService {
         } catch (Exception e) {
             LOG.warn("Failed to load messages for " + providerId + ": " + sourcePath, e);
             return Collections.emptyList();
+        }
+    }
+
+    /**
+     * 当前版本支持删除全部已扫描 CLI 的会话文件。
+     */
+    public boolean supportsDelete(SessionMeta session) {
+        if (session == null || session.getProviderId() == null) {
+            return false;
+        }
+        return switch (session.getProviderId()) {
+            case "claude", "codex", "gemini", "opencode" -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * 删除指定会话在本地存储中的文件。
+     */
+    public void deleteSession(SessionMeta session) throws IOException {
+        if (session == null) {
+            throw new IOException("会话不存在");
+        }
+        if (!supportsDelete(session)) {
+            throw new UnsupportedOperationException("当前 CLI 暂不支持删除会话");
+        }
+        switch (session.getProviderId()) {
+            case "claude", "codex", "gemini" -> {
+                String sourcePath = session.getSourcePath();
+                if (sourcePath == null || sourcePath.isBlank()) {
+                    throw new IOException("缺少会话源路径");
+                }
+                deleteRecursively(Path.of(sourcePath));
+            }
+            case "opencode" -> deleteOpenCodeSession(session);
+            default -> throw new UnsupportedOperationException("当前 CLI 暂不支持删除会话");
         }
     }
 
@@ -166,6 +204,7 @@ public final class SessionScannerService {
             meta.setCreatedAt(createdAt);
             meta.setLastActiveAt(lastActiveAt);
             meta.setSourcePath(file.toAbsolutePath().toString());
+            meta.setDeletePath(file.toAbsolutePath().toString());
             meta.setResumeCommand("claude --resume " + sessionId);
             return meta;
         } catch (Exception e) {
@@ -285,6 +324,7 @@ public final class SessionScannerService {
             meta.setCreatedAt(createdAt);
             meta.setLastActiveAt(lastActiveAt);
             meta.setSourcePath(file.toAbsolutePath().toString());
+            meta.setDeletePath(file.toAbsolutePath().toString());
             meta.setResumeCommand("codex resume " + sessionId);
             return meta;
         } catch (Exception e) {
@@ -386,6 +426,7 @@ public final class SessionScannerService {
             meta.setCreatedAt(createdAt);
             meta.setLastActiveAt(lastActiveAt);
             meta.setSourcePath(file.toAbsolutePath().toString());
+            meta.setDeletePath(file.toAbsolutePath().toString());
             meta.setResumeCommand("gemini --resume " + sessionId);
             return meta;
         } catch (Exception e) {
@@ -487,6 +528,7 @@ public final class SessionScannerService {
             meta.setCreatedAt(createdAt);
             meta.setLastActiveAt(updatedAt != null ? updatedAt : createdAt);
             meta.setSourcePath(msgDir.toAbsolutePath().toString());
+            meta.setDeletePath(file.toAbsolutePath().toString());
             meta.setResumeCommand("opencode session resume " + sessionId);
             return meta;
         } catch (Exception e) {
@@ -567,6 +609,140 @@ public final class SessionScannerService {
             }
         }
         return sb.toString();
+    }
+
+    private void deleteOpenCodeSession(SessionMeta session) throws IOException {
+        String sourcePath = session.getSourcePath();
+        String deletePath = session.getDeletePath();
+        if (sourcePath == null || sourcePath.isBlank()) {
+            throw new IOException("缺少 OpenCode 消息目录路径");
+        }
+        if (deletePath == null || deletePath.isBlank()) {
+            throw new IOException("缺少 OpenCode 会话文件路径");
+        }
+
+        Path messageDir = Path.of(sourcePath);
+        Path sessionFile = Path.of(deletePath);
+        Path storageDir = messageDir.getParent() != null && messageDir.getParent().getParent() != null
+                ? messageDir.getParent().getParent()
+                : null;
+
+        Set<String> msgIds = collectOpenCodeMessageIds(messageDir);
+        List<Path> partDirs = new ArrayList<>();
+        if (storageDir != null) {
+            for (String msgId : msgIds) {
+                if (msgId != null && !msgId.isBlank()) {
+                    partDirs.add(storageDir.resolve("part").resolve(msgId));
+                }
+            }
+        }
+
+        for (Path partDir : partDirs) {
+            deleteRecursively(partDir);
+        }
+        deleteRecursively(messageDir);
+        deleteRecursively(sessionFile);
+    }
+
+    private Set<String> collectOpenCodeMessageIds(Path messageDir) {
+        if (!Files.isDirectory(messageDir)) {
+            return Collections.emptySet();
+        }
+        Set<String> ids = new LinkedHashSet<>();
+        for (Path msgFile : collectFiles(messageDir, "json")) {
+            try {
+                String data = Files.readString(msgFile, StandardCharsets.UTF_8);
+                JsonObject obj = JsonParser.parseString(data).getAsJsonObject();
+                String msgId = getStr(obj, "id", null);
+                if (msgId != null && !msgId.isBlank()) {
+                    ids.add(msgId);
+                }
+            } catch (Exception e) {
+                LOG.debug("Failed to parse OpenCode message id: " + msgFile, e);
+            }
+        }
+        return ids;
+    }
+
+    private void deleteRecursively(Path path) throws IOException {
+        if (!Files.exists(path)) {
+            return;
+        }
+        IOException last = null;
+        for (int i = 0; i < 3; i++) {
+            try {
+                deleteRecursivelyOnce(path);
+                return;
+            } catch (IOException e) {
+                last = e;
+                sleepSilently(120);
+            }
+        }
+        String message = "删除失败，文件可能被占用: " + path;
+        if (last != null && last.getMessage() != null && !last.getMessage().isBlank()) {
+            message = message + "\n" + last.getMessage();
+        }
+        throw new IOException(message, last);
+    }
+
+    private static void deleteRecursivelyOnce(Path root) throws IOException {
+        if (Files.isRegularFile(root)) {
+            deleteOnePath(root);
+            return;
+        }
+        Files.walkFileTree(root, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                deleteOnePath(file);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+                if (Files.exists(file)) {
+                    deleteOnePath(file);
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                if (exc != null && !(exc instanceof AccessDeniedException) && !(exc instanceof FileSystemException)) {
+                    throw exc;
+                }
+                deleteOnePath(dir);
+                return FileVisitResult.CONTINUE;
+            }
+        });
+    }
+
+    private static void deleteOnePath(Path path) throws IOException {
+        clearReadOnly(path);
+        try {
+            Files.deleteIfExists(path);
+        } catch (FileSystemException e) {
+            clearReadOnly(path);
+            Files.deleteIfExists(path);
+        }
+    }
+
+    private static void clearReadOnly(Path path) {
+        try {
+            DosFileAttributeView view = Files.getFileAttributeView(path, DosFileAttributeView.class);
+            if (view != null && view.readAttributes().isReadOnly()) {
+                view.setReadOnly(false);
+            }
+        } catch (IOException ignored) {
+            // ignore
+        }
+    }
+
+    private static void sleepSilently(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     // =====================================================================

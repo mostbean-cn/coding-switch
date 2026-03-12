@@ -13,6 +13,8 @@ import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowFactory;
 import com.intellij.ui.content.Content;
 import com.intellij.ui.content.ContentFactory;
+import com.intellij.ui.content.ContentManagerEvent;
+import com.intellij.ui.content.ContentManagerListener;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -28,8 +30,9 @@ public class CodingSwitchToolWindowFactory implements ToolWindowFactory, DumbAwa
                 new ProviderPanel(), I18n.t("toolwindow.tab.providers"), false);
         toolWindow.getContentManager().addContent(providerContent);
 
+        SessionPanel sessionPanel = new SessionPanel();
         Content sessionContent = contentFactory.createContent(
-                new SessionPanel(), I18n.t("toolwindow.tab.sessions"), false);
+                sessionPanel, I18n.t("toolwindow.tab.sessions"), false);
         toolWindow.getContentManager().addContent(sessionContent);
 
         Content mcpContent = contentFactory.createContent(
@@ -47,5 +50,14 @@ public class CodingSwitchToolWindowFactory implements ToolWindowFactory, DumbAwa
         Content settingsContent = contentFactory.createContent(
                 new SettingsPanel(), I18n.t("toolwindow.tab.settings"), false);
         toolWindow.getContentManager().addContent(settingsContent);
+
+        toolWindow.getContentManager().addContentManagerListener(new ContentManagerListener() {
+            @Override
+            public void selectionChanged(@NotNull ContentManagerEvent event) {
+                if (toolWindow.getContentManager().getSelectedContent() == sessionContent) {
+                    sessionPanel.autoRefreshOnEntry();
+                }
+            }
+        });
     }
 }

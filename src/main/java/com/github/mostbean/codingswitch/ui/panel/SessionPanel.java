@@ -6,6 +6,7 @@ import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.SessionScannerService;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.ui.Messages;
 import com.intellij.ui.SearchTextField;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBList;
@@ -23,12 +24,15 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 会话管理面板。
  * 左侧为会话列表（带搜索过滤），右侧为会话详情（消息时间线 + 操作按钮）。
  */
 public class SessionPanel extends JPanel {
+
+    private static final long AUTO_REFRESH_INTERVAL_MS = 5 * 60 * 1000L;
 
     private final DefaultListModel<SessionMeta> listModel = new DefaultListModel<>();
     private final JBList<SessionMeta> sessionList = new JBList<>(listModel);
@@ -50,6 +54,8 @@ public class SessionPanel extends JPanel {
     private List<SessionMeta> allSessions = new ArrayList<>();
     private String searchQuery = "";
     private String selectedProvider = "claude"; // 默认 Claude Code
+    private final AtomicBoolean refreshInProgress = new AtomicBoolean(false);
+    private volatile long lastRefreshCompletedAt = -1L;
 
     private static final String[][] PROVIDER_OPTIONS = {
             { "claude", "Claude Code" },
@@ -75,8 +81,8 @@ public class SessionPanel extends JPanel {
         splitPane.setBorder(null);
         add(splitPane, BorderLayout.CENTER);
 
-        // 初始加载
-        refreshSessions();
+        // 初次创建面板时自动刷新一次，后续进入页面走 5 分钟冷却策略
+        autoRefreshOnEntry();
     }
 
     // =====================================================================
@@ -113,7 +119,7 @@ public class SessionPanel extends JPanel {
 
         JButton refreshBtn = new JButton(AllIcons.Actions.Refresh);
         refreshBtn.setToolTipText(I18n.t("session.tooltip.refresh"));
-        refreshBtn.addActionListener(e -> refreshSessions());
+        refreshBtn.addActionListener(e -> refreshSessions(true));
         filterBar.add(refreshBtn, BorderLayout.EAST);
 
         topArea.add(filterBar);
@@ -329,7 +335,55 @@ public class SessionPanel extends JPanel {
             panel.add(copyDir);
         }
 
+        JButton deleteBtn = new JButton(I18n.t("session.button.delete"));
+        boolean deleteSupported = SessionScannerService.getInstance().supportsDelete(session);
+        deleteBtn.setEnabled(deleteSupported);
+        deleteBtn.setToolTipText(deleteSupported
+                ? I18n.t("session.tooltip.delete")
+                : I18n.t("session.tooltip.deleteUnsupported"));
+        deleteBtn.addActionListener(e -> onDeleteSession(session));
+        panel.add(deleteBtn);
+
         return panel;
+    }
+
+    private void onDeleteSession(SessionMeta session) {
+        SessionScannerService service = SessionScannerService.getInstance();
+        if (!service.supportsDelete(session)) {
+            Messages.showWarningDialog(
+                    I18n.t("session.dialog.deleteUnsupported"),
+                    I18n.t("session.dialog.deleteTitle"));
+            return;
+        }
+
+        int result = Messages.showYesNoDialog(
+                I18n.t("session.dialog.deleteConfirm", session.getDisplayTitle()),
+                I18n.t("session.dialog.deleteTitle"),
+                Messages.getQuestionIcon());
+        if (result != Messages.YES) {
+            return;
+        }
+
+        try {
+            ApplicationManager.getApplication().executeOnPooledThread(() -> {
+                try {
+                    service.deleteSession(session);
+                    SwingUtilities.invokeLater(() -> refreshSessions(true));
+                } catch (UnsupportedOperationException ex) {
+                    SwingUtilities.invokeLater(() -> Messages.showWarningDialog(
+                            I18n.t("session.dialog.deleteUnsupported"),
+                            I18n.t("session.dialog.deleteTitle")));
+                } catch (Exception ex) {
+                    SwingUtilities.invokeLater(() -> Messages.showErrorDialog(
+                            I18n.t("session.dialog.deleteFailed", ex.getMessage()),
+                            I18n.t("provider.dialog.error")));
+                }
+            });
+        } catch (Exception ex) {
+            Messages.showErrorDialog(
+                    I18n.t("session.dialog.deleteFailed", ex.getMessage()),
+                    I18n.t("provider.dialog.error"));
+        }
     }
 
     private void renderMessages(List<SessionMessage> messages) {
@@ -459,7 +513,26 @@ public class SessionPanel extends JPanel {
         return false;
     }
 
-    private void refreshSessions() {
+    public void autoRefreshOnEntry() {
+        long now = System.currentTimeMillis();
+        long elapsed = now - lastRefreshCompletedAt;
+        if (lastRefreshCompletedAt < 0 || elapsed >= AUTO_REFRESH_INTERVAL_MS) {
+            refreshSessions(false);
+        }
+    }
+
+    private void refreshSessions(boolean force) {
+        if (!force) {
+            long now = System.currentTimeMillis();
+            long elapsed = now - lastRefreshCompletedAt;
+            if (lastRefreshCompletedAt >= 0 && elapsed < AUTO_REFRESH_INTERVAL_MS) {
+                return;
+            }
+        }
+        if (!refreshInProgress.compareAndSet(false, true)) {
+            return;
+        }
+
         // 清空并显示加载状态
         listModel.clear();
         detailPanel.removeAll();
@@ -470,23 +543,33 @@ public class SessionPanel extends JPanel {
         detailPanel.repaint();
 
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
-            List<SessionMeta> sessions = SessionScannerService.getInstance().scanAllSessions();
-            SwingUtilities.invokeLater(() -> {
-                allSessions = sessions;
-                applyFilter();
+            try {
+                List<SessionMeta> sessions = SessionScannerService.getInstance().scanAllSessions();
+                SwingUtilities.invokeLater(() -> {
+                    try {
+                        allSessions = sessions;
+                        applyFilter();
 
-                detailPanel.removeAll();
-                if (sessions.isEmpty()) {
-                    JBLabel noData = new JBLabel(
-                            I18n.t("session.empty.noSessions"),
-                            SwingConstants.CENTER);
-                    detailPanel.add(noData, BorderLayout.CENTER);
-                } else {
-                    detailPanel.add(emptyLabel, BorderLayout.CENTER);
-                }
-                detailPanel.revalidate();
-                detailPanel.repaint();
-            });
+                        detailPanel.removeAll();
+                        if (sessions.isEmpty()) {
+                            JBLabel noData = new JBLabel(
+                                    I18n.t("session.empty.noSessions"),
+                                    SwingConstants.CENTER);
+                            detailPanel.add(noData, BorderLayout.CENTER);
+                        } else {
+                            detailPanel.add(emptyLabel, BorderLayout.CENTER);
+                        }
+                        detailPanel.revalidate();
+                        detailPanel.repaint();
+                        lastRefreshCompletedAt = System.currentTimeMillis();
+                    } finally {
+                        refreshInProgress.set(false);
+                    }
+                });
+            } catch (RuntimeException ex) {
+                SwingUtilities.invokeLater(() -> refreshInProgress.set(false));
+                throw ex;
+            }
         });
     }
 
