@@ -355,17 +355,20 @@ public class SettingsPanel extends JPanel {
             statusIcons.get(cli).setIcon(AllIcons.General.BalloonInformation);
         }
 
-        ApplicationManager.getApplication().executeOnPooledThread(() -> {
-            CliVersionService service = CliVersionService.getInstance();
-            for (CliType cli : CliType.values()) {
+        CliVersionService service = CliVersionService.getInstance();
+        for (CliType cli : CliType.values()) {
+            ApplicationManager.getApplication().executeOnPooledThread(() -> {
                 CliVersionService.VersionResult current =
                     service.getVersionResult(cli);
-                String latest = service.getLatestVersion(cli);
+                String latest =
+                    current.status() == CliVersionService.VersionStatus.INSTALLED
+                        ? service.getLatestVersion(cli)
+                        : null;
                 SwingUtilities.invokeLater(() ->
                     updateDisplay(cli, current, latest)
                 );
-            }
-        });
+            });
+        }
     }
 
     private void updateDisplay(

@@ -19,6 +19,7 @@ public final class CliVersionService {
 
     private static final Logger LOG = Logger.getInstance(CliVersionService.class);
     private static final Pattern VERSION_PATTERN = Pattern.compile("(\\d+\\.\\d+[.\\d]*)");
+    private static final long COMMAND_CHECK_TIMEOUT_SECONDS = 3;
     private static final long VERSION_TIMEOUT_SECONDS = 10;
     private static final long LATEST_TIMEOUT_SECONDS = 15;
 
@@ -82,6 +83,11 @@ public final class CliVersionService {
     }
 
     public VersionResult getVersionResult(CliType cliType) {
+        String commandName = getCommandName(cliType);
+        if (!isCommandAvailable(commandName)) {
+            return VersionResult.notInstalled();
+        }
+
         String[] commands = getVersionCommands(cliType);
         boolean hasTimeout = false;
         String lastFailure = null;
@@ -130,9 +136,18 @@ public final class CliVersionService {
     private String[] getVersionCommands(CliType cliType) {
         return switch (cliType) {
             case CLAUDE -> new String[]{"claude --version", "claude -v"};
-            case CODEX -> new String[]{"codex --version", "codex -v", "npx @openai/codex --version"};
-            case GEMINI -> new String[]{"gemini --version", "gemini -v", "npx @google/gemini-cli --version"};
+            case CODEX -> new String[]{"codex --version", "codex -v"};
+            case GEMINI -> new String[]{"gemini --version", "gemini -v"};
             case OPENCODE -> new String[]{"opencode --version", "opencode -v"};
+        };
+    }
+
+    private String getCommandName(CliType cliType) {
+        return switch (cliType) {
+            case CLAUDE -> "claude";
+            case CODEX -> "codex";
+            case GEMINI -> "gemini";
+            case OPENCODE -> "opencode";
         };
     }
 
@@ -166,6 +181,9 @@ public final class CliVersionService {
             String raw = output.toString().trim();
 
             if (process.exitValue() != 0) {
+                if (looksLikeCommandMissing(raw)) {
+                    return VersionResult.notInstalled();
+                }
                 LOG.info("Version command failed (exit " + process.exitValue() + "): " + command);
                 return VersionResult.failed("exit " + process.exitValue() + ": " + command);
             }
@@ -181,12 +199,48 @@ public final class CliVersionService {
         }
     }
 
+    private boolean isCommandAvailable(String commandName) {
+        try {
+            ProcessBuilder pb = createCommandCheckProcessBuilder(commandName);
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+            boolean finished = process.waitFor(COMMAND_CHECK_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            if (!finished) {
+                process.destroyForcibly();
+                LOG.info("Command availability check timeout: " + commandName);
+                return false;
+            }
+            return process.exitValue() == 0;
+        } catch (Exception e) {
+            LOG.info("Command availability check failed: " + commandName + " -> " + e.getMessage());
+            return false;
+        }
+    }
+
     private ProcessBuilder createProcessBuilder(String command) {
         String os = System.getProperty("os.name", "").toLowerCase();
         if (os.contains("win")) {
             return new ProcessBuilder("cmd", "/c", command);
         }
         return new ProcessBuilder("bash", "-c", command);
+    }
+
+    private ProcessBuilder createCommandCheckProcessBuilder(String commandName) {
+        String os = System.getProperty("os.name", "").toLowerCase();
+        if (os.contains("win")) {
+            return new ProcessBuilder("where.exe", commandName);
+        }
+        return new ProcessBuilder("bash", "-lc", "command -v " + commandName);
+    }
+
+    private boolean looksLikeCommandMissing(String rawOutput) {
+        if (rawOutput == null || rawOutput.isBlank()) {
+            return false;
+        }
+        String normalized = rawOutput.toLowerCase();
+        return normalized.contains("not recognized as an internal or external command")
+            || normalized.contains("command not found")
+            || normalized.contains("no such file or directory");
     }
 
     private String extractVersion(String rawOutput) {
