@@ -171,10 +171,21 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
         svc.writeJsonFile(path, root);
     }
 
+    /**
+     * 将服务器名称转换为Codex兼容格式。
+     * Codex要求服务器名称必须匹配 ^[a-zA-Z0-9_-]+$
+     */
+    private String toCodexServerName(String name) {
+        if (name == null) return null;
+        // 将点号替换为下划线，其他非法字符也替换为下划线
+        return name.replaceAll("[^a-zA-Z0-9_-]", "_");
+    }
+
     private void syncCodexMcp(ConfigFileService svc, List<McpServer> servers) throws IOException {
         Path path = svc.getMcpConfigPath(CliType.CODEX);
+        // 使用Codex兼容的服务器名称
         List<String> managedNames = servers.stream()
-                .map(McpServer::getName)
+                .map(s -> toCodexServerName(s.getName()))
                 .filter(name -> name != null && !name.isBlank())
                 .toList();
 
@@ -182,7 +193,8 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
         sb.append("# >>> coding-switch:mcp:start\n");
         sb.append("# MCP Servers (managed by Coding Switch)\n\n");
         for (McpServer server : servers) {
-            sb.append("[mcp_servers.").append(server.getName()).append("]\n");
+            String codexName = toCodexServerName(server.getName());
+            sb.append("[mcp_servers.\"").append(codexName).append("\"]\n");
             if (server.getTransportType() == McpServer.TransportType.STDIO) {
                 sb.append("type = \"stdio\"\n");
                 if (server.getCommand() != null && !server.getCommand().isBlank()) {
@@ -207,7 +219,7 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
                 sb.append("]\n");
             }
             if (server.getEnv() != null && !server.getEnv().isEmpty()) {
-                sb.append("[mcp_servers.").append(server.getName()).append(".env]\n");
+                sb.append("[mcp_servers.\"").append(codexName).append("\".env]\n");
                 for (Map.Entry<String, String> entry : server.getEnv().entrySet()) {
                     sb.append(entry.getKey()).append(" = \"").append(escapeToml(entry.getValue())).append("\"\n");
                 }
