@@ -39,6 +39,10 @@
     ]]>    </description>
 
     <change-notes><![CDATA[
+    <h3>0.2.1</h3>
+    <ul>
+        <li><b>Codex MCP 配置修复</b> — 修复 MCP 服务器名称包含点号等特殊字符时 Codex 启动失败的问题。</li>
+    </ul>
     <h3>0.2.0</h3>
     <ul>
         <li><b>CLI 安装检测重构</b> — 优化检测逻辑，减少误判，并修改为并行检测独立后台执行，减少互相阻塞。</li>
