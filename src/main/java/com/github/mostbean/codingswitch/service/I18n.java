@@ -307,8 +307,8 @@ public final class I18n {
                 m.put("mcpDialog.border.stdio", "STDIO 选项");
                 m.put("mcpDialog.border.network", "网络选项");
                 m.put("mcpDialog.tab.form", "表单模式");
-                m.put("mcpDialog.tab.json", "JSON 导入");
-                m.put("mcpDialog.json.hint", "<html>粘贴 JSON 格式的 MCP 服务器配置，支持以下格式：<br><br>" +
+                m.put("mcpDialog.tab.json", "JSON 模式");
+                m.put("mcpDialog.json.hint", "<html>粘贴或编辑 JSON 格式的 MCP 服务器配置，支持以下格式：<br><br>" +
                                 "<b>单个服务器（带名称）：</b><br>" +
                                 "<code>{\"server-name\": {\"command\": \"npx\", \"args\": [\"-y\", \"pkg\"]}}</code><br><br>"
                                 +
@@ -322,6 +322,7 @@ public final class I18n {
                 m.put("mcpDialog.validate.syncRequired", "请至少选择一个同步目标 CLI");
                 m.put("mcpDialog.validate.jsonRequired", "请粘贴 JSON 配置");
                 m.put("mcpDialog.validate.jsonFailed", "JSON 解析失败: {0}");
+                m.put("mcpDialog.validate.jsonSingleServerEdit", "编辑模式下 JSON 仅支持单个 MCP 服务器");
                 m.put("mcpDialog.json.noValidServer", "未找到有效的 MCP 服务器配置");
 
                 // ── ProviderDialog ──
@@ -665,8 +666,8 @@ public final class I18n {
                 m.put("mcpDialog.border.stdio", "STDIO Options");
                 m.put("mcpDialog.border.network", "Network Options");
                 m.put("mcpDialog.tab.form", "Form");
-                m.put("mcpDialog.tab.json", "JSON Import");
-                m.put("mcpDialog.json.hint", "<html>Paste MCP server config in JSON format. Supported formats:<br><br>"
+                m.put("mcpDialog.tab.json", "JSON");
+                m.put("mcpDialog.json.hint", "<html>Paste or edit MCP server config in JSON format. Supported formats:<br><br>"
                                 +
                                 "<b>Single server (with name):</b><br>" +
                                 "<code>{\"server-name\": {\"command\": \"npx\", \"args\": [\"-y\", \"pkg\"]}}</code><br><br>"
@@ -681,6 +682,7 @@ public final class I18n {
                 m.put("mcpDialog.validate.syncRequired", "Select at least one sync target CLI");
                 m.put("mcpDialog.validate.jsonRequired", "Paste JSON config");
                 m.put("mcpDialog.validate.jsonFailed", "JSON parse failed: {0}");
+                m.put("mcpDialog.validate.jsonSingleServerEdit", "JSON edit mode only supports a single MCP server");
                 m.put("mcpDialog.json.noValidServer", "No valid MCP server config found");
 
                 // ── ProviderDialog ──

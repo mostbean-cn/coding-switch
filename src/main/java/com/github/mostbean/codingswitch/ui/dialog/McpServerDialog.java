@@ -3,6 +3,8 @@ package com.github.mostbean.codingswitch.ui.dialog;
 import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.McpServer;
 import com.github.mostbean.codingswitch.service.I18n;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -27,6 +29,8 @@ import java.util.Map;
  * 支持两种模式：表单填写 和 JSON 粘贴导入。
  */
 public class McpServerDialog extends DialogWrapper {
+
+    private static final Gson PRETTY_GSON = new GsonBuilder().setPrettyPrinting().create();
 
     // 表单字段
     private final JTextField nameField = new JTextField(30);
@@ -85,6 +89,7 @@ public class McpServerDialog extends DialogWrapper {
             for (CliType cli : CliType.values()) {
                 syncChecks.get(cli).setSelected(existing.isSyncedTo(cli));
             }
+            jsonInput.setText(buildServerJsonText(existing));
         }
 
         // 自动提取名称事件
@@ -155,9 +160,7 @@ public class McpServerDialog extends DialogWrapper {
 
         // ===== 标签页 =====
         tabbedPane.addTab(I18n.t("mcpDialog.tab.form"), formPanel);
-        if (!isEdit) {
-            tabbedPane.addTab(I18n.t("mcpDialog.tab.json"), jsonPanel);
-        }
+        tabbedPane.addTab(I18n.t("mcpDialog.tab.json"), jsonPanel);
 
         JPanel wrapper = new JPanel(new BorderLayout());
         wrapper.setPreferredSize(new Dimension(JBUI.scale(500), JBUI.scale(400)));
@@ -235,6 +238,9 @@ public class McpServerDialog extends DialogWrapper {
         }
         try {
             parseJsonInput(text);
+            if (isEdit && parsedServers != null && parsedServers.size() != 1) {
+                return new ValidationInfo(I18n.t("mcpDialog.validate.jsonSingleServerEdit"), jsonInput);
+            }
         } catch (Exception e) {
             return new ValidationInfo(I18n.t("mcpDialog.validate.jsonFailed", e.getMessage()), jsonInput);
         }
@@ -250,7 +256,7 @@ public class McpServerDialog extends DialogWrapper {
      */
     public McpServer getServer() {
         if (isJsonMode() && parsedServers != null && !parsedServers.isEmpty()) {
-            return parsedServers.get(0);
+            return isEdit ? buildFromJsonEdit(parsedServers.get(0)) : parsedServers.get(0);
         }
         return buildFromForm();
     }
@@ -260,13 +266,16 @@ public class McpServerDialog extends DialogWrapper {
      */
     public List<McpServer> getServers() {
         if (isJsonMode() && parsedServers != null) {
+            if (isEdit) {
+                return List.of(getServer());
+            }
             return parsedServers;
         }
         return List.of(buildFromForm());
     }
 
     public boolean isMultipleServers() {
-        return isJsonMode() && parsedServers != null && parsedServers.size() > 1;
+        return !isEdit && isJsonMode() && parsedServers != null && parsedServers.size() > 1;
     }
 
     private McpServer buildFromForm() {
@@ -291,6 +300,24 @@ public class McpServerDialog extends DialogWrapper {
         return server;
     }
 
+    private McpServer buildFromJsonEdit(McpServer parsed) {
+        server.setName(parsed.getName());
+        server.setTransportType(parsed.getTransportType());
+
+        if (parsed.getTransportType() == McpServer.TransportType.STDIO) {
+            server.setCommand(parsed.getCommand());
+            server.setArgs(parsed.getArgs() != null ? parsed.getArgs() : new String[0]);
+            server.setUrl(null);
+        } else {
+            server.setUrl(parsed.getUrl());
+            server.setCommand(null);
+            server.setArgs(null);
+        }
+
+        server.setEnv(parsed.getEnv() != null ? new HashMap<>(parsed.getEnv()) : new HashMap<>());
+        return server;
+    }
+
     // =====================================================================
     // JSON 解析
     // =====================================================================
@@ -310,8 +337,13 @@ public class McpServerDialog extends DialogWrapper {
             }
             String url = root.has("url") ? root.get("url").getAsString() : null;
 
-            String extName = extractMcpName(command, url != null ? url : argsStr);
-            String name = (extName != null && !extName.isEmpty()) ? extName : "imported-server";
+            String name;
+            if (isEdit) {
+                name = server.getName();
+            } else {
+                String extName = extractMcpName(command, url != null ? url : argsStr);
+                name = (extName != null && !extName.isEmpty()) ? extName : "imported-server";
+            }
 
             McpServer s = parseOneServer(name, root);
             parsedServers.add(s);
@@ -335,9 +367,6 @@ public class McpServerDialog extends DialogWrapper {
         McpServer s = new McpServer();
         s.setName(name);
         s.setEnabled(true);
-        for (CliType cli : CliType.values()) {
-            s.setSyncedTo(cli, true);
-        }
 
         if (json.has("command")) {
             s.setTransportType(McpServer.TransportType.STDIO);
@@ -366,6 +395,29 @@ public class McpServerDialog extends DialogWrapper {
         }
 
         return s;
+    }
+
+    private String buildServerJsonText(McpServer existing) {
+        JsonObject root = new JsonObject();
+        root.add(existing.getName(), buildServerConfigJson(existing));
+        return PRETTY_GSON.toJson(root);
+    }
+
+    private JsonObject buildServerConfigJson(McpServer existing) {
+        JsonObject serverJson = new JsonObject();
+        if (existing.getTransportType() == McpServer.TransportType.STDIO) {
+            serverJson.addProperty("command", existing.getCommand());
+            if (existing.getArgs() != null && existing.getArgs().length > 0) {
+                serverJson.add("args", PRETTY_GSON.toJsonTree(existing.getArgs()));
+            }
+        } else if (existing.getUrl() != null && !existing.getUrl().isBlank()) {
+            serverJson.addProperty("url", existing.getUrl());
+        }
+
+        if (existing.getEnv() != null && !existing.getEnv().isEmpty()) {
+            serverJson.add("env", PRETTY_GSON.toJsonTree(existing.getEnv()));
+        }
+        return serverJson;
     }
 
     /**

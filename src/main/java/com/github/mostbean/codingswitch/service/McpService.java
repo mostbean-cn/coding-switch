@@ -512,7 +512,6 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
         McpServer server = new McpServer();
         server.setName(name);
         server.setEnabled(true);
-        server.setSyncedTo(CliType.CODEX, true);
 
         if ("stdio".equals(type) && command != null) {
             server.setTransportType(McpServer.TransportType.STDIO);
@@ -558,7 +557,6 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
         McpServer server = new McpServer();
         server.setName(name);
         server.setEnabled(true);
-        server.setSyncedTo(source, true);
 
         if (json.has("command")) {
             server.setTransportType(McpServer.TransportType.STDIO);
@@ -597,7 +595,6 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
         McpServer server = new McpServer();
         server.setName(name);
         server.setEnabled(true);
-        server.setSyncedTo(CliType.OPENCODE, true);
 
         String type = json.has("type") ? json.get("type").getAsString() : "";
         if ("local".equals(type) && json.has("command") && json.get("command").isJsonArray()) {
@@ -681,10 +678,7 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
         }
 
         if (sameServerSignature(existingServer, imported)) {
-            if (!existingServer.isSyncedTo(source)) {
-                existingServer.setSyncedTo(source, true);
-                report.mergedExisting++;
-            }
+            report.mergedExisting++;
             return;
         }
 
