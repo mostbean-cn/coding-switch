@@ -39,6 +39,12 @@
     ]]>    </description>
 
     <change-notes><![CDATA[
+    <h3>0.2.2</h3>
+    <ul>
+        <li><b>MCP 导入交互优化</b> — 调整 MCP 导入后的默认行为，新增导入项不再自动勾选任何 CLI，同步目标改为由用户手动选择。</li>
+        <li><b>MCP JSON 编辑支持</b> — MCP 编辑弹窗新增 JSON 模式，支持直接以 JSON 方式修改服务器配置，并保留原有同步目标与状态信息。</li>
+        <li><b>Codex Fast模式配置</b> — 支持修改Codex Fast模式命令参数，插件一键控制。</li>
+    </ul>
     <h3>0.2.1</h3>
     <ul>
         <li><b>Codex MCP 配置修复</b> — 修复 MCP 服务器名称包含点号等特殊字符时 Codex 启动失败的问题。</li>
