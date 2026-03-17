@@ -447,6 +447,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
                 "model_context_window",
                 "model_auto_compact_token_limit",
                 "multi_agent",
+                "service_tier",
                 "fast_mode",
                 "disable_response_storage");
 

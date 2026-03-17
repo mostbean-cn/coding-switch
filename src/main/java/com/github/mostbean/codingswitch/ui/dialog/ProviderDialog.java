@@ -567,6 +567,7 @@ public class ProviderDialog extends DialogWrapper {
         if (!tomlText.isEmpty()) {
             rawCodex.addProperty("config", tomlText);
             boolean has1MContext = false;
+            boolean hasFastMode = false;
             for (String line : tomlText.split("\n")) {
                 String trimmed = line.trim();
                 if (trimmed.startsWith("model =")) {
@@ -580,9 +581,14 @@ public class ProviderDialog extends DialogWrapper {
                     if ("1000000".equals(value)) {
                         has1MContext = true;
                     }
+                } else if (trimmed.startsWith("service_tier =")) {
+                    hasFastMode = "fast".equalsIgnoreCase(extractTomlValue(trimmed));
+                } else if (trimmed.startsWith("fast_mode =")) {
+                    hasFastMode = "true".equalsIgnoreCase(extractTomlValue(trimmed));
                 }
             }
             codex1MContext.setSelected(has1MContext);
+            codexFastMode.setSelected(hasFastMode);
         } else {
             rawCodex.remove("config");
         }
@@ -1179,6 +1185,8 @@ public class ProviderDialog extends DialogWrapper {
                     }
                 } else if (trimmed.startsWith("multi_agent =")) {
                     hasMultiAgent = "true".equalsIgnoreCase(extractTomlValue(trimmed));
+                } else if (trimmed.startsWith("service_tier =")) {
+                    hasFastMode = "fast".equalsIgnoreCase(extractTomlValue(trimmed));
                 } else if (trimmed.startsWith("fast_mode =")) {
                     hasFastMode = "true".equalsIgnoreCase(extractTomlValue(trimmed));
                 } else if (trimmed.startsWith("approval_policy =")) {
@@ -1364,7 +1372,7 @@ public class ProviderDialog extends DialogWrapper {
             toml.append("multi_agent = true\n");
         }
         if (enableFastMode) {
-            toml.append("fast_mode = true\n");
+            toml.append("service_tier = \"fast\"\n");
         }
         toml.append("disable_response_storage = true\n");
 
