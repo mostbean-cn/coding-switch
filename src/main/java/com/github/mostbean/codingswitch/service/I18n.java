@@ -281,7 +281,7 @@ public final class I18n {
                 m.put("skill.discovery.button.close", "关闭");
                 m.put("skill.discovery.col.skillName", "技能名称");
                 m.put("skill.discovery.status.loading", "正在发现仓库...");
-                m.put("skill.discovery.status.loaded", "已加载 {0} 个仓库");
+                m.put("skill.discovery.status.loaded", "当前仓库共 {0} 个技能");
                 m.put("skill.discovery.status.loadFailed", "仓库发现失败: {0}");
                 m.put("skill.discovery.status.rateLimited", "GitHub API rate limit exceeded. Retry later or configure a token.");
                 m.put("skill.discovery.status.installing", "正在安装: {0}");
@@ -639,7 +639,7 @@ public final class I18n {
                 m.put("skill.discovery.button.close", "Close");
                 m.put("skill.discovery.col.skillName", "Skill Name");
                 m.put("skill.discovery.status.loading", "Discovering repositories...");
-                m.put("skill.discovery.status.loaded", "Loaded {0} repositories");
+                m.put("skill.discovery.status.loaded", "{0} skills in current repository");
                 m.put("skill.discovery.status.loadFailed", "Repository discovery failed: {0}");
                 m.put("skill.discovery.status.rateLimited", "GitHub API rate limit exceeded. Retry later or configure a token.");
                 m.put("skill.discovery.status.installing", "Installing: {0}");

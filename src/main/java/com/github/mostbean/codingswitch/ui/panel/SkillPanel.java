@@ -8,6 +8,8 @@ import com.github.mostbean.codingswitch.ui.dialog.SkillDiscoveryDialog;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.intellij.icons.AllIcons;
+import com.intellij.ide.ActivityTracker;
+import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.ui.Messages;
@@ -42,6 +44,7 @@ public class SkillPanel extends JPanel {
 
     // 保存按钮相关的 state
     private boolean isDirty = false;
+    private volatile boolean hasInstalledSelection = false;
     private AnAction saveAction;
 
     public SkillPanel() {
@@ -61,6 +64,12 @@ public class SkillPanel extends JPanel {
         skillTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         skillTable.getEmptyText().setText(I18n.t("skill.table.empty"));
         skillTable.setRowHeight(JBUI.scale(28));
+        skillTable.getSelectionModel().addListSelectionListener(e -> {
+            if (e.getValueIsAdjusting()) {
+                return;
+            }
+            updateSelectedSkillState();
+        });
 
         // 列宽设置
         skillTable.getColumnModel().getColumn(0).setPreferredWidth(140); // 名称
@@ -113,16 +122,19 @@ public class SkillPanel extends JPanel {
                 .addExtraAction(new AnAction(I18n.t("skill.action.update"), I18n.t("skill.action.update.tooltip"),
                         AllIcons.Actions.Refresh) {
                     @Override
+                    public @NotNull ActionUpdateThread getActionUpdateThread() {
+                        return ActionUpdateThread.BGT;
+                    }
+
+                    @Override
                     public void actionPerformed(@NotNull AnActionEvent e) {
                         onUpdateSelected();
                     }
 
                     @Override
                     public void update(@NotNull AnActionEvent e) {
-                        Skill selected = getSelectedSkill();
-                        e.getPresentation()
-                                .setEnabled(SkillService.getInstance().isGitAvailable() && selected != null
-                                        && selected.isInstalled());
+                        e.getPresentation().setEnabled(
+                                SkillService.getInstance().isGitAvailable() && hasInstalledSelection);
                     }
                 })
                 .addExtraAction(new AnAction(I18n.t("skill.action.installZip"),
@@ -322,6 +334,7 @@ public class SkillPanel extends JPanel {
         }
         tableModel.setSkills(clones);
         isDirty = false;
+        updateSelectedSkillState();
     }
 
     private Skill getSelectedSkill() {
@@ -331,6 +344,12 @@ public class SkillPanel extends JPanel {
         }
         int modelRow = skillTable.convertRowIndexToModel(viewRow);
         return tableModel.getSkillAt(modelRow);
+    }
+
+    private void updateSelectedSkillState() {
+        Skill selected = getSelectedSkill();
+        hasInstalledSelection = selected != null && selected.isInstalled();
+        ActivityTracker.getInstance().inc();
     }
 
     // =====================================================================
