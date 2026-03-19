@@ -22,7 +22,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -324,11 +326,45 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         Path path = svc.getProviderConfigPath(CliType.GEMINI);
 
         if (config.has("env")) {
-            JsonObject env = config.getAsJsonObject("env");
-            StringBuilder sb = new StringBuilder();
-            for (String key : env.keySet()) {
-                sb.append(key).append("=").append(env.get(key).getAsString()).append("\n");
+            JsonObject newEnv = config.getAsJsonObject("env");
+            String existing = svc.readFile(path);
+
+            // 插件管理的字段列表，写入前先移除已存在的
+            Set<String> managedKeys = Set.of(
+                    "GEMINI_API_KEY",
+                    "GOOGLE_GEMINI_BASE_URL",
+                    "GEMINI_MODEL");
+
+            // 解析现有文件，保留非托管字段
+            Map<String, String> existingEnv = new LinkedHashMap<>();
+            if (existing != null && !existing.isBlank()) {
+                for (String line : existing.split("\n")) {
+                    String trimmed = line.trim();
+                    if (trimmed.isEmpty() || trimmed.startsWith("#")) {
+                        continue;
+                    }
+                    int eq = trimmed.indexOf('=');
+                    if (eq > 0) {
+                        String key = trimmed.substring(0, eq).trim();
+                        String value = trimmed.substring(eq + 1).trim();
+                        // 保留非托管字段
+                        if (!managedKeys.contains(key)) {
+                            existingEnv.put(key, value);
+                        }
+                    }
+                }
             }
+
+            // 写入新值（合并）
+            StringBuilder sb = new StringBuilder();
+            for (String key : newEnv.keySet()) {
+                sb.append(key).append("=").append(newEnv.get(key).getAsString()).append("\n");
+            }
+            // 追加保留的非托管字段
+            for (Map.Entry<String, String> entry : existingEnv.entrySet()) {
+                sb.append(entry.getKey()).append("=").append(entry.getValue()).append("\n");
+            }
+
             svc.writeFile(path, sb.toString());
         }
     }
@@ -449,18 +485,27 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
                 "multi_agent",
                 "service_tier",
                 "fast_mode",
-                "disable_response_storage");
+                "disable_response_storage",
+                "approval_policy",
+                "sandbox_mode");
 
         StringBuilder out = new StringBuilder();
         String currentSection = null;
         boolean dropCurrentSection = false;
+        // 废弃的 section 列表（需要移除整个 section）
+        Set<String> deprecatedSections = Set.of("features.collab", "features.collab.");
+        // section 内部需要移除的废弃键
+        Map<String, Set<String>> deprecatedKeysInSection = Map.of(
+                "features", Set.of("collab")
+        );
 
         for (String rawLine : safe.split("\n", -1)) {
             String line = rawLine.trim();
 
             if (line.startsWith("[") && line.endsWith("]")) {
                 currentSection = line.substring(1, line.length() - 1).trim();
-                dropCurrentSection = isManagedProviderSection(currentSection, managedProviderNames);
+                dropCurrentSection = isManagedProviderSection(currentSection, managedProviderNames)
+                        || isDeprecatedSection(currentSection, deprecatedSections);
             }
 
             if (dropCurrentSection) {
@@ -468,7 +513,14 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             }
 
             String key = parseTomlKey(rawLine);
+            // 移除根级别的托管键
             if (currentSection == null && key != null && managedRootKeys.contains(key)) {
+                continue;
+            }
+            // 移除 section 内部的废弃键
+            if (currentSection != null && key != null
+                    && deprecatedKeysInSection.containsKey(currentSection)
+                    && deprecatedKeysInSection.get(currentSection).contains(key)) {
                 continue;
             }
 
@@ -513,6 +565,18 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             if (section.equals(base) || section.startsWith(base + ".")
                     || section.equals(singleQuoted) || section.startsWith(singleQuoted + ".")
                     || section.equals(doubleQuoted) || section.startsWith(doubleQuoted + ".")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isDeprecatedSection(String section, Set<String> deprecatedSections) {
+        if (deprecatedSections == null || deprecatedSections.isEmpty()) {
+            return false;
+        }
+        for (String deprecated : deprecatedSections) {
+            if (section.equals(deprecated) || section.startsWith(deprecated)) {
                 return true;
             }
         }
