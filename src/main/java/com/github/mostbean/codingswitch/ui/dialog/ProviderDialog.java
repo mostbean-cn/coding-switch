@@ -3,6 +3,7 @@ package com.github.mostbean.codingswitch.ui.dialog;
 import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.Provider;
 import com.github.mostbean.codingswitch.model.Provider.AuthMode;
+import com.github.mostbean.codingswitch.service.ConfigFileService;
 import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.PluginSettings.SecurityPolicy;
@@ -133,6 +134,7 @@ public class ProviderDialog extends DialogWrapper {
     private final JTextArea codexTomlPreview = createPreviewTextArea(true);
     private final JPanel previewPanel = new JPanel(new BorderLayout());
     private final JButton togglePreviewButton = new JButton(I18n.t("providerDialog.button.showPreview"));
+    private final JButton openDirButton = new JButton(I18n.t("providerDialog.button.openDir"));
     private boolean previewVisible = false;
     private boolean updatingFromPreview = false;
     private JSplitPane splitPane;
@@ -192,6 +194,7 @@ public class ProviderDialog extends DialogWrapper {
 
         testConnectionButton.addActionListener(e -> onTestConnection());
         togglePreviewButton.addActionListener(e -> togglePreview());
+        openDirButton.addActionListener(e -> openConfigDir());
 
         init();
 
@@ -217,6 +220,8 @@ public class ProviderDialog extends DialogWrapper {
 
         JPanel testButtonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         testButtonsPanel.add(testConnectionButton);
+        testButtonsPanel.add(Box.createHorizontalStrut(8));
+        testButtonsPanel.add(openDirButton);
         testButtonsPanel.add(Box.createHorizontalStrut(8));
         testButtonsPanel.add(togglePreviewButton);
         testButtonsPanel.add(testStatusLabel);
@@ -1732,5 +1737,63 @@ public class ProviderDialog extends DialogWrapper {
                 }
             }, ModalityState.any());
         });
+    }
+
+    private void openConfigDir() {
+        CliType cliType = (CliType) cliTypeCombo.getSelectedItem();
+        if (cliType == null) {
+            return;
+        }
+
+        ConfigFileService svc = ConfigFileService.getInstance();
+        java.nio.file.Path configDir = svc.getConfigDir(cliType);
+
+        if (!java.nio.file.Files.isDirectory(configDir)) {
+            Messages.showInfoMessage(
+                    I18n.t("providerDialog.openDir.notInstalled", cliType.getDisplayName()),
+                    I18n.t("providerDialog.openDir.title"));
+            return;
+        }
+
+        // 获取要选中的配置文件路径
+        java.nio.file.Path configFile = getTargetConfigFile(cliType, svc);
+
+        try {
+            // 优先尝试打开并选中文件
+            if (configFile != null && java.nio.file.Files.exists(configFile)) {
+                openAndSelectFile(configFile);
+            } else {
+                // 文件不存在则只打开目录
+                java.awt.Desktop.getDesktop().open(configDir.toFile());
+            }
+        } catch (Exception e) {
+            Messages.showErrorDialog(
+                    I18n.t("providerDialog.openDir.failed", e.getMessage()),
+                    I18n.t("providerDialog.openDir.title"));
+        }
+    }
+
+    private java.nio.file.Path getTargetConfigFile(CliType cliType, ConfigFileService svc) {
+        return switch (cliType) {
+            case CLAUDE -> svc.getConfigDir(cliType).resolve("settings.json");
+            case CODEX -> svc.getConfigDir(cliType).resolve("config.toml");
+            case GEMINI -> svc.getConfigDir(cliType).resolve(".env");
+            case OPENCODE -> svc.getConfigDir(cliType).resolve("opencode.json");
+        };
+    }
+
+    private void openAndSelectFile(java.nio.file.Path file) throws Exception {
+        String os = System.getProperty("os.name").toLowerCase();
+
+        if (os.contains("win")) {
+            // Windows: explorer /select,<path>
+            Runtime.getRuntime().exec(new String[]{"explorer", "/select,", file.toString()});
+        } else if (os.contains("mac")) {
+            // macOS: open -R <path>
+            Runtime.getRuntime().exec(new String[]{"open", "-R", file.toString()});
+        } else {
+            // Linux: 尝试使用 dbus 打开目录（无法选中文件）
+            java.awt.Desktop.getDesktop().open(file.getParent().toFile());
+        }
     }
 }

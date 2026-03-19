@@ -380,6 +380,10 @@ public final class I18n {
                 m.put("providerDialog.button.showPreview", "配置预览");
                 m.put("providerDialog.button.hidePreview", "收起");
                 m.put("providerDialog.button.applyToForm", "应用到表单");
+                m.put("providerDialog.button.openDir", "打开目录");
+                m.put("providerDialog.openDir.notInstalled", "{0} 尚未安装，配置目录不存在。");
+                m.put("providerDialog.openDir.failed", "打开目录失败: {0}");
+                m.put("providerDialog.openDir.title", "提示");
                 m.put("providerDialog.preview.parseError", "解析失败: {0}");
                 m.put("providerDialog.preview.parseErrorTitle", "解析错误");
 
@@ -743,6 +747,10 @@ public final class I18n {
                 m.put("providerDialog.button.showPreview", "Config Preview");
                 m.put("providerDialog.button.hidePreview", "Hide");
                 m.put("providerDialog.button.applyToForm", "Apply to Form");
+                m.put("providerDialog.button.openDir", "Open Folder");
+                m.put("providerDialog.openDir.notInstalled", "{0} is not installed. Config directory does not exist.");
+                m.put("providerDialog.openDir.failed", "Failed to open folder: {0}");
+                m.put("providerDialog.openDir.title", "Info");
                 m.put("providerDialog.preview.parseError", "Parse error: {0}");
                 m.put("providerDialog.preview.parseErrorTitle", "Parse Error");
 
