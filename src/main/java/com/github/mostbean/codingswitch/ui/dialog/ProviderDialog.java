@@ -470,6 +470,7 @@ public class ProviderDialog extends DialogWrapper {
         if (cliType == CliType.CODEX) {
             previewPanel.removeAll();
             previewPanel.add(codexPreviewTabs, BorderLayout.CENTER);
+            codexPreviewTabs.setSelectedIndex(1); // 优先显示 config.toml
 
             withPreviewSyncMuted(() -> {
                 if (config.has("auth")) {
