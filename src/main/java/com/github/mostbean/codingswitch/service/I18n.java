@@ -345,7 +345,7 @@ public final class I18n {
                 m.put("providerDialog.label.1mContext", "1M 上下文");
                 m.put("providerDialog.label.effortLevel", "推理强度:");
                 m.put("providerDialog.label.alwaysThinkingEnabled", "扩展思考:");
-                m.put("providerDialog.label.teamModeEnabled", "Team 模式:");
+                m.put("providerDialog.label.teamMode", "Team 模式");
                 m.put("providerDialog.label.toolSearch", "Tool Search");
                 m.put("providerDialog.label.dangerousMode", "危险模式:");
                 m.put("providerDialog.option.default", "默认");
@@ -711,7 +711,7 @@ public final class I18n {
                 m.put("providerDialog.label.1mContext", "1M Context");
                 m.put("providerDialog.label.effortLevel", "Effort Level:");
                 m.put("providerDialog.label.alwaysThinkingEnabled", "Extended Thinking:");
-                m.put("providerDialog.label.teamModeEnabled", "Team Mode:");
+                m.put("providerDialog.label.teamMode", "Team Mode");
                 m.put("providerDialog.label.toolSearch", "Tool Search");
                 m.put("providerDialog.label.dangerousMode", "Dangerous Mode:");
                 m.put("providerDialog.option.default", "Default");

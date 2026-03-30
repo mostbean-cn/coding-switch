@@ -927,8 +927,8 @@ public class ProviderDialog extends DialogWrapper {
         gbc.gridx = 3; gbc.weightx = 1.0; gbc.fill = GridBagConstraints.HORIZONTAL;
         thinkingRow.add(Box.createHorizontalGlue(), gbc);
 
-        JPanel featureRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 16, 0));
-        featureRow.add(claudeTeamModeEnabled);
+        JPanel featureRow = createOptionsRow();
+        featureRow.add(createCheckboxWithLabel(claudeTeamModeEnabled, I18n.t("providerDialog.label.teamMode")));
         featureRow.add(createCheckboxWithLabel(claudeToolSearchEnabled, I18n.t("providerDialog.label.toolSearch")));
 
         JPanel form = FormBuilder.createFormBuilder()
@@ -943,7 +943,7 @@ public class ProviderDialog extends DialogWrapper {
                 .addSeparator(8)
                 .addLabeledComponent(I18n.t("providerDialog.label.alwaysThinkingEnabled"), thinkingRow)
                 .addLabeledComponent(I18n.t("providerDialog.label.dangerousMode"), claudeDangerousMode)
-                .addLabeledComponent(I18n.t("providerDialog.label.teamModeEnabled"), featureRow)
+                .addComponent(featureRow)
                 .getPanel();
         return wrapWithTitledBorder(form, I18n.t("providerDialog.border.claude"));
     }
@@ -987,16 +987,24 @@ public class ProviderDialog extends DialogWrapper {
      * 构建 Codex 选项行（三个复选框并排）
      */
     private JPanel buildCodexOptionsRow() {
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 16, 0));
+        JPanel row = createOptionsRow();
         row.add(createCheckboxWithLabel(codex1MContext, I18n.t("providerDialog.label.1mContext")));
         row.add(createCheckboxWithLabel(codexMultiAgent, I18n.t("providerDialog.label.multiAgent")));
         row.add(createCheckboxWithLabel(codexFastMode, I18n.t("providerDialog.label.fastMode")));
         return row;
     }
 
+    private JPanel createOptionsRow() {
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        row.setOpaque(false);
+        return row;
+    }
+
     private JPanel createCheckboxWithLabel(JCheckBox checkbox, String labelText) {
-        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        panel.setOpaque(false);
         panel.add(checkbox);
+        panel.add(Box.createHorizontalStrut(4));
         panel.add(new JLabel(labelText));
         return panel;
     }
