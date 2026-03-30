@@ -122,7 +122,7 @@ public final class CliVersionService {
 
     public String getUpdateCommand(CliType cliType) {
         return switch (cliType) {
-            case CLAUDE -> "curl -fsSL https://claude.ai/install.sh | bash";
+            case CLAUDE -> "claude update";
             case CODEX -> "npm i -g @openai/codex@latest";
             case GEMINI -> "npm i -g @google/gemini-cli@latest";
             case OPENCODE -> "npm i -g opencode-ai@latest";
@@ -130,7 +130,17 @@ public final class CliVersionService {
     }
 
     public String getInstallCommand(CliType cliType) {
-        return getUpdateCommand(cliType);
+        return switch (cliType) {
+            case CLAUDE -> "npm install -g @anthropic-ai/claude-code";
+            default -> getUpdateCommand(cliType);
+        };
+    }
+
+    public String getRecommendedCommand(CliType cliType, VersionStatus status) {
+        if (status == VersionStatus.INSTALLED) {
+            return getUpdateCommand(cliType);
+        }
+        return getInstallCommand(cliType);
     }
 
     private String[] getVersionCommands(CliType cliType) {

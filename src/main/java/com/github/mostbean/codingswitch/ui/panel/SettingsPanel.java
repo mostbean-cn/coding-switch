@@ -49,6 +49,7 @@ public class SettingsPanel extends JPanel {
     private final Map<CliType, JBLabel> statusIcons = new LinkedHashMap<>();
     private final Map<CliType, JBLabel> currentLabels = new LinkedHashMap<>();
     private final Map<CliType, JBLabel> latestLabels = new LinkedHashMap<>();
+    private final Map<CliType, JTextField> commandFields = new LinkedHashMap<>();
 
     public SettingsPanel() {
         setLayout(new BorderLayout());
@@ -162,7 +163,7 @@ public class SettingsPanel extends JPanel {
         for (CliType cli : CliType.values()) {
             String cmd = CliVersionService.getInstance().getInstallCommand(cli);
             form.addComponent(
-                createCopyableCommandRow(cli.getDisplayName(), cmd)
+                createCopyableCommandRow(cli, cli.getDisplayName(), cmd)
             );
         }
 
@@ -172,7 +173,11 @@ public class SettingsPanel extends JPanel {
         return section;
     }
 
-    private JPanel createCopyableCommandRow(String cliName, String command) {
+    private JPanel createCopyableCommandRow(
+        CliType cli,
+        String cliName,
+        String command
+    ) {
         JPanel row = new JPanel(new BorderLayout(8, 0));
         row.setBorder(JBUI.Borders.empty(4, 0));
 
@@ -189,6 +194,7 @@ public class SettingsPanel extends JPanel {
         cmdField.setMinimumSize(
             new Dimension(0, cmdField.getMinimumSize().height)
         );
+        commandFields.put(cli, cmdField);
 
         JButton copyBtn = new JButton(AllIcons.Actions.Copy);
         copyBtn.setToolTipText(I18n.t("settings.tooltip.copyClipboard"));
@@ -196,7 +202,7 @@ public class SettingsPanel extends JPanel {
         copyBtn.addActionListener(e -> {
             Toolkit.getDefaultToolkit()
                 .getSystemClipboard()
-                .setContents(new StringSelection(command), null);
+                .setContents(new StringSelection(cmdField.getText()), null);
             copyBtn.setIcon(AllIcons.Actions.Commit);
             Timer timer = new Timer(1000, evt ->
                 copyBtn.setIcon(AllIcons.Actions.Copy)
@@ -385,6 +391,7 @@ public class SettingsPanel extends JPanel {
             currentResult != null
                 ? currentResult.status()
                 : CliVersionService.VersionStatus.NOT_INSTALLED;
+        updateRecommendedCommand(cli, status);
 
         switch (status) {
             case INSTALLED -> {
@@ -431,6 +438,20 @@ public class SettingsPanel extends JPanel {
             latLabel.setText("-");
             latLabel.setForeground(JBColor.GRAY);
         }
+    }
+
+    private void updateRecommendedCommand(
+        CliType cli,
+        CliVersionService.VersionStatus status
+    ) {
+        JTextField commandField = commandFields.get(cli);
+        if (commandField == null) {
+            return;
+        }
+        String command = CliVersionService.getInstance()
+            .getRecommendedCommand(cli, status);
+        commandField.setText(command);
+        commandField.setCaretPosition(0);
     }
 
     private JBLabel bold(JBLabel label) {
