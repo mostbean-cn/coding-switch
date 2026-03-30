@@ -21,6 +21,7 @@ public final class CliVersionService {
     private static final Pattern VERSION_PATTERN = Pattern.compile("(\\d+\\.\\d+[.\\d]*)");
     private static final long COMMAND_CHECK_TIMEOUT_SECONDS = 3;
     private static final long VERSION_TIMEOUT_SECONDS = 10;
+    private static final long GEMINI_VERSION_TIMEOUT_SECONDS = 30;
     private static final long LATEST_TIMEOUT_SECONDS = 15;
 
     public enum VersionStatus {
@@ -89,10 +90,11 @@ public final class CliVersionService {
         }
 
         String[] commands = getVersionCommands(cliType);
+        long versionTimeoutSeconds = getVersionTimeoutSeconds(cliType);
         boolean hasTimeout = false;
         String lastFailure = null;
         for (String command : commands) {
-            VersionResult result = runAndParse(command, VERSION_TIMEOUT_SECONDS);
+            VersionResult result = runAndParse(command, versionTimeoutSeconds);
             if (result.status() == VersionStatus.INSTALLED) {
                 return result;
             }
@@ -150,6 +152,12 @@ public final class CliVersionService {
             case GEMINI -> new String[]{"gemini --version", "gemini -v"};
             case OPENCODE -> new String[]{"opencode --version", "opencode -v"};
         };
+    }
+
+    private long getVersionTimeoutSeconds(CliType cliType) {
+        return cliType == CliType.GEMINI
+            ? GEMINI_VERSION_TIMEOUT_SECONDS
+            : VERSION_TIMEOUT_SECONDS;
     }
 
     private String getCommandName(CliType cliType) {
