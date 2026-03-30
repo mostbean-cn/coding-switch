@@ -66,6 +66,7 @@ public class ProviderDialog extends DialogWrapper {
     private final JComboBox<String> claudeAlwaysThinkingEnabled = new JComboBox<>(
             new String[] { DEFAULT_OPTION_LABEL, "true", "false" });
     private final JCheckBox claudeTeamModeEnabled = new JCheckBox();
+    private final JCheckBox claudeToolSearchEnabled = new JCheckBox();
     private final JComboBox<String> claudeDangerousMode = new JComboBox<>(new String[] {
             DEFAULT_OPTION_LABEL, I18n.t("providerDialog.dangerousMode.skipPermissions"),
             I18n.t("providerDialog.dangerousMode.skipAll") });
@@ -357,6 +358,9 @@ public class ProviderDialog extends DialogWrapper {
             if (!updatingFromPreview) updatePreview();
         });
         claudeTeamModeEnabled.addActionListener(e -> {
+            if (!updatingFromPreview) updatePreview();
+        });
+        claudeToolSearchEnabled.addActionListener(e -> {
             if (!updatingFromPreview) updatePreview();
         });
         claudeDangerousMode.addActionListener(e -> {
@@ -875,6 +879,7 @@ public class ProviderDialog extends DialogWrapper {
                 claudeEffortLevel.setSelectedItem("");
                 claudeAlwaysThinkingEnabled.setSelectedIndex(0);
                 claudeTeamModeEnabled.setSelected(false);
+                claudeToolSearchEnabled.setSelected(false);
                 claudeDangerousMode.setSelectedIndex(0);
             }
             case CODEX -> {
@@ -922,6 +927,10 @@ public class ProviderDialog extends DialogWrapper {
         gbc.gridx = 3; gbc.weightx = 1.0; gbc.fill = GridBagConstraints.HORIZONTAL;
         thinkingRow.add(Box.createHorizontalGlue(), gbc);
 
+        JPanel featureRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 16, 0));
+        featureRow.add(claudeTeamModeEnabled);
+        featureRow.add(createCheckboxWithLabel(claudeToolSearchEnabled, I18n.t("providerDialog.label.toolSearch")));
+
         JPanel form = FormBuilder.createFormBuilder()
                 .addLabeledComponent(I18n.t("providerDialog.label.keyFieldName"), claudeApiKeyField)
                 .addLabeledComponent(claudeApiKeyLabel, claudeApiKey)
@@ -934,7 +943,7 @@ public class ProviderDialog extends DialogWrapper {
                 .addSeparator(8)
                 .addLabeledComponent(I18n.t("providerDialog.label.alwaysThinkingEnabled"), thinkingRow)
                 .addLabeledComponent(I18n.t("providerDialog.label.dangerousMode"), claudeDangerousMode)
-                .addLabeledComponent(I18n.t("providerDialog.label.teamModeEnabled"), claudeTeamModeEnabled)
+                .addLabeledComponent(I18n.t("providerDialog.label.teamModeEnabled"), featureRow)
                 .getPanel();
         return wrapWithTitledBorder(form, I18n.t("providerDialog.border.claude"));
     }
@@ -1151,6 +1160,9 @@ public class ProviderDialog extends DialogWrapper {
         boolean teamModeEnabled = env.has("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS")
                 && "1".equals(env.get("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS").getAsString());
         claudeTeamModeEnabled.setSelected(teamModeEnabled);
+        boolean toolSearchEnabled = env.has("ENABLE_TOOL_SEARCH")
+                && "true".equalsIgnoreCase(env.get("ENABLE_TOOL_SEARCH").getAsString());
+        claudeToolSearchEnabled.setSelected(toolSearchEnabled);
 
         boolean dangerousSkip = config.has("dangerouslySkipPermissions")
                 && config.get("dangerouslySkipPermissions").getAsBoolean();
@@ -1301,6 +1313,9 @@ public class ProviderDialog extends DialogWrapper {
         addIfNotBlank(env, "ANTHROPIC_DEFAULT_OPUS_MODEL", claudeOpus);
         if (claudeTeamModeEnabled.isSelected()) {
             env.addProperty("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS", "1");
+        }
+        if (claudeToolSearchEnabled.isSelected()) {
+            env.addProperty("ENABLE_TOOL_SEARCH", "true");
         }
         String effortLevel = (String) claudeEffortLevel.getSelectedItem();
         if (effortLevel != null && !effortLevel.isEmpty()) {
@@ -1505,7 +1520,8 @@ public class ProviderDialog extends DialogWrapper {
                 "ANTHROPIC_DEFAULT_HAIKU_MODEL",
                 "ANTHROPIC_DEFAULT_SONNET_MODEL",
                 "ANTHROPIC_DEFAULT_OPUS_MODEL",
-                "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"));
+                "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS",
+                "ENABLE_TOOL_SEARCH"));
         merged.add("env", mergedEnv);
     }
 
