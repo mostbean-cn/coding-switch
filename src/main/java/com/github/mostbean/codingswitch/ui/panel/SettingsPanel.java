@@ -335,14 +335,22 @@ public class SettingsPanel extends JPanel {
         langRow.add(langCombo);
         content.add(langRow);
 
-        JPanel tokenRow = new JPanel(new BorderLayout(12, 0));
+        JPanel tokenRow = new JPanel(new GridBagLayout());
         tokenRow.setBorder(JBUI.Borders.empty(8, 12, 8, 12));
 
-        JBLabel tokenLabel = new JBLabel(I18n.t("settings.label.githubToken"));
-        tokenLabel.setPreferredSize(
-            new Dimension(JBUI.scale(90), tokenLabel.getPreferredSize().height)
-        );
-        tokenRow.add(tokenLabel, BorderLayout.WEST);
+        GridBagConstraints tokenGbc = new GridBagConstraints();
+        tokenGbc.gridy = 0;
+        tokenGbc.insets = JBUI.insets(0, 0, 0, 8);
+        tokenGbc.anchor = GridBagConstraints.WEST;
+
+        tokenGbc.gridx = 0;
+        tokenRow.add(createInfoHintIcon(
+            I18n.t("settings.hint.githubToken"),
+            I18n.t("settings.label.githubToken")
+        ), tokenGbc);
+
+        tokenGbc.gridx = 1;
+        tokenRow.add(new JBLabel(I18n.t("settings.label.githubToken")), tokenGbc);
 
         JPasswordField tokenField = new JPasswordField();
         tokenField.setText(PluginSettings.getInstance().getGithubToken());
@@ -384,10 +392,12 @@ public class SettingsPanel extends JPanel {
         tokenActionPanel.add(saveTokenBtn);
         tokenFieldPanel.add(tokenActionPanel, BorderLayout.EAST);
 
-        tokenRow.add(tokenFieldPanel, BorderLayout.CENTER);
+        tokenGbc.gridx = 2;
+        tokenGbc.weightx = 1;
+        tokenGbc.fill = GridBagConstraints.HORIZONTAL;
+        tokenGbc.insets = JBUI.insets(0, 4, 0, 0);
+        tokenRow.add(tokenFieldPanel, tokenGbc);
         content.add(tokenRow);
-
-        content.add(createWrappedHintRow(I18n.t("settings.hint.githubToken")));
 
         JComponent hintLabel = createWrappedHintText(
             I18n.t("settings.hint.restartRequired"),
