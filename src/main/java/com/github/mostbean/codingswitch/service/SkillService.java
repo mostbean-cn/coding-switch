@@ -173,7 +173,7 @@ public final class SkillService implements PersistentStateComponent<SkillService
 
     @Override
     public void loadState(@NotNull State state) {
-        myState = state;
+        myState = normalizeState(state);
     }
 
     // =====================================================================
@@ -188,7 +188,8 @@ public final class SkillService implements PersistentStateComponent<SkillService
             migrateOldClaudeSkillsToGlobal();
         }
         try {
-            List<Skill> list = GSON.fromJson(myState.skillsJson,
+            State activeState = getActiveState();
+            List<Skill> list = GSON.fromJson(activeState.skillsJson,
                     new TypeToken<List<Skill>>() {
                     }.getType());
             if (list == null) {
@@ -983,6 +984,7 @@ public final class SkillService implements PersistentStateComponent<SkillService
     }
 
     public List<RepoOption> getCustomRepoOptions() {
+        State activeState = getActiveState();
         List<CustomRepoConfig> fromConfig = parseCustomRepoConfigs();
         List<String> legacyRepos = parseLegacyCustomRepos();
 
@@ -1028,11 +1030,12 @@ public final class SkillService implements PersistentStateComponent<SkillService
 
         List<RepoOption> result = new ArrayList<>(merged.values());
         String normalizedConfigJson = GSON.toJson(toCustomRepoConfigs(result));
-        boolean legacyNotEmpty = myState.customReposJson != null && !myState.customReposJson.isBlank()
-                && !"[]".equals(myState.customReposJson);
-        if (changed || !normalizedConfigJson.equals(myState.customRepoConfigsJson) || legacyNotEmpty) {
-            myState.customRepoConfigsJson = normalizedConfigJson;
-            myState.customReposJson = "[]";
+        boolean legacyNotEmpty = activeState.customReposJson != null && !activeState.customReposJson.isBlank()
+                && !"[]".equals(activeState.customReposJson);
+        if (changed || !normalizedConfigJson.equals(activeState.customRepoConfigsJson) || legacyNotEmpty) {
+            activeState.customRepoConfigsJson = normalizedConfigJson;
+            activeState.customReposJson = "[]";
+            saveActiveState(activeState);
         }
 
         return result;
@@ -1107,13 +1110,15 @@ public final class SkillService implements PersistentStateComponent<SkillService
     }
 
     private void persistCustomRepoOptions(List<RepoOption> repoOptions) {
-        myState.customRepoConfigsJson = GSON.toJson(toCustomRepoConfigs(repoOptions));
-        myState.customReposJson = "[]";
+        State activeState = getActiveState();
+        activeState.customRepoConfigsJson = GSON.toJson(toCustomRepoConfigs(repoOptions));
+        activeState.customReposJson = "[]";
+        saveActiveState(activeState);
     }
 
     private List<String> parseLegacyCustomRepos() {
         try {
-            List<String> list = GSON.fromJson(myState.customReposJson,
+            List<String> list = GSON.fromJson(getActiveState().customReposJson,
                     new TypeToken<List<String>>() {
                     }.getType());
             return list == null ? new ArrayList<>() : list;
@@ -1124,7 +1129,7 @@ public final class SkillService implements PersistentStateComponent<SkillService
 
     private List<CustomRepoConfig> parseCustomRepoConfigs() {
         try {
-            List<CustomRepoConfig> list = GSON.fromJson(myState.customRepoConfigsJson,
+            List<CustomRepoConfig> list = GSON.fromJson(getActiveState().customRepoConfigsJson,
                     new TypeToken<List<CustomRepoConfig>>() {
                     }.getType());
             return list == null ? new ArrayList<>() : list;
@@ -2336,8 +2341,75 @@ public final class SkillService implements PersistentStateComponent<SkillService
     // =====================================================================
 
     private void saveSkills(List<Skill> skills) {
-        myState.skillsJson = GSON.toJson(skills);
+        State activeState = getActiveState();
+        activeState.skillsJson = GSON.toJson(skills);
+        saveActiveState(activeState);
         fireChanged();
+    }
+
+    public State snapshotCurrentState() {
+        State snapshot = new State();
+        snapshot.skillsJson = GSON.toJson(getSkills());
+        snapshot.customRepoConfigsJson = GSON.toJson(toCustomRepoConfigs(getCustomRepoOptions()));
+        snapshot.customReposJson = "[]";
+        return normalizeState(snapshot);
+    }
+
+    public State snapshotLocalState() {
+        return normalizeState(myState);
+    }
+
+    public State snapshotSharedState() {
+        return readSharedState(new State());
+    }
+
+    public void overwriteLocalState(State state) {
+        myState = normalizeState(state);
+    }
+
+    public void writeSharedState(State state) {
+        PluginDataStorage.writeJson(PluginDataStorage.getSharedSkillsPath(), normalizeState(state));
+    }
+
+    public void notifyStateChanged() {
+        fireChanged();
+    }
+
+    private State getActiveState() {
+        if (PluginSettings.getInstance().getStorageMode() == PluginSettings.DataStorageMode.USER_SHARED) {
+            return readSharedState(normalizeState(myState));
+        }
+        return myState;
+    }
+
+    private void saveActiveState(State state) {
+        State normalized = normalizeState(state);
+        if (PluginSettings.getInstance().getStorageMode() == PluginSettings.DataStorageMode.USER_SHARED) {
+            writeSharedState(normalized);
+        } else {
+            myState = normalized;
+        }
+    }
+
+    private State readSharedState(State defaultState) {
+        return normalizeState(PluginDataStorage.readJson(
+                PluginDataStorage.getSharedSkillsPath(),
+                State.class,
+                normalizeState(defaultState)));
+    }
+
+    private static State normalizeState(State state) {
+        State normalized = state == null ? new State() : state;
+        if (normalized.skillsJson == null || normalized.skillsJson.isBlank()) {
+            normalized.skillsJson = "[]";
+        }
+        if (normalized.customRepoConfigsJson == null || normalized.customRepoConfigsJson.isBlank()) {
+            normalized.customRepoConfigsJson = "[]";
+        }
+        if (normalized.customReposJson == null || normalized.customReposJson.isBlank()) {
+            normalized.customReposJson = "[]";
+        }
+        return normalized;
     }
 
     public void addChangeListener(Runnable listener) {

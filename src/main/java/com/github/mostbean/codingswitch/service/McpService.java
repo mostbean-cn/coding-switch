@@ -68,18 +68,18 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
 
     @Override
     public @Nullable StateData getState() {
-        myState.serversJson = GSON.toJson(getServers());
         return myState;
     }
 
     @Override
     public void loadState(@NotNull StateData state) {
-        myState = state;
+        myState = normalizeState(state);
     }
 
     public List<McpServer> getServers() {
         try {
-            List<McpServer> list = GSON.fromJson(myState.serversJson, new TypeToken<List<McpServer>>() {
+            StateData activeState = getActiveState();
+            List<McpServer> list = GSON.fromJson(activeState.serversJson, new TypeToken<List<McpServer>>() {
             }.getType());
             return list != null ? list : new ArrayList<>();
         } catch (Exception e) {
@@ -817,8 +817,68 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
     }
 
     private void saveServers(List<McpServer> servers) {
-        myState.serversJson = GSON.toJson(servers);
+        StateData nextState = new StateData();
+        nextState.serversJson = GSON.toJson(servers);
+        saveActiveState(nextState);
         fireChanged();
+    }
+
+    public StateData snapshotCurrentState() {
+        StateData snapshot = new StateData();
+        snapshot.serversJson = GSON.toJson(getServers());
+        return normalizeState(snapshot);
+    }
+
+    public StateData snapshotLocalState() {
+        return normalizeState(myState);
+    }
+
+    public StateData snapshotSharedState() {
+        return readSharedState(new StateData());
+    }
+
+    public void overwriteLocalState(StateData state) {
+        myState = normalizeState(state);
+    }
+
+    public void writeSharedState(StateData state) {
+        PluginDataStorage.writeJsonText(PluginDataStorage.getSharedMcpPath(), normalizeState(state).serversJson);
+    }
+
+    public void notifyStateChanged() {
+        fireChanged();
+    }
+
+    private StateData getActiveState() {
+        if (PluginSettings.getInstance().getStorageMode() == PluginSettings.DataStorageMode.USER_SHARED) {
+            return readSharedState(normalizeState(myState));
+        }
+        return myState;
+    }
+
+    private void saveActiveState(StateData state) {
+        StateData normalized = normalizeState(state);
+        if (PluginSettings.getInstance().getStorageMode() == PluginSettings.DataStorageMode.USER_SHARED) {
+            writeSharedState(normalized);
+        } else {
+            myState = normalized;
+        }
+    }
+
+    private StateData readSharedState(StateData defaultState) {
+        StateData shared = new StateData();
+        shared.serversJson = PluginDataStorage.readJsonText(
+                PluginDataStorage.getSharedMcpPath(),
+                normalizeState(defaultState).serversJson);
+        return normalizeState(shared);
+    }
+
+    private static StateData normalizeState(StateData state) {
+        StateData normalized = state == null ? new StateData() : state;
+        if (normalized.serversJson == null || normalized.serversJson.isBlank()) {
+            normalized.serversJson = "[]";
+        }
+        return normalized;
     }
 
     public void addChangeListener(Runnable listener) {

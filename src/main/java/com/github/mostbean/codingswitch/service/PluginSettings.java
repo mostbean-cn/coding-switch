@@ -14,6 +14,19 @@ import org.jetbrains.annotations.NotNull;
 @State(name = "CodingSwitchSettings", storages = @Storage("codingSwitchSettings.xml"))
 public final class PluginSettings implements PersistentStateComponent<PluginSettings.State> {
 
+    public enum DataStorageMode {
+        IDE_LOCAL,
+        USER_SHARED;
+
+        public String getDisplayName(Language uiLanguage) {
+            boolean englishUi = uiLanguage == Language.EN;
+            return switch (this) {
+                case IDE_LOCAL -> englishUi ? "IDE Local" : "IDE 本地";
+                case USER_SHARED -> englishUi ? "User Shared" : "用户级共享";
+            };
+        }
+    }
+
     public enum Language {
         ZH,
         EN;
@@ -83,6 +96,7 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
     public static class State {
         public String language = Language.ZH.name();
         public String githubToken = "";
+        public String storageMode = DataStorageMode.IDE_LOCAL.name();
     }
 
     private State state = new State();
@@ -98,30 +112,117 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
 
     @Override
     public void loadState(@NotNull State state) {
-        this.state = state;
+        this.state = normalizeState(state);
     }
 
     public Language getLanguage() {
         try {
-            return Language.valueOf(state.language);
+            return Language.valueOf(getActiveState().language);
         } catch (Exception e) {
             return Language.ZH;
         }
     }
 
     public void setLanguage(Language lang) {
-        state.language = lang.name();
+        State active = getActiveState();
+        active.language = lang.name();
+        saveActiveState(active);
     }
 
     public String getGithubToken() {
-        return state.githubToken == null ? "" : state.githubToken.trim();
+        State active = getActiveState();
+        return active.githubToken == null ? "" : active.githubToken.trim();
     }
 
     public void setGithubToken(String token) {
-        state.githubToken = token == null ? "" : token.trim();
+        State active = getActiveState();
+        active.githubToken = token == null ? "" : token.trim();
+        saveActiveState(active);
     }
 
     public boolean isChinese() {
         return getLanguage() == Language.ZH;
+    }
+
+    public DataStorageMode getStorageMode() {
+        try {
+            return DataStorageMode.valueOf(state.storageMode);
+        } catch (Exception e) {
+            return DataStorageMode.IDE_LOCAL;
+        }
+    }
+
+    public void setLocalStorageMode(DataStorageMode mode) {
+        state.storageMode = mode == null ? DataStorageMode.IDE_LOCAL.name() : mode.name();
+    }
+
+    public State snapshotCurrentState() {
+        State active = getActiveState();
+        State snapshot = new State();
+        snapshot.language = active.language;
+        snapshot.githubToken = active.githubToken;
+        snapshot.storageMode = getStorageMode().name();
+        return normalizeState(snapshot);
+    }
+
+    public State snapshotLocalState() {
+        return snapshotLocalStateInternal();
+    }
+
+    public State snapshotSharedState() {
+        return readSharedState(new State());
+    }
+
+    public void overwriteLocalState(State newState) {
+        this.state = normalizeState(newState);
+    }
+
+    public void writeSharedState(State newState) {
+        PluginDataStorage.writeJson(PluginDataStorage.getSharedSettingsPath(), normalizeState(newState));
+    }
+
+    private State getActiveState() {
+        if (getStorageMode() == DataStorageMode.USER_SHARED) {
+            return readSharedState(snapshotLocalStateInternal());
+        }
+        return state;
+    }
+
+    private void saveActiveState(State active) {
+        State normalized = normalizeState(active);
+        if (getStorageMode() == DataStorageMode.USER_SHARED) {
+            writeSharedState(normalized);
+        } else {
+            state = normalized;
+        }
+    }
+
+    private State readSharedState(State defaultState) {
+        return normalizeState(PluginDataStorage.readJson(
+                PluginDataStorage.getSharedSettingsPath(),
+                State.class,
+                normalizeState(defaultState)));
+    }
+
+    private State snapshotLocalStateInternal() {
+        State snapshot = new State();
+        snapshot.language = state.language;
+        snapshot.githubToken = state.githubToken;
+        snapshot.storageMode = state.storageMode;
+        return normalizeState(snapshot);
+    }
+
+    private static State normalizeState(State state) {
+        State normalized = state == null ? new State() : state;
+        if (normalized.language == null || normalized.language.isBlank()) {
+            normalized.language = Language.ZH.name();
+        }
+        if (normalized.githubToken == null) {
+            normalized.githubToken = "";
+        }
+        if (normalized.storageMode == null || normalized.storageMode.isBlank()) {
+            normalized.storageMode = DataStorageMode.IDE_LOCAL.name();
+        }
+        return normalized;
     }
 }

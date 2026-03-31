@@ -56,13 +56,12 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
 
     @Override
     public @Nullable State getState() {
-        myState.providersJson = GSON.toJson(getProviders());
         return myState;
     }
 
     @Override
     public void loadState(@NotNull State state) {
-        myState = state;
+        myState = normalizeState(state);
     }
 
     // =====================================================================
@@ -71,7 +70,8 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
 
     public List<Provider> getProviders() {
         try {
-            List<Provider> list = GSON.fromJson(myState.providersJson,
+            State activeState = getActiveState();
+            List<Provider> list = GSON.fromJson(activeState.providersJson,
                     new TypeToken<List<Provider>>() {
                     }.getType());
             List<Provider> providers = list != null ? list : new ArrayList<>();
@@ -393,8 +393,68 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
     // =====================================================================
 
     private void saveProviders(List<Provider> providers) {
-        myState.providersJson = GSON.toJson(providers);
+        State nextState = new State();
+        nextState.providersJson = GSON.toJson(providers);
+        saveActiveState(nextState);
         fireChanged();
+    }
+
+    public State snapshotCurrentState() {
+        State snapshot = new State();
+        snapshot.providersJson = GSON.toJson(getProviders());
+        return normalizeState(snapshot);
+    }
+
+    public State snapshotLocalState() {
+        return normalizeState(myState);
+    }
+
+    public State snapshotSharedState() {
+        return readSharedState(new State());
+    }
+
+    public void overwriteLocalState(State state) {
+        myState = normalizeState(state);
+    }
+
+    public void writeSharedState(State state) {
+        PluginDataStorage.writeJsonText(PluginDataStorage.getSharedProvidersPath(), normalizeState(state).providersJson);
+    }
+
+    public void notifyStateChanged() {
+        fireChanged();
+    }
+
+    private State getActiveState() {
+        if (PluginSettings.getInstance().getStorageMode() == PluginSettings.DataStorageMode.USER_SHARED) {
+            return readSharedState(normalizeState(myState));
+        }
+        return myState;
+    }
+
+    private void saveActiveState(State state) {
+        State normalized = normalizeState(state);
+        if (PluginSettings.getInstance().getStorageMode() == PluginSettings.DataStorageMode.USER_SHARED) {
+            writeSharedState(normalized);
+        } else {
+            myState = normalized;
+        }
+    }
+
+    private State readSharedState(State defaultState) {
+        State shared = new State();
+        shared.providersJson = PluginDataStorage.readJsonText(
+                PluginDataStorage.getSharedProvidersPath(),
+                normalizeState(defaultState).providersJson);
+        return normalizeState(shared);
+    }
+
+    private static State normalizeState(State state) {
+        State normalized = state == null ? new State() : state;
+        if (normalized.providersJson == null || normalized.providersJson.isBlank()) {
+            normalized.providersJson = "[]";
+        }
+        return normalized;
     }
 
     public void addChangeListener(Runnable listener) {

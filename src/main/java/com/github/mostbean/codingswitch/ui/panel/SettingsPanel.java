@@ -4,8 +4,10 @@ import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.service.CliVersionService;
 import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.PluginSettings;
+import com.github.mostbean.codingswitch.service.PluginStorageModeService;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.components.JBLabel;
@@ -15,6 +17,7 @@ import com.intellij.util.ui.JBUI;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -23,17 +26,22 @@ import java.awt.GridBagLayout;
 import java.awt.Rectangle;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.Action;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
+import javax.swing.JComponent;
 import javax.swing.JComboBox;
 import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JToggleButton;
 import javax.swing.Scrollable;
@@ -65,6 +73,9 @@ public class SettingsPanel extends JPanel {
         mainPanel.add(Box.createVerticalStrut(16));
 
         mainPanel.add(buildInstallSection());
+        mainPanel.add(Box.createVerticalStrut(16));
+
+        mainPanel.add(buildStorageSection());
         mainPanel.add(Box.createVerticalStrut(16));
 
         mainPanel.add(buildLanguageSection());
@@ -217,6 +228,66 @@ public class SettingsPanel extends JPanel {
         return row;
     }
 
+    private JPanel buildStorageSection() {
+        JPanel section = new JPanel(new BorderLayout());
+        section.setBorder(
+            BorderFactory.createTitledBorder(
+                BorderFactory.createEtchedBorder(),
+                I18n.t("settings.label.dataStorageMode")
+            )
+        );
+
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+
+        JPanel storageRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
+        storageRow.add(new JBLabel(I18n.t("settings.label.dataStorageMode")));
+        storageRow.add(createInfoHintIcon(
+            I18n.t("settings.hint.dataStorageMode"),
+            I18n.t("settings.label.dataStorageMode")
+        ));
+
+        JComboBox<PluginSettings.DataStorageMode> storageCombo = new JComboBox<>(
+            PluginSettings.DataStorageMode.values()
+        );
+        storageCombo.setSelectedItem(PluginSettings.getInstance().getStorageMode());
+        storageCombo.setRenderer(
+            new DefaultListCellRenderer() {
+                @Override
+                public Component getListCellRendererComponent(
+                    JList<?> list,
+                    Object value,
+                    int index,
+                    boolean isSelected,
+                    boolean cellHasFocus
+                ) {
+                    super.getListCellRendererComponent(
+                        list,
+                        value,
+                        index,
+                        isSelected,
+                        cellHasFocus
+                    );
+                    if (value instanceof PluginSettings.DataStorageMode mode) {
+                        setText(mode.getDisplayName(I18n.currentLanguage()));
+                    }
+                    return this;
+                }
+            }
+        );
+        storageRow.add(storageCombo);
+
+        JButton applyStorageBtn = new JButton(
+            I18n.t("settings.button.applyStorageMode")
+        );
+        applyStorageBtn.addActionListener(e -> onStorageModeChanged(storageCombo));
+        storageRow.add(applyStorageBtn);
+        content.add(storageRow);
+
+        section.add(content, BorderLayout.NORTH);
+        return section;
+    }
+
     private JPanel buildLanguageSection() {
         JPanel section = new JPanel(new BorderLayout());
         section.setBorder(
@@ -316,20 +387,10 @@ public class SettingsPanel extends JPanel {
         tokenRow.add(tokenFieldPanel, BorderLayout.CENTER);
         content.add(tokenRow);
 
-        JPanel tokenHintRow = new JPanel(
-            new FlowLayout(FlowLayout.LEFT, 12, 0)
-        );
-        JBLabel tokenHintLabel = new JBLabel(
-            I18n.t("settings.hint.githubToken")
-        );
-        tokenHintLabel.setForeground(JBColor.GRAY);
-        tokenHintRow.add(tokenHintLabel);
-        content.add(tokenHintRow);
+        content.add(createWrappedHintRow(I18n.t("settings.hint.githubToken")));
 
-        JBLabel hintLabel = new JBLabel(
-            I18n.t("settings.hint.restartRequired")
-        );
-        hintLabel.setForeground(
+        JComponent hintLabel = createWrappedHintText(
+            I18n.t("settings.hint.restartRequired"),
             new JBColor(new Color(200, 130, 0), new Color(230, 180, 80))
         );
         hintLabel.setBorder(JBUI.Borders.empty(0, 12, 8, 12));
@@ -337,6 +398,49 @@ public class SettingsPanel extends JPanel {
         section.add(content, BorderLayout.NORTH);
         section.add(hintLabel, BorderLayout.CENTER);
         return section;
+    }
+
+    private JPanel createWrappedHintRow(String text) {
+        JPanel row = new JPanel(new BorderLayout());
+        row.setBorder(JBUI.Borders.empty(0, 12, 8, 12));
+        row.add(createWrappedHintText(text, JBColor.GRAY), BorderLayout.CENTER);
+        return row;
+    }
+
+    private JComponent createWrappedHintText(String text, Color color) {
+        JTextArea area = new JTextArea(text);
+        area.setEditable(false);
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
+        area.setOpaque(false);
+        area.setFocusable(false);
+        area.setForeground(color);
+        area.setBorder(JBUI.Borders.empty());
+        return area;
+    }
+
+    private JComponent createInfoHintIcon(String text, String title) {
+        JBLabel iconLabel = new JBLabel(AllIcons.General.ContextHelp);
+        iconLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        iconLabel.setToolTipText(toHtmlTooltip(text));
+        iconLabel.addMouseListener(
+            new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    Messages.showInfoMessage(text, title);
+                }
+            }
+        );
+        return iconLabel;
+    }
+
+    private String toHtmlTooltip(String text) {
+        String escaped = text
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\n", "<br>");
+        return "<html><body style='width: 260px;'>" + escaped + "</body></html>";
     }
 
     private void onLanguageChanged(
@@ -367,6 +471,126 @@ public class SettingsPanel extends JPanel {
         if (result == Messages.YES) {
             ApplicationManager.getApplication().restart();
         }
+    }
+
+    private void onStorageModeChanged(
+        JComboBox<PluginSettings.DataStorageMode> storageCombo
+    ) {
+        PluginSettings.DataStorageMode current =
+            PluginSettings.getInstance().getStorageMode();
+        PluginSettings.DataStorageMode selected =
+            (PluginSettings.DataStorageMode) storageCombo.getSelectedItem();
+        if (selected == null || selected == current) {
+            return;
+        }
+
+        PluginStorageModeService.SharedDataStrategy strategy = null;
+        if (selected == PluginSettings.DataStorageMode.USER_SHARED) {
+            PluginStorageModeService.UserSharedInspection inspection =
+                PluginStorageModeService.getInstance().inspectUserSharedState();
+            if (inspection.hasSharedData()) {
+                StorageConflictDialog dialog = new StorageConflictDialog(
+                    inspection
+                );
+                dialog.show();
+                strategy = dialog.getSelectedStrategy();
+                if (strategy == null) {
+                    storageCombo.setSelectedItem(current);
+                    return;
+                }
+
+                int detailedConfirm = Messages.showYesNoDialog(
+                    buildStorageOverwriteConfirmMessage(strategy, inspection),
+                    I18n.t("settings.dialog.storageMode.title"),
+                    I18n.t("settings.dialog.storageMode.confirmProceed"),
+                    I18n.t("settings.dialog.storageMode.confirmNo"),
+                    Messages.getQuestionIcon()
+                );
+                if (detailedConfirm != Messages.YES) {
+                    storageCombo.setSelectedItem(current);
+                    return;
+                }
+            } else {
+                int confirm = Messages.showYesNoDialog(
+                    I18n.t(
+                        "settings.dialog.storageMode.confirm",
+                        selected.getDisplayName(I18n.currentLanguage())
+                    ),
+                    I18n.t("settings.dialog.storageMode.title"),
+                    I18n.t("settings.dialog.storageMode.confirmYes"),
+                    I18n.t("settings.dialog.storageMode.confirmNo"),
+                    Messages.getQuestionIcon()
+                );
+                if (confirm != Messages.YES) {
+                    storageCombo.setSelectedItem(current);
+                    return;
+                }
+            }
+        } else {
+            int confirm = Messages.showYesNoDialog(
+                I18n.t(
+                    "settings.dialog.storageMode.confirmBackToLocal",
+                    selected.getDisplayName(I18n.currentLanguage())
+                ),
+                I18n.t("settings.dialog.storageMode.title"),
+                I18n.t("settings.dialog.storageMode.confirmYes"),
+                I18n.t("settings.dialog.storageMode.confirmNo"),
+                Messages.getQuestionIcon()
+            );
+            if (confirm != Messages.YES) {
+                storageCombo.setSelectedItem(current);
+                return;
+            }
+        }
+
+        PluginStorageModeService.SwitchResult result =
+            PluginStorageModeService.getInstance().switchMode(selected, strategy);
+        if (!result.success()) {
+            storageCombo.setSelectedItem(current);
+            Messages.showErrorDialog(
+                I18n.t("settings.dialog.storageMode.failed"),
+                I18n.t("settings.dialog.storageMode.title")
+            );
+            return;
+        }
+
+        int restart = Messages.showYesNoDialog(
+            I18n.t(
+                "settings.dialog.storageMode.switched",
+                selected.getDisplayName(I18n.currentLanguage())
+            ),
+            I18n.t("settings.dialog.storageMode.title"),
+            I18n.t("settings.dialog.languageChanged.restartNow"),
+            I18n.t("settings.dialog.languageChanged.restartLater"),
+            Messages.getInformationIcon()
+        );
+        if (restart == Messages.YES) {
+            ApplicationManager.getApplication().restart();
+        }
+    }
+
+    private String buildStorageOverwriteConfirmMessage(
+        PluginStorageModeService.SharedDataStrategy strategy,
+        PluginStorageModeService.UserSharedInspection inspection
+    ) {
+        return switch (strategy) {
+            case LOCAL_TO_SHARED -> I18n.t(
+                "settings.dialog.storageMode.confirmLocalToShared",
+                inspection.localSummary().totalCount(),
+                inspection.localSummary().providerCount(),
+                inspection.localSummary().promptCount(),
+                inspection.localSummary().skillCount(),
+                inspection.localSummary().mcpCount()
+            );
+            case SHARED_TO_LOCAL -> I18n.t(
+                "settings.dialog.storageMode.confirmSharedToLocal",
+                inspection.sharedSummary().totalCount(),
+                inspection.sharedSummary().providerCount(),
+                inspection.sharedSummary().promptCount(),
+                inspection.sharedSummary().skillCount(),
+                inspection.sharedSummary().mcpCount()
+            );
+        };
     }
 
     private void checkAllVersions() {
@@ -485,6 +709,108 @@ public class SettingsPanel extends JPanel {
     private JBLabel bold(JBLabel label) {
         label.setFont(label.getFont().deriveFont(Font.BOLD));
         return label;
+    }
+
+    private static final class StorageConflictDialog extends DialogWrapper {
+
+        private final PluginStorageModeService.UserSharedInspection inspection;
+        private PluginStorageModeService.SharedDataStrategy selectedStrategy;
+        private JComponent preferredFocus;
+
+        private StorageConflictDialog(
+            PluginStorageModeService.UserSharedInspection inspection
+        ) {
+            super(true);
+            this.inspection = inspection;
+            setTitle(I18n.t("settings.dialog.storageMode.title"));
+            setResizable(false);
+            init();
+        }
+
+        @Override
+        protected JComponent createCenterPanel() {
+            JPanel panel = new JPanel(new BorderLayout(0, 12));
+            panel.setBorder(JBUI.Borders.empty(8, 4));
+
+            JTextArea textArea = new JTextArea(
+                I18n.t(
+                    "settings.dialog.storageMode.conflict",
+                    inspection.localSummary().totalCount(),
+                    inspection.sharedSummary().totalCount(),
+                    inspection.localSummary().providerCount(),
+                    inspection.localSummary().promptCount(),
+                    inspection.localSummary().skillCount(),
+                    inspection.localSummary().mcpCount(),
+                    inspection.sharedSummary().providerCount(),
+                    inspection.sharedSummary().promptCount(),
+                    inspection.sharedSummary().skillCount(),
+                    inspection.sharedSummary().mcpCount()
+                )
+            );
+            textArea.setEditable(false);
+            textArea.setLineWrap(true);
+            textArea.setWrapStyleWord(true);
+            textArea.setOpaque(false);
+            textArea.setBorder(JBUI.Borders.empty());
+            textArea.setFocusable(false);
+
+            JBScrollPane scrollPane = new JBScrollPane(textArea);
+            scrollPane.setBorder(JBUI.Borders.empty());
+            scrollPane.setPreferredSize(new Dimension(JBUI.scale(420), JBUI.scale(170)));
+            preferredFocus = scrollPane;
+            panel.add(scrollPane, BorderLayout.CENTER);
+            return panel;
+        }
+
+        @Override
+        protected JComponent createSouthPanel() {
+            JPanel panel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+            panel.setBorder(JBUI.Borders.empty(8, 0, 0, 0));
+
+            panel.add(createChoiceButton(
+                I18n.t("settings.dialog.storageMode.option.localToShared"),
+                PluginStorageModeService.SharedDataStrategy.LOCAL_TO_SHARED
+            ));
+            panel.add(createChoiceButton(
+                I18n.t("settings.dialog.storageMode.option.sharedToLocal"),
+                PluginStorageModeService.SharedDataStrategy.SHARED_TO_LOCAL
+            ));
+
+            JButton cancelButton = new JButton(
+                I18n.t("settings.dialog.storageMode.confirmNo")
+            );
+            cancelButton.setDefaultCapable(false);
+            cancelButton.addActionListener(e -> doCancelAction());
+            panel.add(cancelButton);
+            return panel;
+        }
+
+        private JButton createChoiceButton(
+            String text,
+            PluginStorageModeService.SharedDataStrategy strategy
+        ) {
+            JButton button = new JButton(text);
+            button.setDefaultCapable(false);
+            button.addActionListener(e -> {
+                selectedStrategy = strategy;
+                close(OK_EXIT_CODE);
+            });
+            return button;
+        }
+
+        @Override
+        public JComponent getPreferredFocusedComponent() {
+            return preferredFocus;
+        }
+
+        @Override
+        protected Action[] createActions() {
+            return new Action[0];
+        }
+
+        private PluginStorageModeService.SharedDataStrategy getSelectedStrategy() {
+            return selectedStrategy;
+        }
     }
 
     /**

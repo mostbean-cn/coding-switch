@@ -97,7 +97,7 @@ public final class ConfigFileService {
 
     /** Skills 全局安装中立目录 */
     public Path getGlobalSkillsDir() {
-        return userHome().resolve(".config").resolve("coding-switch").resolve("skills");
+        return PluginDataStorage.getUserSharedRootDir().resolve("skills");
     }
 
     /** Claude Code 的专用 Skills 目录 */

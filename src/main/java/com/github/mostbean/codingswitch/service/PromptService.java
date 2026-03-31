@@ -44,13 +44,12 @@ public final class PromptService implements PersistentStateComponent<PromptServi
 
     @Override
     public @Nullable State getState() {
-        myState.presetsJson = GSON.toJson(getPresets());
         return myState;
     }
 
     @Override
     public void loadState(@NotNull State state) {
-        myState = state;
+        myState = normalizeState(state);
     }
 
     // =====================================================================
@@ -59,7 +58,8 @@ public final class PromptService implements PersistentStateComponent<PromptServi
 
     public List<PromptPreset> getPresets() {
         try {
-            List<PromptPreset> list = GSON.fromJson(myState.presetsJson,
+            State activeState = getActiveState();
+            List<PromptPreset> list = GSON.fromJson(activeState.presetsJson,
                     new TypeToken<List<PromptPreset>>() {
                     }.getType());
             return list != null ? list : new ArrayList<>();
@@ -188,8 +188,68 @@ public final class PromptService implements PersistentStateComponent<PromptServi
     // =====================================================================
 
     private void savePresets(List<PromptPreset> presets) {
-        myState.presetsJson = GSON.toJson(presets);
+        State nextState = new State();
+        nextState.presetsJson = GSON.toJson(presets);
+        saveActiveState(nextState);
         fireChanged();
+    }
+
+    public State snapshotCurrentState() {
+        State snapshot = new State();
+        snapshot.presetsJson = GSON.toJson(getPresets());
+        return normalizeState(snapshot);
+    }
+
+    public State snapshotLocalState() {
+        return normalizeState(myState);
+    }
+
+    public State snapshotSharedState() {
+        return readSharedState(new State());
+    }
+
+    public void overwriteLocalState(State state) {
+        myState = normalizeState(state);
+    }
+
+    public void writeSharedState(State state) {
+        PluginDataStorage.writeJsonText(PluginDataStorage.getSharedPromptsPath(), normalizeState(state).presetsJson);
+    }
+
+    public void notifyStateChanged() {
+        fireChanged();
+    }
+
+    private State getActiveState() {
+        if (PluginSettings.getInstance().getStorageMode() == PluginSettings.DataStorageMode.USER_SHARED) {
+            return readSharedState(normalizeState(myState));
+        }
+        return myState;
+    }
+
+    private void saveActiveState(State state) {
+        State normalized = normalizeState(state);
+        if (PluginSettings.getInstance().getStorageMode() == PluginSettings.DataStorageMode.USER_SHARED) {
+            writeSharedState(normalized);
+        } else {
+            myState = normalized;
+        }
+    }
+
+    private State readSharedState(State defaultState) {
+        State shared = new State();
+        shared.presetsJson = PluginDataStorage.readJsonText(
+                PluginDataStorage.getSharedPromptsPath(),
+                normalizeState(defaultState).presetsJson);
+        return normalizeState(shared);
+    }
+
+    private static State normalizeState(State state) {
+        State normalized = state == null ? new State() : state;
+        if (normalized.presetsJson == null || normalized.presetsJson.isBlank()) {
+            normalized.presetsJson = "[]";
+        }
+        return normalized;
     }
 
     public void addChangeListener(Runnable listener) {

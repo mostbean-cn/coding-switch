@@ -78,10 +78,13 @@ public final class I18n {
                 m.put("settings.tooltip.copyClipboard", "复制到剪贴板");
                 m.put("settings.label.uiLanguage", "界面语言:");
                 m.put("settings.label.githubToken", "GitHub 令牌:");
+                m.put("settings.label.dataStorageMode", "存储位置:");
                 m.put("settings.button.show", "显示");
                 m.put("settings.button.hide", "隐藏");
                 m.put("settings.button.saveGithubToken", "保存令牌");
+                m.put("settings.button.applyStorageMode", "应用");
                 m.put("settings.hint.githubToken", "可选。配置 GitHub 令牌可提升 API 速率限制（仅影响 GitHub Skills 仓库）。");
+                m.put("settings.hint.dataStorageMode", "Coding Switch 默认将配置数据保存在当前 IDE 的本地目录中。如需在 JetBrains 全家桶之间共享配置，请切换到“用户级共享”。");
                 m.put("settings.githubToken.title", "设置");
                 m.put("settings.githubToken.saved", "GitHub 令牌已保存");
                 m.put("settings.hint.restartRequired", "⚠️ 切换语言后需要重启 IDE 才能完全生效");
@@ -89,6 +92,22 @@ public final class I18n {
                 m.put("settings.dialog.languageChanged.title", "语言设置已更改");
                 m.put("settings.dialog.languageChanged.restartNow", "立即重启");
                 m.put("settings.dialog.languageChanged.restartLater", "稍后手动重启");
+                m.put("settings.dialog.storageMode.title", "数据存储已更改");
+                m.put("settings.dialog.storageMode.confirm", "切换到 {0} 后，将自动迁移当前 Coding Switch 数据。\n\n是否继续？");
+                m.put("settings.dialog.storageMode.confirmBackToLocal", "切换到 {0} 后，当前 IDE 会恢复使用自己的本地数据副本。\n\n是否继续？");
+                m.put("settings.dialog.storageMode.confirmProceed", "继续执行");
+                m.put("settings.dialog.storageMode.confirmYes", "继续切换");
+                m.put("settings.dialog.storageMode.confirmNo", "取消");
+                m.put("settings.dialog.storageMode.option.localToShared", "本地覆盖用户级");
+                m.put("settings.dialog.storageMode.option.sharedToLocal", "用户级覆盖本地");
+                m.put("settings.dialog.storageMode.conflict",
+                                "检测到已有用户级配置。\n\n本地总计: {0} 条\n本地明细: Provider {2} / Prompt {3} / Skill {4} / MCP {5}\n\n用户级总计: {1} 条\n用户级明细: Provider {6} / Prompt {7} / Skill {8} / MCP {9}\n\n请选择要保留的数据来源：");
+                m.put("settings.dialog.storageMode.confirmLocalToShared",
+                                "你将使用当前 IDE 的本地数据覆盖用户级数据。\n\n覆盖后写入用户级的总计: {0} 条\n明细: Provider {1} / Prompt {2} / Skill {3} / MCP {4}\n\n当前 IDE 随后会切换到“用户级共享”。\n是否确认继续？");
+                m.put("settings.dialog.storageMode.confirmSharedToLocal",
+                                "你将使用现有用户级数据覆盖当前 IDE 的本地数据。\n\n将写回当前 IDE 本地的总计: {0} 条\n明细: Provider {1} / Prompt {2} / Skill {3} / MCP {4}\n\n当前 IDE 随后会切换到“用户级共享”。\n是否确认继续？");
+                m.put("settings.dialog.storageMode.failed", "数据存储切换失败，请稍后重试。");
+                m.put("settings.dialog.storageMode.switched", "已切换到 {0}，数据迁移完成。\n\n需要重启 IDE 才能让所有面板统一使用新的存储位置。\n是否立即重启 IDE？");
 
                 // ── Session 面板 ──
                 m.put("session.empty.selectHint", "选择一个会话查看详情");
@@ -429,10 +448,13 @@ public final class I18n {
                 m.put("settings.tooltip.copyClipboard", "Copy to Clipboard");
                 m.put("settings.label.uiLanguage", "UI Language:");
                 m.put("settings.label.githubToken", "GitHub Token:");
+                m.put("settings.label.dataStorageMode", "Storage Location:");
                 m.put("settings.button.show", "Show");
                 m.put("settings.button.hide", "Hide");
                 m.put("settings.button.saveGithubToken", "Save Token");
+                m.put("settings.button.applyStorageMode", "Apply");
                 m.put("settings.hint.githubToken", "Optional. Increases GitHub API rate limit (only affects GitHub Skills repositories).");
+                m.put("settings.hint.dataStorageMode", "Coding Switch stores configuration data in the current IDE's local directory by default. Switch to \"User Shared\" if you want to reuse configuration across JetBrains IDEs.");
                 m.put("settings.githubToken.title", "Settings");
                 m.put("settings.githubToken.saved", "GitHub token saved");
                 m.put("settings.hint.restartRequired", "⚠️ Restart IDE after switching language for full effect");
@@ -441,6 +463,23 @@ public final class I18n {
                 m.put("settings.dialog.languageChanged.title", "Language Changed");
                 m.put("settings.dialog.languageChanged.restartNow", "Restart Now");
                 m.put("settings.dialog.languageChanged.restartLater", "Later");
+                m.put("settings.dialog.storageMode.title", "Data Storage Changed");
+                m.put("settings.dialog.storageMode.confirm", "Switching to {0} will migrate current Coding Switch data automatically.\n\nContinue?");
+                m.put("settings.dialog.storageMode.confirmBackToLocal", "Switching to {0} will restore this IDE to its own local data copy.\n\nContinue?");
+                m.put("settings.dialog.storageMode.confirmProceed", "Proceed");
+                m.put("settings.dialog.storageMode.confirmYes", "Switch");
+                m.put("settings.dialog.storageMode.confirmNo", "Cancel");
+                m.put("settings.dialog.storageMode.option.localToShared", "Local overwrites shared");
+                m.put("settings.dialog.storageMode.option.sharedToLocal", "Shared overwrites local");
+                m.put("settings.dialog.storageMode.conflict",
+                                "Existing user-shared data was detected.\n\nLocal total: {0}\nLocal breakdown: Provider {2} / Prompt {3} / Skill {4} / MCP {5}\n\nShared total: {1}\nShared breakdown: Provider {6} / Prompt {7} / Skill {8} / MCP {9}\n\nChoose which source to keep:");
+                m.put("settings.dialog.storageMode.confirmLocalToShared",
+                                "You are about to overwrite user-shared data with this IDE's local data.\n\nShared data after overwrite: {0} item(s)\nBreakdown: Provider {1} / Prompt {2} / Skill {3} / MCP {4}\n\nThis IDE will then switch to User Shared mode.\nContinue?");
+                m.put("settings.dialog.storageMode.confirmSharedToLocal",
+                                "You are about to overwrite this IDE's local data with the existing user-shared data.\n\nLocal data after overwrite: {0} item(s)\nBreakdown: Provider {1} / Prompt {2} / Skill {3} / MCP {4}\n\nThis IDE will then switch to User Shared mode.\nContinue?");
+                m.put("settings.dialog.storageMode.failed", "Failed to switch data storage. Please try again.");
+                m.put("settings.dialog.storageMode.switched",
+                                "Switched to {0}. Data migration is complete.\n\nRestart IDE so every panel uses the new storage location.\nRestart now?");
 
                 // ── Session Panel ──
                 m.put("session.empty.selectHint", "Select a session to view details");
