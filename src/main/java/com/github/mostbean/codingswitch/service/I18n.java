@@ -73,6 +73,7 @@ public final class I18n {
                 m.put("settings.status.detectFailed", "检测失败");
                 m.put("settings.status.latest", "v{0} ✓ 已是最新");
                 m.put("settings.status.updatable", "v{0} ⬆ 可更新");
+                m.put("settings.status.localNewer", "v{0} / 当前版本较新");
                 m.put("settings.button.checkAllVersions", "检测全部版本");
                 m.put("settings.tooltip.copyClipboard", "复制到剪贴板");
                 m.put("settings.label.uiLanguage", "界面语言:");
@@ -423,6 +424,7 @@ public final class I18n {
                 m.put("settings.status.detectFailed", "Detection Failed");
                 m.put("settings.status.latest", "v{0} ✓ Up to date");
                 m.put("settings.status.updatable", "v{0} ⬆ Update available");
+                m.put("settings.status.localNewer", "v{0} / Local version is newer");
                 m.put("settings.button.checkAllVersions", "Check All Versions");
                 m.put("settings.tooltip.copyClipboard", "Copy to Clipboard");
                 m.put("settings.label.uiLanguage", "UI Language:");

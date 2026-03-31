@@ -7,6 +7,9 @@ import com.intellij.openapi.diagnostic.Logger;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -23,12 +26,60 @@ public final class CliVersionService {
     private static final long VERSION_TIMEOUT_SECONDS = 10;
     private static final long GEMINI_VERSION_TIMEOUT_SECONDS = 30;
     private static final long LATEST_TIMEOUT_SECONDS = 15;
+    private static final String OFFICIAL_NPM_REGISTRY = "https://registry.npmjs.org/";
 
     public enum VersionStatus {
         INSTALLED,
         NOT_INSTALLED,
         TIMEOUT,
         COMMAND_FAILED
+    }
+
+    private static final class CommandOutput {
+        private final Integer exitCode;
+        private final String output;
+        private final String detail;
+        private final boolean timedOut;
+
+        private CommandOutput(
+            Integer exitCode,
+            String output,
+            String detail,
+            boolean timedOut
+        ) {
+            this.exitCode = exitCode;
+            this.output = output;
+            this.detail = detail;
+            this.timedOut = timedOut;
+        }
+
+        public static CommandOutput completed(int exitCode, String output) {
+            return new CommandOutput(exitCode, output, null, false);
+        }
+
+        public static CommandOutput timeout(String detail) {
+            return new CommandOutput(null, null, detail, true);
+        }
+
+        public static CommandOutput failed(String detail) {
+            return new CommandOutput(null, null, detail, false);
+        }
+
+        public Integer exitCode() {
+            return exitCode;
+        }
+
+        public String output() {
+            return output;
+        }
+
+        public String detail() {
+            return detail;
+        }
+
+        public boolean timedOut() {
+            return timedOut;
+        }
     }
 
     public static final class VersionResult {
@@ -114,12 +165,33 @@ public final class CliVersionService {
     }
 
     public String getLatestVersion(CliType cliType) {
-        String command = getLatestVersionCommand(cliType);
-        if (command == null) {
+        return getLatestVersion(cliType, null);
+    }
+
+    public String getLatestVersion(CliType cliType, String currentVersion) {
+        String packageName = getNpmPackageName(cliType);
+        if (packageName == null) {
             return null;
         }
-        VersionResult result = runAndParse(command, LATEST_TIMEOUT_SECONDS);
-        return result.status() == VersionStatus.INSTALLED ? result.version() : null;
+
+        String configuredRegistry = getConfiguredNpmRegistry();
+        String latest = getLatestVersionFromRegistry(packageName, configuredRegistry);
+        if (
+            latest != null &&
+            (currentVersion == null ||
+                compareVersions(latest, currentVersion) >= 0 ||
+                isOfficialRegistry(configuredRegistry))
+        ) {
+            return latest;
+        }
+
+        String officialLatest = getLatestVersionFromRegistry(
+            packageName,
+            OFFICIAL_NPM_REGISTRY
+        );
+        return compareVersions(officialLatest, latest) > 0
+            ? officialLatest
+            : latest;
     }
 
     public String getUpdateCommand(CliType cliType) {
@@ -169,16 +241,72 @@ public final class CliVersionService {
         };
     }
 
-    private String getLatestVersionCommand(CliType cliType) {
+    private String getNpmPackageName(CliType cliType) {
         return switch (cliType) {
-            case CLAUDE -> "npm view @anthropic-ai/claude-code version";
-            case CODEX -> "npm view @openai/codex version";
-            case GEMINI -> "npm view @google/gemini-cli version";
-            case OPENCODE -> "npm view opencode-ai version";
+            case CLAUDE -> "@anthropic-ai/claude-code";
+            case CODEX -> "@openai/codex";
+            case GEMINI -> "@google/gemini-cli";
+            case OPENCODE -> "opencode-ai";
         };
     }
 
     private VersionResult runAndParse(String command, long timeoutSeconds) {
+        CommandOutput commandOutput = runCommand(command, timeoutSeconds);
+        if (commandOutput.timedOut()) {
+            return VersionResult.timeout(commandOutput.detail());
+        }
+        if (commandOutput.exitCode() == null) {
+            return VersionResult.failed(commandOutput.detail());
+        }
+
+        String raw = commandOutput.output();
+        if (commandOutput.exitCode() != 0) {
+            if (looksLikeCommandMissing(raw)) {
+                return VersionResult.notInstalled();
+            }
+            LOG.info(
+                "Version command failed (exit " +
+                commandOutput.exitCode() +
+                "): " +
+                command
+            );
+            return VersionResult.failed(
+                "exit " + commandOutput.exitCode() + ": " + command
+            );
+        }
+
+        String parsed = extractVersion(raw);
+        if (parsed == null || parsed.isBlank()) {
+            return VersionResult.failed("empty output: " + command);
+        }
+        return VersionResult.installed(parsed);
+    }
+
+    public static int compareVersions(String left, String right) {
+        if (Objects.equals(normalizeVersion(left), normalizeVersion(right))) {
+            return 0;
+        }
+        if (left == null || left.isBlank()) {
+            return -1;
+        }
+        if (right == null || right.isBlank()) {
+            return 1;
+        }
+
+        List<Integer> leftParts = parseVersionNumbers(left);
+        List<Integer> rightParts = parseVersionNumbers(right);
+        int maxSize = Math.max(leftParts.size(), rightParts.size());
+        for (int i = 0; i < maxSize; i++) {
+            int leftValue = i < leftParts.size() ? leftParts.get(i) : 0;
+            int rightValue = i < rightParts.size() ? rightParts.get(i) : 0;
+            if (leftValue != rightValue) {
+                return Integer.compare(leftValue, rightValue);
+            }
+        }
+        return normalizeVersion(left).compareTo(normalizeVersion(right));
+    }
+
+    private CommandOutput runCommand(String command, long timeoutSeconds) {
         try {
             ProcessBuilder pb = createProcessBuilder(command);
             pb.redirectErrorStream(true);
@@ -186,7 +314,7 @@ public final class CliVersionService {
             boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
             if (!finished) {
                 process.destroyForcibly();
-                return VersionResult.timeout("timeout: " + command);
+                return CommandOutput.timeout("timeout: " + command);
             }
 
             StringBuilder output = new StringBuilder();
@@ -197,24 +325,67 @@ public final class CliVersionService {
                 }
             }
             String raw = output.toString().trim();
-
-            if (process.exitValue() != 0) {
-                if (looksLikeCommandMissing(raw)) {
-                    return VersionResult.notInstalled();
-                }
-                LOG.info("Version command failed (exit " + process.exitValue() + "): " + command);
-                return VersionResult.failed("exit " + process.exitValue() + ": " + command);
-            }
-
-            String parsed = extractVersion(raw);
-            if (parsed == null || parsed.isBlank()) {
-                return VersionResult.failed("empty output: " + command);
-            }
-            return VersionResult.installed(parsed);
+            return CommandOutput.completed(process.exitValue(), raw);
         } catch (Exception e) {
             LOG.info("Version command failed: " + command + " -> " + e.getMessage());
-            return VersionResult.failed(e.getMessage());
+            return CommandOutput.failed(e.getMessage());
         }
+    }
+
+    private String getLatestVersionFromRegistry(String packageName, String registry) {
+        if (registry == null || registry.isBlank()) {
+            return null;
+        }
+        String command =
+            "npm view " + packageName + " version --registry=" + registry.trim();
+        VersionResult result = runAndParse(command, LATEST_TIMEOUT_SECONDS);
+        return result.status() == VersionStatus.INSTALLED ? result.version() : null;
+    }
+
+    private String getConfiguredNpmRegistry() {
+        CommandOutput result = runCommand(
+            "npm config get registry",
+            COMMAND_CHECK_TIMEOUT_SECONDS
+        );
+        if (result.timedOut() || result.exitCode() == null || result.exitCode() != 0) {
+            return OFFICIAL_NPM_REGISTRY;
+        }
+        String registry = result.output();
+        if (registry == null || registry.isBlank() || "undefined".equalsIgnoreCase(registry.trim())) {
+            return OFFICIAL_NPM_REGISTRY;
+        }
+        return registry.trim();
+    }
+
+    private boolean isOfficialRegistry(String registry) {
+        return normalizeRegistry(registry).equals(normalizeRegistry(OFFICIAL_NPM_REGISTRY));
+    }
+
+    private static String normalizeRegistry(String registry) {
+        if (registry == null) {
+            return "";
+        }
+        String normalized = registry.trim().toLowerCase();
+        while (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
+    }
+
+    private static String normalizeVersion(String version) {
+        if (version == null) {
+            return null;
+        }
+        return version.trim().replaceFirst("^[vV]", "");
+    }
+
+    private static List<Integer> parseVersionNumbers(String version) {
+        List<Integer> numbers = new ArrayList<>();
+        Matcher matcher = Pattern.compile("\\d+").matcher(normalizeVersion(version));
+        while (matcher.find()) {
+            numbers.add(Integer.parseInt(matcher.group()));
+        }
+        return numbers;
     }
 
     private boolean isCommandAvailable(String commandName) {

@@ -368,7 +368,7 @@ public class SettingsPanel extends JPanel {
                     service.getVersionResult(cli);
                 String latest =
                     current.status() == CliVersionService.VersionStatus.INSTALLED
-                        ? service.getLatestVersion(cli)
+                        ? service.getLatestVersion(cli, current.version())
                         : null;
                 SwingUtilities.invokeLater(() ->
                     updateDisplay(cli, current, latest)
@@ -417,19 +417,30 @@ public class SettingsPanel extends JPanel {
         }
 
         if (latest != null) {
+            int versionComparison = CliVersionService.compareVersions(
+                current,
+                latest
+            );
             if (
                 status == CliVersionService.VersionStatus.INSTALLED &&
                 current != null &&
-                current.equals(latest)
+                versionComparison == 0
             ) {
                 latLabel.setText(I18n.t("settings.status.latest", latest));
                 latLabel.setForeground(new Color(66, 160, 83));
             } else if (
                 status == CliVersionService.VersionStatus.INSTALLED &&
-                current != null
+                current != null &&
+                versionComparison < 0
             ) {
                 latLabel.setText(I18n.t("settings.status.updatable", latest));
                 latLabel.setForeground(new Color(200, 130, 0));
+            } else if (
+                status == CliVersionService.VersionStatus.INSTALLED &&
+                current != null
+            ) {
+                latLabel.setText(I18n.t("settings.status.localNewer", latest));
+                latLabel.setForeground(new Color(66, 139, 202));
             } else {
                 latLabel.setText("v" + latest);
                 latLabel.setForeground(JBColor.GRAY);
