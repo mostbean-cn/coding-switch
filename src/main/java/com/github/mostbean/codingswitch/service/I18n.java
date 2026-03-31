@@ -63,6 +63,7 @@ public final class I18n {
                 // ── Settings 面板 ──
                 m.put("settings.section.versionStatus", "CLI 版本状态");
                 m.put("settings.section.installCommands", "安装/更新命令");
+                m.put("settings.section.storageLocation", "存储位置");
                 m.put("settings.section.preferences", "偏好设置");
                 m.put("settings.table.cli", "CLI");
                 m.put("settings.table.currentVersion", "当前版本");
@@ -92,7 +93,10 @@ public final class I18n {
                 m.put("settings.dialog.languageChanged.title", "语言设置已更改");
                 m.put("settings.dialog.languageChanged.restartNow", "立即重启");
                 m.put("settings.dialog.languageChanged.restartLater", "稍后手动重启");
-                m.put("settings.dialog.storageMode.title", "数据存储已更改");
+                m.put("settings.dialog.storageMode.title", "存储位置已更改");
+                m.put("settings.dialog.storageMode.detectTitle", "检测到已有用户级配置");
+                m.put("settings.dialog.storageMode.confirmTitle", "确认覆盖方式");
+                m.put("settings.dialog.storageMode.appliedTitle", "存储位置已切换");
                 m.put("settings.dialog.storageMode.confirm", "切换到 {0} 后，将自动迁移当前 Coding Switch 数据。\n\n是否继续？");
                 m.put("settings.dialog.storageMode.confirmBackToLocal", "切换到 {0} 后，当前 IDE 会恢复使用自己的本地数据副本。\n\n是否继续？");
                 m.put("settings.dialog.storageMode.confirmProceed", "继续执行");
@@ -107,7 +111,7 @@ public final class I18n {
                 m.put("settings.dialog.storageMode.confirmSharedToLocal",
                                 "你将使用现有用户级数据覆盖当前 IDE 的本地数据。\n\n将写回当前 IDE 本地的总计: {0} 条\n明细: Provider {1} / Prompt {2} / Skill {3} / MCP {4}\n\n当前 IDE 随后会切换到“用户级共享”。\n是否确认继续？");
                 m.put("settings.dialog.storageMode.failed", "数据存储切换失败，请稍后重试。");
-                m.put("settings.dialog.storageMode.switched", "已切换到 {0}，数据迁移完成。\n\n需要重启 IDE 才能让所有面板统一使用新的存储位置。\n是否立即重启 IDE？");
+                m.put("settings.dialog.storageMode.applied", "已切换到 {0}，配置数据已立即生效。");
 
                 // ── Session 面板 ──
                 m.put("session.empty.selectHint", "选择一个会话查看详情");
@@ -433,6 +437,7 @@ public final class I18n {
                 // ── Settings Panel ──
                 m.put("settings.section.versionStatus", "CLI Version Status");
                 m.put("settings.section.installCommands", "Install/Update Commands");
+                m.put("settings.section.storageLocation", "Storage Location");
                 m.put("settings.section.preferences", "Preferences");
                 m.put("settings.table.cli", "CLI");
                 m.put("settings.table.currentVersion", "Current Version");
@@ -463,7 +468,10 @@ public final class I18n {
                 m.put("settings.dialog.languageChanged.title", "Language Changed");
                 m.put("settings.dialog.languageChanged.restartNow", "Restart Now");
                 m.put("settings.dialog.languageChanged.restartLater", "Later");
-                m.put("settings.dialog.storageMode.title", "Data Storage Changed");
+                m.put("settings.dialog.storageMode.title", "Storage Location Changed");
+                m.put("settings.dialog.storageMode.detectTitle", "Existing User Shared Data Detected");
+                m.put("settings.dialog.storageMode.confirmTitle", "Confirm Overwrite Strategy");
+                m.put("settings.dialog.storageMode.appliedTitle", "Storage Location Updated");
                 m.put("settings.dialog.storageMode.confirm", "Switching to {0} will migrate current Coding Switch data automatically.\n\nContinue?");
                 m.put("settings.dialog.storageMode.confirmBackToLocal", "Switching to {0} will restore this IDE to its own local data copy.\n\nContinue?");
                 m.put("settings.dialog.storageMode.confirmProceed", "Proceed");
@@ -478,8 +486,7 @@ public final class I18n {
                 m.put("settings.dialog.storageMode.confirmSharedToLocal",
                                 "You are about to overwrite this IDE's local data with the existing user-shared data.\n\nLocal data after overwrite: {0} item(s)\nBreakdown: Provider {1} / Prompt {2} / Skill {3} / MCP {4}\n\nThis IDE will then switch to User Shared mode.\nContinue?");
                 m.put("settings.dialog.storageMode.failed", "Failed to switch data storage. Please try again.");
-                m.put("settings.dialog.storageMode.switched",
-                                "Switched to {0}. Data migration is complete.\n\nRestart IDE so every panel uses the new storage location.\nRestart now?");
+                m.put("settings.dialog.storageMode.applied", "Switched to {0}. Configuration data is now active immediately.");
 
                 // ── Session Panel ──
                 m.put("session.empty.selectHint", "Select a session to view details");

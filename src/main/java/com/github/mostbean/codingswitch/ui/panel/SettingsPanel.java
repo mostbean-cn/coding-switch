@@ -233,7 +233,7 @@ public class SettingsPanel extends JPanel {
         section.setBorder(
             BorderFactory.createTitledBorder(
                 BorderFactory.createEtchedBorder(),
-                I18n.t("settings.label.dataStorageMode")
+                I18n.t("settings.section.storageLocation")
             )
         );
 
@@ -241,11 +241,11 @@ public class SettingsPanel extends JPanel {
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
 
         JPanel storageRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
-        storageRow.add(new JBLabel(I18n.t("settings.label.dataStorageMode")));
         storageRow.add(createInfoHintIcon(
             I18n.t("settings.hint.dataStorageMode"),
             I18n.t("settings.label.dataStorageMode")
         ));
+        storageRow.add(new JBLabel(I18n.t("settings.label.dataStorageMode")));
 
         JComboBox<PluginSettings.DataStorageMode> storageCombo = new JComboBox<>(
             PluginSettings.DataStorageMode.values()
@@ -501,7 +501,7 @@ public class SettingsPanel extends JPanel {
 
                 int detailedConfirm = Messages.showYesNoDialog(
                     buildStorageOverwriteConfirmMessage(strategy, inspection),
-                    I18n.t("settings.dialog.storageMode.title"),
+                    I18n.t("settings.dialog.storageMode.confirmTitle"),
                     I18n.t("settings.dialog.storageMode.confirmProceed"),
                     I18n.t("settings.dialog.storageMode.confirmNo"),
                     Messages.getQuestionIcon()
@@ -516,7 +516,7 @@ public class SettingsPanel extends JPanel {
                         "settings.dialog.storageMode.confirm",
                         selected.getDisplayName(I18n.currentLanguage())
                     ),
-                    I18n.t("settings.dialog.storageMode.title"),
+                    I18n.t("settings.dialog.storageMode.confirmTitle"),
                     I18n.t("settings.dialog.storageMode.confirmYes"),
                     I18n.t("settings.dialog.storageMode.confirmNo"),
                     Messages.getQuestionIcon()
@@ -532,7 +532,7 @@ public class SettingsPanel extends JPanel {
                     "settings.dialog.storageMode.confirmBackToLocal",
                     selected.getDisplayName(I18n.currentLanguage())
                 ),
-                I18n.t("settings.dialog.storageMode.title"),
+                I18n.t("settings.dialog.storageMode.confirmTitle"),
                 I18n.t("settings.dialog.storageMode.confirmYes"),
                 I18n.t("settings.dialog.storageMode.confirmNo"),
                 Messages.getQuestionIcon()
@@ -549,24 +549,17 @@ public class SettingsPanel extends JPanel {
             storageCombo.setSelectedItem(current);
             Messages.showErrorDialog(
                 I18n.t("settings.dialog.storageMode.failed"),
-                I18n.t("settings.dialog.storageMode.title")
+                I18n.t("settings.dialog.storageMode.confirmTitle")
             );
             return;
         }
-
-        int restart = Messages.showYesNoDialog(
+        Messages.showInfoMessage(
             I18n.t(
-                "settings.dialog.storageMode.switched",
+                "settings.dialog.storageMode.applied",
                 selected.getDisplayName(I18n.currentLanguage())
             ),
-            I18n.t("settings.dialog.storageMode.title"),
-            I18n.t("settings.dialog.languageChanged.restartNow"),
-            I18n.t("settings.dialog.languageChanged.restartLater"),
-            Messages.getInformationIcon()
+            I18n.t("settings.dialog.storageMode.appliedTitle")
         );
-        if (restart == Messages.YES) {
-            ApplicationManager.getApplication().restart();
-        }
     }
 
     private String buildStorageOverwriteConfirmMessage(
@@ -722,7 +715,7 @@ public class SettingsPanel extends JPanel {
         ) {
             super(true);
             this.inspection = inspection;
-            setTitle(I18n.t("settings.dialog.storageMode.title"));
+            setTitle(I18n.t("settings.dialog.storageMode.detectTitle"));
             setResizable(false);
             init();
         }

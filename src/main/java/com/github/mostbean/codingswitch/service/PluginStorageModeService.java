@@ -122,7 +122,7 @@ public final class PluginStorageModeService {
         skillService.notifyStateChanged();
         mcpService.notifyStateChanged();
 
-        return new SwitchResult(true, true, targetMode.name());
+        return new SwitchResult(true, false, targetMode.name());
     }
 
     private static int countProviders(ProviderService.State state) {
