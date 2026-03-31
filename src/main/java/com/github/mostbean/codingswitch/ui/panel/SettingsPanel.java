@@ -264,11 +264,20 @@ public class SettingsPanel extends JPanel {
         langRow.add(langCombo);
         content.add(langRow);
 
-        JPanel tokenRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
-        tokenRow.add(new JBLabel(I18n.t("settings.label.githubToken")));
-        JPasswordField tokenField = new JPasswordField(28);
+        JPanel tokenRow = new JPanel(new BorderLayout(12, 0));
+        tokenRow.setBorder(JBUI.Borders.empty(8, 12, 8, 12));
+
+        JBLabel tokenLabel = new JBLabel(I18n.t("settings.label.githubToken"));
+        tokenLabel.setPreferredSize(
+            new Dimension(JBUI.scale(90), tokenLabel.getPreferredSize().height)
+        );
+        tokenRow.add(tokenLabel, BorderLayout.WEST);
+
+        JPasswordField tokenField = new JPasswordField();
         tokenField.setText(PluginSettings.getInstance().getGithubToken());
-        tokenRow.add(tokenField);
+        tokenField.setMinimumSize(
+            new Dimension(0, tokenField.getPreferredSize().height)
+        );
 
         JToggleButton showToggle = new JToggleButton(
             I18n.t("settings.button.show")
@@ -283,7 +292,6 @@ public class SettingsPanel extends JPanel {
                 )
             );
         });
-        tokenRow.add(showToggle);
 
         JButton saveTokenBtn = new JButton(
             I18n.t("settings.button.saveGithubToken")
@@ -296,7 +304,16 @@ public class SettingsPanel extends JPanel {
                 I18n.t("settings.githubToken.title")
             );
         });
-        tokenRow.add(saveTokenBtn);
+
+        JPanel tokenFieldPanel = new JPanel(new BorderLayout(8, 0));
+        tokenFieldPanel.add(tokenField, BorderLayout.CENTER);
+
+        JPanel tokenActionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        tokenActionPanel.add(showToggle);
+        tokenActionPanel.add(saveTokenBtn);
+        tokenFieldPanel.add(tokenActionPanel, BorderLayout.EAST);
+
+        tokenRow.add(tokenFieldPanel, BorderLayout.CENTER);
         content.add(tokenRow);
 
         JPanel tokenHintRow = new JPanel(
