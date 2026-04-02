@@ -63,7 +63,7 @@ public final class I18n {
                 // ── Settings 面板 ──
                 m.put("settings.section.versionStatus", "CLI 版本状态");
                 m.put("settings.section.installCommands", "安装/更新命令");
-                m.put("settings.section.storageLocation", "存储位置");
+                m.put("settings.section.storageLocation", "数据管理");
                 m.put("settings.section.preferences", "偏好设置");
                 m.put("settings.table.cli", "CLI");
                 m.put("settings.table.currentVersion", "当前版本");
@@ -84,6 +84,7 @@ public final class I18n {
                 m.put("settings.button.hide", "隐藏");
                 m.put("settings.button.saveGithubToken", "保存令牌");
                 m.put("settings.button.applyStorageMode", "应用");
+                m.put("settings.button.openStorageDirectory", "打开目录");
                 m.put("settings.hint.githubToken", "可选。配置 GitHub 令牌可提升 API 速率限制（仅影响 GitHub Skills 仓库）。");
                 m.put("settings.hint.dataStorageMode", "Coding Switch 默认将配置数据保存在当前 IDE 的本地目录中。如需在 JetBrains 全家桶之间共享配置，请切换到“用户级共享”。");
                 m.put("settings.githubToken.title", "设置");
@@ -112,6 +113,7 @@ public final class I18n {
                                 "你将使用现有用户级数据覆盖当前 IDE 的本地数据。\n\n将写回当前 IDE 本地的总计: {0} 条\n明细: Provider {1} / Prompt {2} / Skill {3} / MCP {4}\n\n当前 IDE 随后会切换到“用户级共享”。\n是否确认继续？");
                 m.put("settings.dialog.storageMode.failed", "数据存储切换失败，请稍后重试。");
                 m.put("settings.dialog.storageMode.applied", "已切换到 {0}，配置数据已立即生效。");
+                m.put("settings.dialog.storageDirectory.openFailed", "打开数据目录失败: {0}");
 
                 // ── Session 面板 ──
                 m.put("session.empty.selectHint", "选择一个会话查看详情");
@@ -440,7 +442,7 @@ public final class I18n {
                 // ── Settings Panel ──
                 m.put("settings.section.versionStatus", "CLI Version Status");
                 m.put("settings.section.installCommands", "Install/Update Commands");
-                m.put("settings.section.storageLocation", "Storage Location");
+                m.put("settings.section.storageLocation", "Data Management");
                 m.put("settings.section.preferences", "Preferences");
                 m.put("settings.table.cli", "CLI");
                 m.put("settings.table.currentVersion", "Current Version");
@@ -461,6 +463,7 @@ public final class I18n {
                 m.put("settings.button.hide", "Hide");
                 m.put("settings.button.saveGithubToken", "Save Token");
                 m.put("settings.button.applyStorageMode", "Apply");
+                m.put("settings.button.openStorageDirectory", "Open Directory");
                 m.put("settings.hint.githubToken", "Optional. Increases GitHub API rate limit (only affects GitHub Skills repositories).");
                 m.put("settings.hint.dataStorageMode", "Coding Switch stores configuration data in the current IDE's local directory by default. Switch to \"User Shared\" if you want to reuse configuration across JetBrains IDEs.");
                 m.put("settings.githubToken.title", "Settings");
@@ -490,6 +493,7 @@ public final class I18n {
                                 "You are about to overwrite this IDE's local data with the existing user-shared data.\n\nLocal data after overwrite: {0} item(s)\nBreakdown: Provider {1} / Prompt {2} / Skill {3} / MCP {4}\n\nThis IDE will then switch to User Shared mode.\nContinue?");
                 m.put("settings.dialog.storageMode.failed", "Failed to switch data storage. Please try again.");
                 m.put("settings.dialog.storageMode.applied", "Switched to {0}. Configuration data is now active immediately.");
+                m.put("settings.dialog.storageDirectory.openFailed", "Failed to open data directory: {0}");
 
                 // ── Session Panel ──
                 m.put("session.empty.selectHint", "Select a session to view details");

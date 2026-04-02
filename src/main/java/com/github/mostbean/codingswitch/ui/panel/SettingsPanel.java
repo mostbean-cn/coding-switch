@@ -3,10 +3,12 @@ package com.github.mostbean.codingswitch.ui.panel;
 import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.service.CliVersionService;
 import com.github.mostbean.codingswitch.service.I18n;
+import com.github.mostbean.codingswitch.service.PluginDataStorage;
 import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.PluginStorageModeService;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.PathManager;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.ui.JBColor;
@@ -18,6 +20,7 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Cursor;
+import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -28,6 +31,9 @@ import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import javax.swing.BorderFactory;
@@ -282,6 +288,16 @@ public class SettingsPanel extends JPanel {
         );
         applyStorageBtn.addActionListener(e -> onStorageModeChanged(storageCombo));
         storageRow.add(applyStorageBtn);
+
+        JButton openStorageDirBtn = new JButton(
+            I18n.t("settings.button.openStorageDirectory")
+        );
+        openStorageDirBtn.addActionListener(e ->
+            openStorageDirectory(
+                (PluginSettings.DataStorageMode) storageCombo.getSelectedItem()
+            )
+        );
+        storageRow.add(openStorageDirBtn);
         content.add(storageRow);
 
         section.add(content, BorderLayout.NORTH);
@@ -570,6 +586,34 @@ public class SettingsPanel extends JPanel {
             ),
             I18n.t("settings.dialog.storageMode.appliedTitle")
         );
+    }
+
+    private void openStorageDirectory(PluginSettings.DataStorageMode mode) {
+        PluginSettings.DataStorageMode targetMode =
+            mode != null ? mode : PluginSettings.getInstance().getStorageMode();
+        Path directory = resolveStorageDirectory(targetMode);
+
+        try {
+            Files.createDirectories(directory);
+            if (!Desktop.isDesktopSupported()) {
+                throw new IOException("desktop-not-supported");
+            }
+            Desktop.getDesktop().open(directory.toFile());
+        } catch (Exception ex) {
+            Messages.showErrorDialog(
+                I18n.t(
+                    "settings.dialog.storageDirectory.openFailed",
+                    directory.toString()
+                ),
+                I18n.t("settings.section.storageLocation")
+            );
+        }
+    }
+
+    private Path resolveStorageDirectory(PluginSettings.DataStorageMode mode) {
+        return mode == PluginSettings.DataStorageMode.USER_SHARED
+            ? PluginDataStorage.getUserSharedRootDir()
+            : Path.of(PathManager.getOptionsPath());
     }
 
     private String buildStorageOverwriteConfirmMessage(
