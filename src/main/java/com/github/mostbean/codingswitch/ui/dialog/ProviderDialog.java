@@ -70,6 +70,9 @@ public class ProviderDialog extends DialogWrapper {
     private final JComboBox<String> claudeDangerousMode = new JComboBox<>(new String[] {
             DEFAULT_OPTION_LABEL, I18n.t("providerDialog.dangerousMode.skipPermissions"),
             I18n.t("providerDialog.dangerousMode.skipAll") });
+    private final JComboBox<String> claudeNoFlickerMode = new JComboBox<>(new String[] {
+            DEFAULT_OPTION_LABEL, I18n.t("providerDialog.noFlickerMode.enabled"),
+            I18n.t("providerDialog.noFlickerMode.enabledDisableMouse") });
 
     private final JTextField codexApiKey = new JTextField(30);
     private final JTextField codexBaseUrl = new JTextField(30);
@@ -364,6 +367,9 @@ public class ProviderDialog extends DialogWrapper {
             if (!updatingFromPreview) updatePreview();
         });
         claudeDangerousMode.addActionListener(e -> {
+            if (!updatingFromPreview) updatePreview();
+        });
+        claudeNoFlickerMode.addActionListener(e -> {
             if (!updatingFromPreview) updatePreview();
         });
 
@@ -881,6 +887,7 @@ public class ProviderDialog extends DialogWrapper {
                 claudeTeamModeEnabled.setSelected(false);
                 claudeToolSearchEnabled.setSelected(false);
                 claudeDangerousMode.setSelectedIndex(0);
+                claudeNoFlickerMode.setSelectedIndex(0);
             }
             case CODEX -> {
                 codexApiKey.setText("");
@@ -943,6 +950,7 @@ public class ProviderDialog extends DialogWrapper {
                 .addSeparator(8)
                 .addLabeledComponent(I18n.t("providerDialog.label.alwaysThinkingEnabled"), thinkingRow)
                 .addLabeledComponent(I18n.t("providerDialog.label.dangerousMode"), claudeDangerousMode)
+                .addLabeledComponent(I18n.t("providerDialog.label.noFlickerMode"), claudeNoFlickerMode)
                 .addComponent(featureRow)
                 .getPanel();
         return wrapWithTitledBorder(form, I18n.t("providerDialog.border.claude"));
@@ -1171,6 +1179,17 @@ public class ProviderDialog extends DialogWrapper {
         boolean toolSearchEnabled = env.has("ENABLE_TOOL_SEARCH")
                 && "true".equalsIgnoreCase(env.get("ENABLE_TOOL_SEARCH").getAsString());
         claudeToolSearchEnabled.setSelected(toolSearchEnabled);
+        boolean noFlickerEnabled = env.has("CLAUDE_CODE_NO_FLICKER")
+                && "true".equalsIgnoreCase(env.get("CLAUDE_CODE_NO_FLICKER").getAsString());
+        boolean disableMouseEnabled = env.has("CLAUDE_CODE_DISABLE_MOUSE")
+                && "true".equalsIgnoreCase(env.get("CLAUDE_CODE_DISABLE_MOUSE").getAsString());
+        if (disableMouseEnabled) {
+            claudeNoFlickerMode.setSelectedItem(I18n.t("providerDialog.noFlickerMode.enabledDisableMouse"));
+        } else if (noFlickerEnabled) {
+            claudeNoFlickerMode.setSelectedItem(I18n.t("providerDialog.noFlickerMode.enabled"));
+        } else {
+            claudeNoFlickerMode.setSelectedIndex(0);
+        }
 
         boolean dangerousSkip = config.has("dangerouslySkipPermissions")
                 && config.get("dangerouslySkipPermissions").getAsBoolean();
@@ -1324,6 +1343,15 @@ public class ProviderDialog extends DialogWrapper {
         }
         if (claudeToolSearchEnabled.isSelected()) {
             env.addProperty("ENABLE_TOOL_SEARCH", "true");
+        }
+        String noFlickerMode = (String) claudeNoFlickerMode.getSelectedItem();
+        String noFlickerEnabledLabel = I18n.t("providerDialog.noFlickerMode.enabled");
+        String noFlickerDisableMouseLabel = I18n.t("providerDialog.noFlickerMode.enabledDisableMouse");
+        if (noFlickerDisableMouseLabel.equals(noFlickerMode)) {
+            env.addProperty("CLAUDE_CODE_NO_FLICKER", "true");
+            env.addProperty("CLAUDE_CODE_DISABLE_MOUSE", "true");
+        } else if (noFlickerEnabledLabel.equals(noFlickerMode)) {
+            env.addProperty("CLAUDE_CODE_NO_FLICKER", "true");
         }
         String effortLevel = (String) claudeEffortLevel.getSelectedItem();
         if (effortLevel != null && !effortLevel.isEmpty()) {
@@ -1529,7 +1557,9 @@ public class ProviderDialog extends DialogWrapper {
                 "ANTHROPIC_DEFAULT_SONNET_MODEL",
                 "ANTHROPIC_DEFAULT_OPUS_MODEL",
                 "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS",
-                "ENABLE_TOOL_SEARCH"));
+                "ENABLE_TOOL_SEARCH",
+                "CLAUDE_CODE_NO_FLICKER",
+                "CLAUDE_CODE_DISABLE_MOUSE"));
         merged.add("env", mergedEnv);
     }
 
