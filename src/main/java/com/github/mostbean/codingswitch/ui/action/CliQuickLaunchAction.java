@@ -10,8 +10,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.project.DumbAwareAction;
-import java.io.IOException;
-import org.jetbrains.plugins.terminal.ShellTerminalWidget;
+import com.intellij.terminal.ui.TerminalWidget;
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager;
 import org.jetbrains.annotations.NotNull;
 
@@ -81,7 +80,6 @@ public class CliQuickLaunchAction extends DumbAwareAction {
     /**
      * 在 IDE 内置终端中执行命令。
      */
-    @SuppressWarnings("removal")
     private void executeInTerminal(
         Project project,
         String workingDir,
@@ -89,25 +87,23 @@ public class CliQuickLaunchAction extends DumbAwareAction {
     ) {
         TerminalToolWindowManager terminalManager =
             TerminalToolWindowManager.getInstance(project);
-        Runnable runCommand = () -> {
-            try {
-                ShellTerminalWidget terminalWidget =
-                    terminalManager.createLocalShellWidget(workingDir, item.name);
-                if (terminalWidget == null) {
-                    showExecutionError(I18n.t("cliQuickLaunch.noCommand"));
-                    return;
-                }
-                terminalWidget.executeCommand(item.command);
-            } catch (IOException ex) {
-                showExecutionError(ex.getMessage());
-            }
-        };
+        try {
+            TerminalWidget terminalWidget = terminalManager.createShellWidget(
+                workingDir,
+                item.name,
+                true,
+                true
+            );
+            terminalWidget.sendCommandToExecute(item.command);
 
-        ToolWindow toolWindow = terminalManager.getToolWindow();
-        if (toolWindow != null) {
-            toolWindow.activate(runCommand, true, true);
-        } else {
-            runCommand.run();
+            ToolWindow toolWindow = terminalManager.getToolWindow();
+            if (toolWindow != null) {
+                toolWindow.activate(terminalWidget::requestFocus, true, true);
+            } else {
+                terminalWidget.requestFocus();
+            }
+        } catch (RuntimeException ex) {
+            showExecutionError(ex.getMessage());
         }
     }
 
