@@ -48,7 +48,8 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
 
     private State myState = new State();
     private final List<Runnable> changeListeners = new ArrayList<>();
-    private CodexActivationResult lastActivationResult = CodexActivationResult.notApplicable();
+    private CodexActivationResult lastCodexActivationResult = CodexActivationResult.notApplicable();
+    private GeminiActivationResult lastGeminiActivationResult = GeminiActivationResult.notApplicable();
 
     public static ProviderService getInstance() {
         return ApplicationManager.getApplication().getService(ProviderService.class);
@@ -132,6 +133,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
 
     public void removeProvider(String providerId) {
         CodexAuthSnapshotService.getInstance().clearSnapshot(providerId);
+        GeminiAuthSnapshotService.getInstance().clearSnapshot(providerId);
         List<Provider> providers = new ArrayList<>(getProviders());
         providers.removeIf(p -> p.getId().equals(providerId));
         saveProviders(providers);
@@ -166,6 +168,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             throw new IllegalArgumentException("Provider not found: " + providerId);
         }
         capturePreviousCodexSnapshot(previousActive);
+        capturePreviousGeminiSnapshot(previousActive);
 
         // 同一 CLI 类型下只能有一个 active（OpenCode 除外，它是 additive 模式）
         for (Provider p : providers) {
@@ -178,11 +181,16 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
 
         saveProviders(providers);
         writeToLiveConfig(target);
-        lastActivationResult = switchCodexAuthStateIfNeeded(target);
+        lastCodexActivationResult = switchCodexAuthStateIfNeeded(target);
+        lastGeminiActivationResult = switchGeminiAuthStateIfNeeded(target);
     }
 
-    public CodexActivationResult getLastActivationResult() {
-        return lastActivationResult;
+    public CodexActivationResult getLastCodexActivationResult() {
+        return lastCodexActivationResult;
+    }
+
+    public GeminiActivationResult getLastGeminiActivationResult() {
+        return lastGeminiActivationResult;
     }
 
     /**
@@ -371,6 +379,8 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
 
             svc.writeFile(path, sb.toString());
         }
+
+        syncGeminiSelectedAuthType(svc, config);
     }
 
     /**
@@ -489,6 +499,22 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         return !auth.get("OPENAI_API_KEY").getAsString().isBlank();
     }
 
+    private static boolean hasGeminiApiKey(JsonObject config) {
+        if (config == null || !config.has("env") || !config.get("env").isJsonObject()) {
+            return false;
+        }
+        JsonObject env = config.getAsJsonObject("env");
+        if (!env.has("GEMINI_API_KEY") || env.get("GEMINI_API_KEY").isJsonNull()) {
+            return false;
+        }
+        return !env.get("GEMINI_API_KEY").getAsString().isBlank();
+    }
+
+    private void syncGeminiSelectedAuthType(ConfigFileService svc, JsonObject config) throws IOException {
+        String selectedAuthType = hasGeminiApiKey(config) ? "gemini-api-key" : "oauth-personal";
+        svc.writeGeminiSelectedAuthType(selectedAuthType);
+    }
+
     private void capturePreviousCodexSnapshot(Provider previousActive) {
         if (previousActive == null || previousActive.getCliType() != CliType.CODEX
                 || previousActive.getAuthMode() != AuthMode.OFFICIAL_LOGIN) {
@@ -508,6 +534,28 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             case RESTORED -> CodexActivationResult.snapshotRestored();
             case NO_SNAPSHOT -> CodexActivationResult.loginRequired();
             case INVALID_SNAPSHOT -> CodexActivationResult.snapshotInvalid();
+        };
+    }
+
+    private void capturePreviousGeminiSnapshot(Provider previousActive) {
+        if (previousActive == null || previousActive.getCliType() != CliType.GEMINI
+                || previousActive.getAuthMode() != AuthMode.OFFICIAL_LOGIN) {
+            return;
+        }
+        GeminiAuthSnapshotService.getInstance().captureFromLive(previousActive.getId());
+    }
+
+    private GeminiActivationResult switchGeminiAuthStateIfNeeded(Provider target) throws IOException {
+        if (target.getCliType() != CliType.GEMINI || target.getAuthMode() != AuthMode.OFFICIAL_LOGIN) {
+            return GeminiActivationResult.notApplicable();
+        }
+
+        GeminiAuthSnapshotService.RestoreResult restoreResult = GeminiAuthSnapshotService.getInstance()
+                .restoreToLive(target.getId());
+        return switch (restoreResult) {
+            case RESTORED -> GeminiActivationResult.snapshotRestored();
+            case NO_SNAPSHOT -> GeminiActivationResult.loginRequired();
+            case INVALID_SNAPSHOT -> GeminiActivationResult.snapshotInvalid();
         };
     }
 

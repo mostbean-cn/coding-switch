@@ -117,6 +117,14 @@ public final class ConfigFileService {
         return getConfigDir(CliType.GEMINI).resolve("skills");
     }
 
+    public Path getGeminiOAuthFilePath() {
+        return getConfigDir(CliType.GEMINI).resolve("oauth_creds.json");
+    }
+
+    public Path getGeminiGoogleAccountsFilePath() {
+        return getConfigDir(CliType.GEMINI).resolve("google_accounts.json");
+    }
+
     // =====================================================================
     // 文件读写
     // =====================================================================
@@ -198,6 +206,61 @@ public final class ConfigFileService {
 
     public void deleteCodexAuthFile() throws IOException {
         Files.deleteIfExists(getCodexAuthFilePath());
+    }
+
+    public String readGeminiOAuthRaw() {
+        return readFile(getGeminiOAuthFilePath());
+    }
+
+    public void writeGeminiOAuthRaw(String rawOAuthJson) throws IOException {
+        writeFile(getGeminiOAuthFilePath(), rawOAuthJson);
+    }
+
+    public void deleteGeminiOAuthFile() throws IOException {
+        Files.deleteIfExists(getGeminiOAuthFilePath());
+    }
+
+    public String readGeminiGoogleAccountsRaw() {
+        return readFile(getGeminiGoogleAccountsFilePath());
+    }
+
+    public void writeGeminiGoogleAccountsRaw(String rawGoogleAccountsJson) throws IOException {
+        writeFile(getGeminiGoogleAccountsFilePath(), rawGoogleAccountsJson);
+    }
+
+    public void deleteGeminiGoogleAccountsFile() throws IOException {
+        Files.deleteIfExists(getGeminiGoogleAccountsFilePath());
+    }
+
+    public void writeGeminiSelectedAuthType(String selectedType) throws IOException {
+        Path path = getMcpConfigPath(CliType.GEMINI);
+        JsonObject root = readJsonFile(path);
+        JsonObject security = root.has("security") && root.get("security").isJsonObject()
+                ? root.getAsJsonObject("security")
+                : new JsonObject();
+        JsonObject auth = security.has("auth") && security.get("auth").isJsonObject()
+                ? security.getAsJsonObject("auth")
+                : new JsonObject();
+
+        if (selectedType == null || selectedType.isBlank()) {
+            auth.remove("selectedType");
+        } else {
+            auth.addProperty("selectedType", selectedType);
+        }
+
+        if (auth.keySet().isEmpty()) {
+            security.remove("auth");
+        } else {
+            security.add("auth", auth);
+        }
+
+        if (security.keySet().isEmpty()) {
+            root.remove("security");
+        } else {
+            root.add("security", security);
+        }
+
+        writeJsonFile(path, root);
     }
 
     public CodexAuthSupport.CodexAuthState detectCodexAuthState() {
