@@ -51,10 +51,11 @@ public class CliQuickLaunchGroup extends DefaultActionGroup {
         PluginSettings settings = PluginSettings.getInstance();
         List<AnAction> actions = new ArrayList<>();
         actions.add(new CliQuickLaunchAction());
+        actions.add(new InsertFilePathAction());
 
         String selectedCommand = settings.getCliQuickLaunchSelectedCommand();
         for (PluginSettings.CliQuickLaunchItem item : settings.getCliQuickLaunchItems()) {
-            if (actions.size() == 1) {
+            if (actions.size() == 2) {
                 actions.add(Separator.getInstance());
             }
             boolean isSelected = item.command.equals(selectedCommand);
