@@ -7,6 +7,7 @@ import com.github.mostbean.codingswitch.service.PluginDataStorage;
 import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.PluginStorageModeService;
 import com.intellij.icons.AllIcons;
+import com.intellij.ide.ActivityTracker;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.PathManager;
 import com.intellij.openapi.ui.DialogWrapper;
@@ -44,9 +45,13 @@ import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JComboBox;
+import javax.swing.JLabel;
 import javax.swing.JList;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
+import javax.swing.JScrollPane;
+import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JToggleButton;
@@ -54,6 +59,7 @@ import javax.swing.Scrollable;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
+import javax.swing.table.DefaultTableModel;
 
 /**
  * 设置面板：CLI 版本检测 + 安装命令 + 语言设置。
@@ -64,6 +70,14 @@ public class SettingsPanel extends JPanel {
     private final Map<CliType, JBLabel> currentLabels = new LinkedHashMap<>();
     private final Map<CliType, JBLabel> latestLabels = new LinkedHashMap<>();
     private final Map<CliType, JTextField> commandFields = new LinkedHashMap<>();
+
+    // CLI Quick Launch UI components
+    private JComboBox<String> cliQuickLaunchEnabledCombo;
+    private JTable cliCommandTable;
+    private DefaultTableModel cliCommandTableModel;
+    private JScrollPane cliCommandTableScrollPane;
+    private JPanel cliCommandTableContainer;
+    private JToggleButton cliCommandTableToggle;
 
     public SettingsPanel() {
         setLayout(new BorderLayout());
@@ -82,6 +96,9 @@ public class SettingsPanel extends JPanel {
         mainPanel.add(Box.createVerticalStrut(16));
 
         mainPanel.add(buildStorageSection());
+        mainPanel.add(Box.createVerticalStrut(16));
+
+        mainPanel.add(buildCliQuickLaunchSection());
         mainPanel.add(Box.createVerticalStrut(16));
 
         mainPanel.add(buildLanguageSection());
@@ -424,6 +441,271 @@ public class SettingsPanel extends JPanel {
         section.add(content, BorderLayout.NORTH);
         section.add(hintLabel, BorderLayout.CENTER);
         return section;
+    }
+
+    /**
+     * CLI 快速启动配置区域：开关 + 命令列表表格 + 添加/移除按钮。
+     */
+    private JPanel buildCliQuickLaunchSection() {
+        JPanel section = new JPanel(new BorderLayout());
+        section.setBorder(
+            BorderFactory.createTitledBorder(
+                BorderFactory.createEtchedBorder(),
+                I18n.t("settings.section.cliQuickLaunch")
+            )
+        );
+
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+
+        // 启用开关行
+        JPanel enableRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
+        enableRow.add(createInfoHintIcon(
+            I18n.t("settings.hint.cliQuickLaunch"),
+            I18n.t("settings.section.cliQuickLaunch")
+        ));
+
+        enableRow.add(new JBLabel(I18n.t("settings.label.enableCliQuickLaunch")));
+
+        cliQuickLaunchEnabledCombo = new JComboBox<>(
+            new String[] {
+                I18n.t("settings.option.enabled"),
+                I18n.t("settings.option.disabled")
+            }
+        );
+        cliQuickLaunchEnabledCombo.setSelectedItem(
+            PluginSettings.getInstance().isCliQuickLaunchEnabled()
+                ? I18n.t("settings.option.enabled")
+                : I18n.t("settings.option.disabled")
+        );
+        cliQuickLaunchEnabledCombo.addActionListener(e -> {
+            PluginSettings.getInstance().setCliQuickLaunchEnabled(
+                I18n.t("settings.option.enabled").equals(
+                    cliQuickLaunchEnabledCombo.getSelectedItem()
+                )
+            );
+            ActivityTracker.getInstance().inc();
+        });
+        enableRow.add(cliQuickLaunchEnabledCombo);
+        content.add(enableRow);
+
+        // 命令列表区域
+        JPanel tableArea = new JPanel(new BorderLayout(0, 4));
+        tableArea.setBorder(JBUI.Borders.empty(4, 20, 0, 0));
+
+        JPanel tableHeader = new JPanel(new BorderLayout(8, 0));
+        JLabel tableTitle = new JLabel(I18n.t("settings.label.cliLaunchCommands"));
+        tableTitle.setFont(tableTitle.getFont().deriveFont(Font.BOLD));
+        tableHeader.add(tableTitle, BorderLayout.WEST);
+
+        cliCommandTableToggle = new JToggleButton(I18n.t("settings.button.show"));
+        cliCommandTableToggle.addActionListener(e -> updateCliCommandTableCollapsedState());
+        tableHeader.add(cliCommandTableToggle, BorderLayout.EAST);
+        tableArea.add(tableHeader, BorderLayout.NORTH);
+
+        // 表格：名称 | 命令
+        String[] columns = {
+            I18n.t("settings.table.col.name"),
+            I18n.t("settings.table.col.command")
+        };
+        cliCommandTableModel = new DefaultTableModel(columns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) { return false; }
+        };
+        loadCliCommandsToTable();
+
+        cliCommandTable = new JTable(cliCommandTableModel);
+        cliCommandTable.setRowHeight(JBUI.scale(24));
+        cliCommandTable.getColumnModel().getColumn(0).setPreferredWidth(JBUI.scale(120));
+        cliCommandTable.getColumnModel().getColumn(1).setPreferredWidth(JBUI.scale(200));
+        cliCommandTable.getTableHeader().setReorderingAllowed(false);
+
+        cliCommandTableScrollPane = new JScrollPane(cliCommandTable);
+        updateCliCommandTableViewportHeight();
+
+        // 按钮行
+        JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
+
+        JButton addButton = new JButton(I18n.t("settings.button.addCliCommand"));
+        addButton.setIcon(AllIcons.General.Add);
+        addButton.addActionListener(e -> showAddOrEditDialog(-1));
+        btnRow.add(addButton);
+
+        JButton editButton = new JButton(AllIcons.Actions.Edit);
+        editButton.setToolTipText("Edit");
+        editButton.setPreferredSize(new Dimension(JBUI.scale(28), JBUI.scale(24)));
+        editButton.addActionListener(e -> {
+            int row = cliCommandTable.getSelectedRow();
+            if (row >= 0) showAddOrEditDialog(row);
+        });
+        btnRow.add(editButton);
+
+        JButton removeButton = new JButton(I18n.t("settings.button.removeCliCommand"));
+        removeButton.setIcon(AllIcons.General.Remove);
+        removeButton.addActionListener(e -> {
+            int row = cliCommandTable.getSelectedRow();
+            if (row >= 0) {
+                cliCommandTableModel.removeRow(row);
+                updateCliCommandTableViewportHeight();
+            }
+        });
+        btnRow.add(removeButton);
+
+        JButton saveBtn = new JButton(I18n.t("settings.button.saveCliQuickLaunch"));
+        saveBtn.addActionListener(e -> saveCliQuickLaunchConfig());
+        btnRow.add(saveBtn);
+
+        btnRow.add(Box.createHorizontalGlue());
+
+        cliCommandTableContainer = new JPanel(new BorderLayout(0, 4));
+        cliCommandTableContainer.add(cliCommandTableScrollPane, BorderLayout.CENTER);
+        cliCommandTableContainer.add(btnRow, BorderLayout.SOUTH);
+        tableArea.add(cliCommandTableContainer, BorderLayout.CENTER);
+
+        content.add(tableArea);
+        updateCliCommandTableCollapsedState();
+
+        section.add(content, BorderLayout.NORTH);
+        return section;
+    }
+
+    private void loadCliCommandsToTable() {
+        cliCommandTableModel.setRowCount(0);
+        for (PluginSettings.CliQuickLaunchItem item : PluginSettings.getInstance().getCliQuickLaunchItems()) {
+            cliCommandTableModel.addRow(new Object[]{item.name, item.command});
+        }
+        updateCliCommandTableViewportHeight();
+    }
+
+    private void showAddOrEditDialog(int editRowIndex) {
+        String title = editRowIndex < 0
+            ? I18n.t("settings.dialog.cliCommand.addTitle")
+            : I18n.t("settings.dialog.cliCommand.editTitle");
+
+        String defaultName = "";
+        String defaultCmd = "";
+        if (editRowIndex >= 0) {
+            defaultName = String.valueOf(cliCommandTableModel.getValueAt(editRowIndex, 0));
+            defaultCmd = String.valueOf(cliCommandTableModel.getValueAt(editRowIndex, 1));
+        }
+
+        JTextField nameField = new JTextField(defaultName, 16);
+        JTextField cmdField = new JTextField(defaultCmd, 30);
+
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBorder(JBUI.Borders.empty(12));
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = JBUI.insets(4, 8);
+        gbc.anchor = GridBagConstraints.WEST;
+
+        gbc.gridy = 0;
+        gbc.gridx = 0;
+        panel.add(new JLabel(I18n.t("settings.dialog.cliCommand.name")), gbc);
+        gbc.gridx = 1;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
+        panel.add(nameField, gbc);
+
+        gbc.gridy = 1;
+        gbc.gridx = 0;
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.weightx = 0;
+        panel.add(new JLabel(I18n.t("settings.dialog.cliCommand.command")), gbc);
+        gbc.gridx = 1;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
+        panel.add(cmdField, gbc);
+
+        int result = JOptionPane.showConfirmDialog(
+            this,
+            panel,
+            title,
+            JOptionPane.OK_CANCEL_OPTION,
+            JOptionPane.PLAIN_MESSAGE
+        );
+
+        if (result == JOptionPane.OK_OPTION) {
+            String name = nameField.getText().trim();
+            String command = cmdField.getText().trim();
+            if (name.isEmpty() || command.isEmpty()) {
+                return;
+            }
+            if (editRowIndex >= 0) {
+                cliCommandTableModel.setValueAt(name, editRowIndex, 0);
+                cliCommandTableModel.setValueAt(command, editRowIndex, 1);
+            } else {
+                cliCommandTableModel.addRow(new Object[]{name, command});
+                updateCliCommandTableViewportHeight();
+            }
+        }
+    }
+
+    private void saveCliQuickLaunchConfig() {
+        boolean enabled = I18n.t("settings.option.enabled").equals(
+            cliQuickLaunchEnabledCombo.getSelectedItem()
+        );
+
+        java.util.List<PluginSettings.CliQuickLaunchItem> items = new java.util.ArrayList<>();
+        for (int i = 0; i < cliCommandTableModel.getRowCount(); i++) {
+            String name = String.valueOf(cliCommandTableModel.getValueAt(i, 0)).trim();
+            String command = String.valueOf(cliCommandTableModel.getValueAt(i, 1)).trim();
+            if (!name.isEmpty() && !command.isEmpty()) {
+                items.add(new PluginSettings.CliQuickLaunchItem(name, command));
+            }
+        }
+
+        PluginSettings settings = PluginSettings.getInstance();
+        settings.setCliQuickLaunchEnabled(enabled);
+        settings.setCliQuickLaunchItems(items);
+
+        // 当前选择为空或已经失效时，自动回退到第一项；列表为空则清空选择。
+        String selectedCmd = settings.getCliQuickLaunchSelectedCommand();
+        boolean selectedExists = false;
+        for (PluginSettings.CliQuickLaunchItem item : items) {
+            if (item.command.equals(selectedCmd)) {
+                selectedExists = true;
+                break;
+            }
+        }
+        if (items.isEmpty()) {
+            settings.setCliQuickLaunchSelectedCommand("");
+        } else if (selectedCmd == null || selectedCmd.isEmpty() || !selectedExists) {
+            settings.setCliQuickLaunchSelectedCommand(items.get(0).command);
+        }
+
+        Messages.showInfoMessage(
+            I18n.t("cliQuickLaunch.saved"),
+            I18n.t("cliQuickLaunch.savedTitle")
+        );
+    }
+
+    private void updateCliCommandTableViewportHeight() {
+        if (cliCommandTable == null || cliCommandTableScrollPane == null) {
+            return;
+        }
+
+        int visibleRows = Math.max(1, Math.min(cliCommandTable.getRowCount(), 4));
+        int headerHeight = cliCommandTable.getTableHeader() == null
+            ? 0
+            : cliCommandTable.getTableHeader().getPreferredSize().height;
+        int height = headerHeight + cliCommandTable.getRowHeight() * visibleRows + JBUI.scale(2);
+
+        cliCommandTableScrollPane.setPreferredSize(new Dimension(0, height));
+        cliCommandTableScrollPane.revalidate();
+    }
+
+    private void updateCliCommandTableCollapsedState() {
+        if (cliCommandTableContainer == null || cliCommandTableToggle == null) {
+            return;
+        }
+
+        boolean expanded = cliCommandTableToggle.isSelected();
+        cliCommandTableContainer.setVisible(expanded);
+        cliCommandTableToggle.setText(
+            I18n.t(expanded ? "settings.button.hide" : "settings.button.show")
+        );
+        revalidate();
+        repaint();
     }
 
     private JPanel createWrappedHintRow(String text) {

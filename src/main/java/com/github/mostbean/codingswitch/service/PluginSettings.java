@@ -5,6 +5,8 @@ import com.intellij.openapi.components.PersistentStateComponent;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.components.State;
 import com.intellij.openapi.components.Storage;
+import java.util.ArrayList;
+import java.util.List;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -93,10 +95,25 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         }
     }
 
+    public static class CliQuickLaunchItem {
+        public String name = "";
+        public String command = "";
+
+        public CliQuickLaunchItem() {}
+
+        public CliQuickLaunchItem(String name, String command) {
+            this.name = name == null ? "" : name;
+            this.command = command == null ? "" : command;
+        }
+    }
+
     public static class State {
         public String language = Language.ZH.name();
         public String githubToken = "";
         public String storageMode = DataStorageMode.IDE_LOCAL.name();
+        public boolean cliQuickLaunchEnabled = false;
+        public List<CliQuickLaunchItem> cliQuickLaunchItems = new ArrayList<>();
+        public String cliQuickLaunchSelectedCommand = "";
     }
 
     private State state = new State();
@@ -140,6 +157,43 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         saveActiveState(active);
     }
 
+    public boolean isCliQuickLaunchEnabled() {
+        State active = getActiveState();
+        return active.cliQuickLaunchEnabled;
+    }
+
+    public void setCliQuickLaunchEnabled(boolean enabled) {
+        State active = getActiveState();
+        active.cliQuickLaunchEnabled = enabled;
+        saveActiveState(active);
+    }
+
+    public List<CliQuickLaunchItem> getCliQuickLaunchItems() {
+        State active = getActiveState();
+        return active.cliQuickLaunchItems == null
+            ? new ArrayList<>()
+            : new ArrayList<>(active.cliQuickLaunchItems);
+    }
+
+    public void setCliQuickLaunchItems(List<CliQuickLaunchItem> items) {
+        State active = getActiveState();
+        active.cliQuickLaunchItems = items == null
+            ? new ArrayList<>()
+            : new ArrayList<>(items);
+        saveActiveState(active);
+    }
+
+    public String getCliQuickLaunchSelectedCommand() {
+        State active = getActiveState();
+        return active.cliQuickLaunchSelectedCommand == null ? "" : active.cliQuickLaunchSelectedCommand;
+    }
+
+    public void setCliQuickLaunchSelectedCommand(String command) {
+        State active = getActiveState();
+        active.cliQuickLaunchSelectedCommand = command == null ? "" : command;
+        saveActiveState(active);
+    }
+
     public boolean isChinese() {
         return getLanguage() == Language.ZH;
     }
@@ -162,6 +216,9 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         snapshot.language = active.language;
         snapshot.githubToken = active.githubToken;
         snapshot.storageMode = getStorageMode().name();
+        snapshot.cliQuickLaunchEnabled = active.cliQuickLaunchEnabled;
+        snapshot.cliQuickLaunchItems = active.cliQuickLaunchItems == null ? new ArrayList<>() : new ArrayList<>(active.cliQuickLaunchItems);
+        snapshot.cliQuickLaunchSelectedCommand = active.cliQuickLaunchSelectedCommand;
         return normalizeState(snapshot);
     }
 
@@ -209,6 +266,11 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         snapshot.language = state.language;
         snapshot.githubToken = state.githubToken;
         snapshot.storageMode = state.storageMode;
+        snapshot.cliQuickLaunchEnabled = state.cliQuickLaunchEnabled;
+        snapshot.cliQuickLaunchItems = state.cliQuickLaunchItems == null
+            ? new ArrayList<>()
+            : new ArrayList<>(state.cliQuickLaunchItems);
+        snapshot.cliQuickLaunchSelectedCommand = state.cliQuickLaunchSelectedCommand;
         return normalizeState(snapshot);
     }
 
@@ -222,6 +284,12 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         }
         if (normalized.storageMode == null || normalized.storageMode.isBlank()) {
             normalized.storageMode = DataStorageMode.IDE_LOCAL.name();
+        }
+        if (normalized.cliQuickLaunchItems == null) {
+            normalized.cliQuickLaunchItems = new ArrayList<>();
+        }
+        if (normalized.cliQuickLaunchSelectedCommand == null) {
+            normalized.cliQuickLaunchSelectedCommand = "";
         }
         return normalized;
     }

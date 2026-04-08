@@ -423,6 +423,32 @@ public final class I18n {
                                 "\u5f53\u524d\u914d\u7f6e\u5c1a\u65e0\u5df2\u7ed1\u5b9a\u767b\u5f55\u72b6\u6001\uff0c\u4e0b\u6b21\u8fdb\u5165 Codex \u9700\u8981\u91cd\u65b0\u767b\u5f55\u3002");
                 m.put("provider.dialog.codexAuth.snapshotInvalid",
                                 "\u5386\u53f2\u767b\u5f55\u5feb\u7167\u5df2\u5931\u6548\uff0c\u5df2\u6e05\u7a7a\u4e3a\u672a\u767b\u5f55\u72b6\u6001\uff0c\u4e0b\u6b21\u8fdb\u5165 Codex \u9700\u8981\u91cd\u65b0\u767b\u5f55\u3002");
+
+                // ── CLI Quick Launch ──
+                m.put("settings.section.cliQuickLaunch", "CLI 快速启动");
+                m.put("settings.label.enableCliQuickLaunch", "启用 CLI 快速启动");
+                m.put("settings.option.enabled", "开启");
+                m.put("settings.option.disabled", "关闭");
+                m.put("settings.label.cliLaunchCommands", "启动命令列表");
+                m.put("settings.button.addCliCommand", "添加");
+                m.put("settings.button.removeCliCommand", "移除");
+                m.put("settings.button.saveCliQuickLaunch", "保存");
+                m.put("settings.dialog.cliCommand.addTitle", "添加 CLI 命令");
+                m.put("settings.dialog.cliCommand.editTitle", "编辑 CLI 命令");
+                m.put("settings.dialog.cliCommand.name", "名称:");
+                m.put("settings.dialog.cliCommand.command", "命令:");
+                m.put("settings.hint.cliQuickLaunch", "开启后，IDE 顶部工具栏将显示快速启动控件，点击图标即可在终端中执行选中的 CLI 命令。");
+                m.put("settings.table.col.name", "名称");
+                m.put("settings.table.col.command", "命令");
+                m.put("cliQuickLaunch.noCommand", "未配置命令");
+                m.put("cliQuickLaunch.selectCommand", "选择 CLI");
+                m.put("cliQuickLaunch.execute", "执行 {0}");
+                m.put("cliQuickLaunch.action.text", "启动 CLI");
+                m.put("cliQuickLaunch.toolbar.description", "快速启动：{0}");
+                m.put("cliQuickLaunch.toolbar.noSelection", "当前未选择命令");
+                m.put("cliQuickLaunch.saved", "CLI 快速启动配置已保存");
+                m.put("cliQuickLaunch.savedTitle", "保存成功");
+
                 return m;
         }
 
@@ -820,6 +846,32 @@ public final class I18n {
                                 "This config has no saved login state yet. Codex will ask you to sign in the next time it starts.");
                 m.put("provider.dialog.codexAuth.snapshotInvalid",
                                 "The saved login snapshot is no longer valid. It was cleared, and Codex will ask you to sign in next time.");
+
+                // ── CLI Quick Launch ──
+                m.put("settings.section.cliQuickLaunch", "CLI Quick Launch");
+                m.put("settings.label.enableCliQuickLaunch", "Enable CLI Quick Launch");
+                m.put("settings.option.enabled", "Enabled");
+                m.put("settings.option.disabled", "Disabled");
+                m.put("settings.label.cliLaunchCommands", "Launch Commands");
+                m.put("settings.button.addCliCommand", "Add");
+                m.put("settings.button.removeCliCommand", "Remove");
+                m.put("settings.button.saveCliQuickLaunch", "Save");
+                m.put("settings.dialog.cliCommand.addTitle", "Add CLI Command");
+                m.put("settings.dialog.cliCommand.editTitle", "Edit CLI Command");
+                m.put("settings.dialog.cliCommand.name", "Name:");
+                m.put("settings.dialog.cliCommand.command", "Command:");
+                m.put("settings.hint.cliQuickLaunch", "When enabled, a quick launch widget will appear in the IDE toolbar. Click the icon to execute the selected CLI command in the terminal.");
+                m.put("settings.table.col.name", "Name");
+                m.put("settings.table.col.command", "Command");
+                m.put("cliQuickLaunch.noCommand", "No command configured");
+                m.put("cliQuickLaunch.selectCommand", "Select CLI");
+                m.put("cliQuickLaunch.execute", "Execute {0}");
+                m.put("cliQuickLaunch.action.text", "Launch CLI");
+                m.put("cliQuickLaunch.toolbar.description", "Quick Launch: {0}");
+                m.put("cliQuickLaunch.toolbar.noSelection", "No command selected");
+                m.put("cliQuickLaunch.saved", "CLI Quick Launch settings saved");
+                m.put("cliQuickLaunch.savedTitle", "Saved");
+
                 return m;
         }
 }

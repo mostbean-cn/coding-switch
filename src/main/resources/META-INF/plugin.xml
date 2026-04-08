@@ -147,6 +147,7 @@
     ]]>    </change-notes>
 
     <depends>com.intellij.modules.platform</depends>
+    <depends>org.jetbrains.plugins.terminal</depends>
 
     <extensions defaultExtensionNs="com.intellij">
         <!-- New UI Icon Mapping -->
@@ -169,4 +170,14 @@
         <!-- Notification Group -->
         <notificationGroup id="Coding Switch" displayType="BALLOON" toolWindowId="Coding Switch"/>
     </extensions>
+
+    <actions>
+        <action id="CodingSwitch.CliQuickLaunch"
+                class="com.github.mostbean.codingswitch.ui.action.CliQuickLaunchToolbarAction"
+                icon="/icons/codingSwitch.svg">
+            <add-to-group group-id="MainToolbarRight"
+                          relative-to-action="SearchEverywhere"
+                          anchor="before"/>
+        </action>
+    </actions>
 </idea-plugin>
