@@ -11,8 +11,8 @@ import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.terminal.ui.TerminalWidget;
-import org.jetbrains.plugins.terminal.TerminalToolWindowManager;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.plugins.terminal.TerminalToolWindowManager;
 
 /**
  * CLI Quick Launch 主执行 Action：点击图标在终端中执行当前选中的 CLI 命令。
@@ -85,14 +85,12 @@ public class CliQuickLaunchAction extends DumbAwareAction {
         String workingDir,
         PluginSettings.CliQuickLaunchItem item
     ) {
-        TerminalToolWindowManager terminalManager =
-            TerminalToolWindowManager.getInstance(project);
         try {
-            TerminalWidget terminalWidget = terminalManager.createShellWidget(
+            TerminalToolWindowManager terminalManager = TerminalToolWindowManager.getInstance(project);
+            TerminalWidget terminalWidget = TerminalSessionService.createTerminalSession(
+                project,
                 workingDir,
-                item.name,
-                true,
-                true
+                item.name
             );
             terminalWidget.sendCommandToExecute(item.command);
 
