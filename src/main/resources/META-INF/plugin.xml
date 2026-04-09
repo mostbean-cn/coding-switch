@@ -184,5 +184,17 @@
                           relative-to-action="SearchEverywhere"
                           anchor="before"/>
         </action>
+        <action id="CodingSwitch.InsertFilePath"
+                class="com.github.mostbean.codingswitch.ui.action.InsertFilePathAction"
+                icon="/icons/codingSwitchMenu.svg">
+            <add-to-group group-id="EditorPopupMenu"
+                          anchor="last"/>
+        </action>
+        <action id="CodingSwitch.InsertFilePathWithLine"
+                class="com.github.mostbean.codingswitch.ui.action.InsertFilePathWithLineAction"
+                icon="/icons/codingSwitch.svg">
+            <add-to-group group-id="Floating.CodeToolbar"
+                          anchor="last"/>
+        </action>
     </actions>
 </idea-plugin>
