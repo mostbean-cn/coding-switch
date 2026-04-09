@@ -185,10 +185,10 @@
                           anchor="before"/>
         </action>
         <action id="CodingSwitch.InsertFilePath"
-                class="com.github.mostbean.codingswitch.ui.action.InsertFilePathAction"
+                class="com.github.mostbean.codingswitch.ui.action.InsertFilePathPopupAction"
                 icon="/icons/codingSwitchMenu.svg">
             <add-to-group group-id="EditorPopupMenu"
-                          anchor="last"/>
+                          anchor="first"/>
         </action>
         <action id="CodingSwitch.InsertFilePathWithLine"
                 class="com.github.mostbean.codingswitch.ui.action.InsertFilePathWithLineAction"
