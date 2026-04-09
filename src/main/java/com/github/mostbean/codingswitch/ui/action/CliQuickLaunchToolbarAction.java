@@ -7,13 +7,19 @@ import com.intellij.openapi.actionSystem.ActionPopupMenu;
 import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.ActionToolbar;
+import com.intellij.openapi.actionSystem.CommonDataKeys;
+import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.actionSystem.Presentation;
 import com.intellij.openapi.actionSystem.ex.CustomComponentAction;
 import com.intellij.openapi.actionSystem.ex.TooltipDescriptionProvider;
 import com.intellij.openapi.actionSystem.impl.ActionButton;
+import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.DumbAwareAction;
 import java.awt.Component;
+import java.awt.Toolkit;
+import java.awt.event.MouseEvent;
 import javax.swing.JComponent;
+import javax.swing.Timer;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -32,7 +38,7 @@ public class CliQuickLaunchToolbarAction extends DumbAwareAction
         @NotNull Presentation presentation,
         @NotNull String place
     ) {
-        ActionButton button = new ActionButton(
+        ActionButton button = new DoubleClickActionButton(
             this,
             presentation,
             place,
@@ -77,15 +83,24 @@ public class CliQuickLaunchToolbarAction extends DumbAwareAction
         Component component = e.getInputEvent() == null
             ? null
             : e.getInputEvent().getComponent();
+        showPopup(component, e.getPlace());
+    }
+
+    private void showPopup(Component component, String place) {
         if (component == null) {
             return;
         }
 
         ActionPopupMenu popupMenu = ActionManager.getInstance().createActionPopupMenu(
-            e.getPlace(),
+            place,
             new CliQuickLaunchGroup()
         );
         popupMenu.getComponent().show(component, 0, component.getHeight());
+    }
+
+    private static int resolveDoubleClickDelay() {
+        Object interval = Toolkit.getDefaultToolkit().getDesktopProperty("awt.multiClickInterval");
+        return interval instanceof Integer value && value > 0 ? value : 250;
     }
 
     private static PluginSettings.CliQuickLaunchItem resolveSelectedItem(
@@ -98,5 +113,48 @@ public class CliQuickLaunchToolbarAction extends DumbAwareAction
             }
         }
         return null;
+    }
+
+    private final class DoubleClickActionButton extends ActionButton {
+
+        private final Timer singleClickTimer;
+
+        private DoubleClickActionButton(
+            @NotNull CliQuickLaunchToolbarAction action,
+            @NotNull Presentation presentation,
+            @NotNull String place,
+            @NotNull java.awt.Dimension minimumSize
+        ) {
+            super(action, presentation, place, minimumSize);
+            singleClickTimer = new Timer(resolveDoubleClickDelay(), event -> {
+                if (isShowing()) {
+                    showPopup(this, place);
+                }
+            });
+            singleClickTimer.setRepeats(false);
+        }
+
+        @Override
+        protected void performAction(MouseEvent event) {
+            if (event.getClickCount() >= 2) {
+                singleClickTimer.stop();
+                executeSelectedCli();
+                return;
+            }
+
+            singleClickTimer.restart();
+        }
+
+        @Override
+        public void removeNotify() {
+            singleClickTimer.stop();
+            super.removeNotify();
+        }
+
+        private void executeSelectedCli() {
+            DataContext dataContext = getDataContext();
+            Project project = CommonDataKeys.PROJECT.getData(dataContext);
+            CliQuickLaunchAction.executeSelectedItem(project);
+        }
     }
 }

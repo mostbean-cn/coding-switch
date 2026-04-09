@@ -45,21 +45,25 @@ public class CliQuickLaunchAction extends DumbAwareAction {
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
+        Project project = e.getData(CommonDataKeys.PROJECT);
+        executeSelectedItem(project);
+    }
+
+    public static void executeSelectedItem(Project project) {
+        if (project == null) {
+            return;
+        }
+
         PluginSettings settings = PluginSettings.getInstance();
         PluginSettings.CliQuickLaunchItem selectedItem = resolveSelectedItem(settings);
         if (selectedItem == null) {
             return;
         }
 
-        Project project = e.getData(CommonDataKeys.PROJECT);
-        if (project == null) {
-            return;
-        }
-
         String workingDir = project.getBasePath() != null
             ? project.getBasePath()
             : System.getProperty("user.home");
-        executeInTerminal(project, workingDir, selectedItem);
+        new CliQuickLaunchAction().executeInTerminal(project, workingDir, selectedItem);
     }
 
     private static PluginSettings.CliQuickLaunchItem resolveSelectedItem(

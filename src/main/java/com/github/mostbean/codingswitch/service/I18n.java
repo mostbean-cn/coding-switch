@@ -455,7 +455,7 @@ public final class I18n {
                 m.put("cliQuickLaunch.insertFilePathWithLine", "插入带行号文件路径");
                 m.put("cliQuickLaunch.insertFilePathWithLine.description", "将当前选中代码起始行的相对路径插入到当前激活终端");
                 m.put("cliQuickLaunch.insertFilePathWithLine.noSelection", "当前没有选中的代码");
-                m.put("cliQuickLaunch.toolbar.description", "快速启动：{0}");
+                m.put("cliQuickLaunch.toolbar.description", "双击快速启动：{0}");
                 m.put("cliQuickLaunch.toolbar.noSelection", "当前未选择命令");
                 m.put("cliQuickLaunch.saved", "CLI 快速启动配置已保存");
                 m.put("cliQuickLaunch.savedTitle", "保存成功");
@@ -889,7 +889,7 @@ public final class I18n {
                 m.put("cliQuickLaunch.insertFilePathWithLine", "Insert File Path with Line");
                 m.put("cliQuickLaunch.insertFilePathWithLine.description", "Insert the relative path and starting line of the current selection into the active terminal");
                 m.put("cliQuickLaunch.insertFilePathWithLine.noSelection", "No code is currently selected");
-                m.put("cliQuickLaunch.toolbar.description", "Quick Launch: {0}");
+                m.put("cliQuickLaunch.toolbar.description", "Double-click to launch: {0}");
                 m.put("cliQuickLaunch.toolbar.noSelection", "No command selected");
                 m.put("cliQuickLaunch.saved", "CLI Quick Launch settings saved");
                 m.put("cliQuickLaunch.savedTitle", "Saved");
