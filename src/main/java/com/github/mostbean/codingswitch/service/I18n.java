@@ -437,7 +437,7 @@ public final class I18n {
                 m.put("settings.dialog.cliCommand.editTitle", "编辑 CLI 命令");
                 m.put("settings.dialog.cliCommand.name", "名称:");
                 m.put("settings.dialog.cliCommand.command", "命令:");
-                m.put("settings.hint.cliQuickLaunch", "开启后，IDE 顶部工具栏将显示快速启动控件，点击图标即可在终端中执行选中的 CLI 命令。");
+                m.put("settings.hint.cliQuickLaunch", "开启后，IDE 顶部工具栏将显示快速启动控件。单击：打开菜单。双击：快速启动当前选中的 CLI。通过本插件启动的 CLI，将支持通过 IDE 右键悬浮菜单插入文件路径和代码行号功能。");
                 m.put("settings.table.col.name", "名称");
                 m.put("settings.table.col.command", "命令");
                 m.put("cliQuickLaunch.noCommand", "未配置命令");
@@ -871,7 +871,7 @@ public final class I18n {
                 m.put("settings.dialog.cliCommand.editTitle", "Edit CLI Command");
                 m.put("settings.dialog.cliCommand.name", "Name:");
                 m.put("settings.dialog.cliCommand.command", "Command:");
-                m.put("settings.hint.cliQuickLaunch", "When enabled, a quick launch widget will appear in the IDE toolbar. Click the icon to execute the selected CLI command in the terminal.");
+                m.put("settings.hint.cliQuickLaunch", "When enabled, a quick launch widget appears in the IDE toolbar. Single-click: open the menu. Double-click: quickly launch the currently selected CLI. CLIs launched through this plugin also support inserting file paths and code line numbers from the IDE right-click floating menu.");
                 m.put("settings.table.col.name", "Name");
                 m.put("settings.table.col.command", "Command");
                 m.put("cliQuickLaunch.noCommand", "No command configured");
