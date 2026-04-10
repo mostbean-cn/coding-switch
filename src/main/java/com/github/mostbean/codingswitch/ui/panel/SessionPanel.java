@@ -1,8 +1,10 @@
 package com.github.mostbean.codingswitch.ui.panel;
 
+import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.SessionMessage;
 import com.github.mostbean.codingswitch.model.SessionMeta;
 import com.github.mostbean.codingswitch.service.I18n;
+import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.SessionScannerService;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.application.ApplicationManager;
@@ -33,6 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class SessionPanel extends JPanel {
 
     private static final long AUTO_REFRESH_INTERVAL_MS = 5 * 60 * 1000L;
+    private static final CliType DEFAULT_SESSION_FILTER_CLI = CliType.CLAUDE;
 
     private final DefaultListModel<SessionMeta> listModel = new DefaultListModel<>();
     private final JBList<SessionMeta> sessionList = new JBList<>(listModel);
@@ -107,11 +110,16 @@ public class SessionPanel extends JPanel {
         for (String[] opt : PROVIDER_OPTIONS) {
             filterCombo.addItem(opt[1]);
         }
-        filterCombo.setSelectedIndex(0); // 默认 Claude Code
+        CliType savedCli = PluginSettings.getInstance().getSessionFilterCli();
+        CliType initialCli = savedCli != null ? savedCli : DEFAULT_SESSION_FILTER_CLI;
+        int initialIndex = findProviderIndex(initialCli);
+        filterCombo.setSelectedIndex(initialIndex);
+        selectedProvider = PROVIDER_OPTIONS[initialIndex][0];
         filterCombo.addActionListener(e -> {
             int idx = filterCombo.getSelectedIndex();
             if (idx >= 0 && idx < PROVIDER_OPTIONS.length) {
                 selectedProvider = PROVIDER_OPTIONS[idx][0];
+                PluginSettings.getInstance().setSessionFilterCli(findCliTypeByProviderId(selectedProvider));
                 applyFilter();
             }
         });
@@ -580,6 +588,21 @@ public class SessionPanel extends JPanel {
     private void copyToClipboard(String text) {
         Toolkit.getDefaultToolkit().getSystemClipboard()
                 .setContents(new StringSelection(text), null);
+    }
+
+    private int findProviderIndex(CliType cliType) {
+        CliType target = cliType != null ? cliType : DEFAULT_SESSION_FILTER_CLI;
+        String providerId = target.getId();
+        for (int i = 0; i < PROVIDER_OPTIONS.length; i++) {
+            if (PROVIDER_OPTIONS[i][0].equals(providerId)) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    private CliType findCliTypeByProviderId(String providerId) {
+        return CliType.fromId(providerId);
     }
 
     private String getCliDisplayName(String providerId) {

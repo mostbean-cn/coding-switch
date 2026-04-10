@@ -5,6 +5,7 @@ import com.github.mostbean.codingswitch.model.Provider;
 import com.github.mostbean.codingswitch.service.CodexActivationResult;
 import com.github.mostbean.codingswitch.service.GeminiActivationResult;
 import com.github.mostbean.codingswitch.service.I18n;
+import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.ProviderService;
 import com.github.mostbean.codingswitch.ui.dialog.ProviderDialog;
 import com.google.gson.JsonObject;
@@ -67,7 +68,11 @@ public class ProviderPanel extends JPanel {
                 return this;
             }
         });
-        filterCombo.addActionListener(e -> refreshTable());
+        filterCombo.setSelectedItem(PluginSettings.getInstance().getProviderFilterCli());
+        filterCombo.addActionListener(e -> {
+            PluginSettings.getInstance().setProviderFilterCli((CliType) filterCombo.getSelectedItem());
+            refreshTable();
+        });
         toolbar.add(filterCombo);
 
         return toolbar;

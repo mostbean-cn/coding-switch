@@ -1,5 +1,6 @@
 package com.github.mostbean.codingswitch.service;
 
+import com.github.mostbean.codingswitch.model.CliType;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.PersistentStateComponent;
 import com.intellij.openapi.components.Service;
@@ -114,6 +115,9 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         public boolean cliQuickLaunchEnabled = false;
         public List<CliQuickLaunchItem> cliQuickLaunchItems = new ArrayList<>();
         public String cliQuickLaunchSelectedCommand = "";
+        public String providerFilterCliId = "";
+        public String sessionFilterCliId = "";
+        public String promptFilterCliId = "";
     }
 
     private State state = new State();
@@ -194,6 +198,36 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         saveActiveState(active);
     }
 
+    public CliType getProviderFilterCli() {
+        return CliType.fromId(getActiveState().providerFilterCliId);
+    }
+
+    public void setProviderFilterCli(CliType cliType) {
+        State active = getActiveState();
+        active.providerFilterCliId = cliType == null ? "" : cliType.getId();
+        saveActiveState(active);
+    }
+
+    public CliType getSessionFilterCli() {
+        return CliType.fromId(getActiveState().sessionFilterCliId);
+    }
+
+    public void setSessionFilterCli(CliType cliType) {
+        State active = getActiveState();
+        active.sessionFilterCliId = cliType == null ? "" : cliType.getId();
+        saveActiveState(active);
+    }
+
+    public CliType getPromptFilterCli() {
+        return CliType.fromId(getActiveState().promptFilterCliId);
+    }
+
+    public void setPromptFilterCli(CliType cliType) {
+        State active = getActiveState();
+        active.promptFilterCliId = cliType == null ? "" : cliType.getId();
+        saveActiveState(active);
+    }
+
     public boolean isChinese() {
         return getLanguage() == Language.ZH;
     }
@@ -219,6 +253,9 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         snapshot.cliQuickLaunchEnabled = active.cliQuickLaunchEnabled;
         snapshot.cliQuickLaunchItems = active.cliQuickLaunchItems == null ? new ArrayList<>() : new ArrayList<>(active.cliQuickLaunchItems);
         snapshot.cliQuickLaunchSelectedCommand = active.cliQuickLaunchSelectedCommand;
+        snapshot.providerFilterCliId = active.providerFilterCliId;
+        snapshot.sessionFilterCliId = active.sessionFilterCliId;
+        snapshot.promptFilterCliId = active.promptFilterCliId;
         return normalizeState(snapshot);
     }
 
@@ -271,6 +308,9 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
             ? new ArrayList<>()
             : new ArrayList<>(state.cliQuickLaunchItems);
         snapshot.cliQuickLaunchSelectedCommand = state.cliQuickLaunchSelectedCommand;
+        snapshot.providerFilterCliId = state.providerFilterCliId;
+        snapshot.sessionFilterCliId = state.sessionFilterCliId;
+        snapshot.promptFilterCliId = state.promptFilterCliId;
         return normalizeState(snapshot);
     }
 
@@ -290,6 +330,15 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         }
         if (normalized.cliQuickLaunchSelectedCommand == null) {
             normalized.cliQuickLaunchSelectedCommand = "";
+        }
+        if (normalized.providerFilterCliId == null) {
+            normalized.providerFilterCliId = "";
+        }
+        if (normalized.sessionFilterCliId == null) {
+            normalized.sessionFilterCliId = "";
+        }
+        if (normalized.promptFilterCliId == null) {
+            normalized.promptFilterCliId = "";
         }
         return normalized;
     }

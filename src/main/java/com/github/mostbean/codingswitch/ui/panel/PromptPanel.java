@@ -3,6 +3,7 @@ package com.github.mostbean.codingswitch.ui.panel;
 import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.PromptPreset;
 import com.github.mostbean.codingswitch.service.I18n;
+import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.PromptService;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.AnAction;
@@ -52,7 +53,10 @@ public class PromptPanel extends JPanel {
         for (CliType cli : CliType.values()) {
             filterCombo.addItem(cli);
         }
+        CliType savedCli = PluginSettings.getInstance().getPromptFilterCli();
+        filterCombo.setSelectedItem(savedCli != null ? savedCli : CliType.CLAUDE);
         filterCombo.addActionListener(e -> {
+            PluginSettings.getInstance().setPromptFilterCli((CliType) filterCombo.getSelectedItem());
             refreshList();
             editorArea.setText("");
         });

@@ -1,6 +1,7 @@
 package com.github.mostbean.codingswitch.model;
 
 import com.google.gson.annotations.SerializedName;
+import java.util.Arrays;
 
 /**
  * 支持的 AI CLI 工具类型枚举。
@@ -32,6 +33,16 @@ public enum CliType {
 
     public String getId() {
         return id;
+    }
+
+    public static CliType fromId(String id) {
+        if (id == null || id.isBlank()) {
+            return null;
+        }
+        return Arrays.stream(values())
+                .filter(cli -> cli.id.equalsIgnoreCase(id))
+                .findFirst()
+                .orElse(null);
     }
 
     @Override
