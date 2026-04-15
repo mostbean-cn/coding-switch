@@ -167,9 +167,14 @@ public class ProviderDialog extends DialogWrapper {
     }
 
     public ProviderDialog(@Nullable Provider existing) {
+        this(existing, null);
+    }
+
+    public ProviderDialog(@Nullable Provider existing, @Nullable CliType defaultCliType) {
         super(true);
         this.provider = existing != null ? existing : new Provider();
         initializeAuthModes();
+        codexReasoningEffort.setSelectedItem("high");
 
         setTitle(existing != null ? I18n.t("providerDialog.title.edit") : I18n.t("providerDialog.title.add"));
 
@@ -193,6 +198,9 @@ public class ProviderDialog extends DialogWrapper {
             nameField.setText(existing.getName());
             loadSettingsConfig(existing.getCliType(), existing.getSettingsConfig(), existing.getAuthMode());
         } else {
+            if (defaultCliType != null) {
+                cliTypeCombo.setSelectedItem(defaultCliType);
+            }
             opencodeNpm.setSelectedItem("@ai-sdk/openai-compatible");
         }
 
@@ -893,7 +901,7 @@ public class ProviderDialog extends DialogWrapper {
                 codexApiKey.setText("");
                 codexBaseUrl.setText("");
                 codexModel.setText("");
-                codexReasoningEffort.setSelectedItem("xhigh");
+                codexReasoningEffort.setSelectedItem("high");
                 codex1MContext.setSelected(false);
                 codexMultiAgent.setSelected(false);
                 codexFastMode.setSelected(false);

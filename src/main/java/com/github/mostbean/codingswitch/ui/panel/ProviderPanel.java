@@ -162,7 +162,8 @@ public class ProviderPanel extends JPanel {
     // =====================================================================
 
     private void onAdd() {
-        ProviderDialog dialog = new ProviderDialog(null);
+        CliType selectedCli = (CliType) filterCombo.getSelectedItem();
+        ProviderDialog dialog = new ProviderDialog(null, selectedCli);
         if (dialog.showAndGet()) {
             ProviderService.getInstance().addProvider(dialog.getProvider());
         }
