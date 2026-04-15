@@ -32,6 +32,7 @@ public class Provider {
     private String name;
     private JsonObject settingsConfig;
     private AuthMode authMode;
+    private String authBindingKey;
     private boolean active;
     private boolean pendingActivation;
     private Long createdAt;
@@ -40,6 +41,7 @@ public class Provider {
         this.id = UUID.randomUUID().toString();
         this.settingsConfig = new JsonObject();
         this.authMode = AuthMode.API_KEY;
+        this.authBindingKey = UUID.randomUUID().toString();
         this.createdAt = System.currentTimeMillis();
     }
 
@@ -95,6 +97,21 @@ public class Provider {
         this.authMode = authMode;
     }
 
+    public String getAuthBindingKey() {
+        return authBindingKey;
+    }
+
+    public void setAuthBindingKey(String authBindingKey) {
+        this.authBindingKey = authBindingKey;
+    }
+
+    public String getEffectiveAuthBindingKey() {
+        if (authBindingKey != null && !authBindingKey.isBlank()) {
+            return authBindingKey;
+        }
+        return id;
+    }
+
     public boolean usesOfficialLogin() {
         return getAuthMode() == AuthMode.OFFICIAL_LOGIN;
     }
@@ -132,6 +149,7 @@ public class Provider {
         copy.name = this.name + " (Copy)";
         copy.settingsConfig = this.settingsConfig.deepCopy();
         copy.authMode = this.getAuthMode();
+        copy.authBindingKey = UUID.randomUUID().toString();
         copy.active = false;
         copy.pendingActivation = false;
         return copy;

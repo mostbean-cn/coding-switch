@@ -132,9 +132,18 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
     }
 
     public void removeProvider(String providerId) {
-        CodexAuthSnapshotService.getInstance().clearSnapshot(providerId);
-        GeminiAuthSnapshotService.getInstance().clearSnapshot(providerId);
         List<Provider> providers = new ArrayList<>(getProviders());
+        Provider existing = providers.stream()
+                .filter(p -> p.getId().equals(providerId))
+                .findFirst()
+                .orElse(null);
+        if (existing != null) {
+            CodexAuthSnapshotService.getInstance().clearSnapshot(existing);
+            GeminiAuthSnapshotService.getInstance().clearSnapshot(existing);
+        } else {
+            CodexAuthSnapshotService.getInstance().clearSnapshot(providerId);
+            GeminiAuthSnapshotService.getInstance().clearSnapshot(providerId);
+        }
         providers.removeIf(p -> p.getId().equals(providerId));
         saveProviders(providers);
     }
@@ -153,22 +162,20 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
     public void activateProvider(String providerId) throws IOException {
         List<Provider> providers = new ArrayList<>(getProviders());
         Provider target = null;
-        Provider previousActive = null;
+        Provider activeCodex = findActiveProvider(providers, CliType.CODEX);
+        Provider activeGemini = findActiveProvider(providers, CliType.GEMINI);
 
         for (Provider p : providers) {
             if (p.getId().equals(providerId)) {
                 target = p;
-            }
-            if (p.isActive() && p.getCliType() != CliType.OPENCODE) {
-                previousActive = p;
             }
         }
 
         if (target == null) {
             throw new IllegalArgumentException("Provider not found: " + providerId);
         }
-        capturePreviousCodexSnapshot(previousActive);
-        capturePreviousGeminiSnapshot(previousActive);
+        captureCurrentCodexSnapshot(target, activeCodex);
+        captureCurrentGeminiSnapshot(target, activeGemini);
 
         // 同一 CLI 类型下只能有一个 active（OpenCode 除外，它是 additive 模式）
         for (Provider p : providers) {
@@ -407,6 +414,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
     // =====================================================================
 
     private void saveProviders(List<Provider> providers) {
+        providers.forEach(this::normalizeProvider);
         State nextState = new State();
         nextState.providersJson = GSON.toJson(providers);
         saveActiveState(nextState);
@@ -482,10 +490,15 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
     }
 
     private void normalizeProvider(Provider provider) {
-        if (provider == null || provider.getStoredAuthMode() != null) {
+        if (provider == null) {
             return;
         }
-        provider.setAuthMode(Provider.inferAuthMode(provider.getCliType(), provider.getSettingsConfig()));
+        if (provider.getStoredAuthMode() == null) {
+            provider.setAuthMode(Provider.inferAuthMode(provider.getCliType(), provider.getSettingsConfig()));
+        }
+        if (provider.getAuthBindingKey() == null || provider.getAuthBindingKey().isBlank()) {
+            provider.setAuthBindingKey(provider.getId());
+        }
     }
 
     private static boolean hasCodexApiKey(JsonObject config) {
@@ -515,12 +528,25 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         svc.writeGeminiSelectedAuthType(selectedAuthType);
     }
 
-    private void capturePreviousCodexSnapshot(Provider previousActive) {
-        if (previousActive == null || previousActive.getCliType() != CliType.CODEX
-                || previousActive.getAuthMode() != AuthMode.OFFICIAL_LOGIN) {
+    private Provider findActiveProvider(List<Provider> providers, CliType cliType) {
+        if (providers == null || cliType == null) {
+            return null;
+        }
+        return providers.stream()
+                .filter(Provider::isActive)
+                .filter(p -> p.getCliType() == cliType)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private void captureCurrentCodexSnapshot(Provider target, Provider activeCodex) {
+        if (target == null || target.getCliType() != CliType.CODEX) {
             return;
         }
-        CodexAuthSnapshotService.getInstance().captureFromLive(previousActive.getId());
+        if (activeCodex == null || activeCodex.getAuthMode() != AuthMode.OFFICIAL_LOGIN) {
+            return;
+        }
+        CodexAuthSnapshotService.getInstance().captureFromLive(activeCodex);
     }
 
     private CodexActivationResult switchCodexAuthStateIfNeeded(Provider target) throws IOException {
@@ -529,7 +555,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         }
 
         CodexAuthSnapshotService.RestoreResult restoreResult = CodexAuthSnapshotService.getInstance()
-                .restoreToLive(target.getId());
+                .restoreToLive(target);
         return switch (restoreResult) {
             case RESTORED -> CodexActivationResult.snapshotRestored();
             case NO_SNAPSHOT -> CodexActivationResult.loginRequired();
@@ -537,12 +563,14 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         };
     }
 
-    private void capturePreviousGeminiSnapshot(Provider previousActive) {
-        if (previousActive == null || previousActive.getCliType() != CliType.GEMINI
-                || previousActive.getAuthMode() != AuthMode.OFFICIAL_LOGIN) {
+    private void captureCurrentGeminiSnapshot(Provider target, Provider activeGemini) {
+        if (target == null || target.getCliType() != CliType.GEMINI) {
             return;
         }
-        GeminiAuthSnapshotService.getInstance().captureFromLive(previousActive.getId());
+        if (activeGemini == null || activeGemini.getAuthMode() != AuthMode.OFFICIAL_LOGIN) {
+            return;
+        }
+        GeminiAuthSnapshotService.getInstance().captureFromLive(activeGemini);
     }
 
     private GeminiActivationResult switchGeminiAuthStateIfNeeded(Provider target) throws IOException {
@@ -551,7 +579,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         }
 
         GeminiAuthSnapshotService.RestoreResult restoreResult = GeminiAuthSnapshotService.getInstance()
-                .restoreToLive(target.getId());
+                .restoreToLive(target);
         return switch (restoreResult) {
             case RESTORED -> GeminiActivationResult.snapshotRestored();
             case NO_SNAPSHOT -> GeminiActivationResult.loginRequired();
