@@ -95,13 +95,7 @@ public class SettingsPanel extends JPanel {
         mainPanel.add(buildInstallSection());
         mainPanel.add(Box.createVerticalStrut(16));
 
-        mainPanel.add(buildStorageSection());
-        mainPanel.add(Box.createVerticalStrut(16));
-
-        mainPanel.add(buildCliQuickLaunchSection());
-        mainPanel.add(Box.createVerticalStrut(16));
-
-        mainPanel.add(buildLanguageSection());
+        mainPanel.add(buildPreferencesSection());
         mainPanel.add(Box.createVerticalGlue());
 
         checkAllVersions();
@@ -251,18 +245,62 @@ public class SettingsPanel extends JPanel {
         return row;
     }
 
-    private JPanel buildStorageSection() {
+    /**
+     * 偏好设置区域：界面语言 + 存储位置 + CLI 快速启动
+     */
+    private JPanel buildPreferencesSection() {
         JPanel section = new JPanel(new BorderLayout());
         section.setBorder(
             BorderFactory.createTitledBorder(
                 BorderFactory.createEtchedBorder(),
-                I18n.t("settings.section.storageLocation")
+                I18n.t("settings.section.preferences")
             )
         );
 
         JPanel content = new JPanel();
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
 
+        // ========== 1. 界面语言 ==========
+        JPanel langRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
+        langRow.add(createInfoHintIcon(
+            I18n.t("settings.hint.restartRequired"),
+            I18n.t("settings.label.uiLanguage")
+        ));
+        langRow.add(new JBLabel(I18n.t("settings.label.uiLanguage")));
+
+        JComboBox<PluginSettings.Language> langCombo = new JComboBox<>(
+            PluginSettings.Language.values()
+        );
+        langCombo.setSelectedItem(PluginSettings.getInstance().getLanguage());
+        langCombo.setRenderer(
+            new DefaultListCellRenderer() {
+                @Override
+                public Component getListCellRendererComponent(
+                    JList<?> list,
+                    Object value,
+                    int index,
+                    boolean isSelected,
+                    boolean cellHasFocus
+                ) {
+                    super.getListCellRendererComponent(
+                        list,
+                        value,
+                        index,
+                        isSelected,
+                        cellHasFocus
+                    );
+                    if (value instanceof PluginSettings.Language lang) {
+                        setText(lang.getDisplayName(I18n.currentLanguage()));
+                    }
+                    return this;
+                }
+            }
+        );
+        langCombo.addActionListener(e -> onLanguageChanged(langCombo));
+        langRow.add(langCombo);
+        content.add(langRow);
+
+        // ========== 2. 存储位置 ==========
         JPanel storageRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
         storageRow.add(createInfoHintIcon(
             I18n.t("settings.hint.dataStorageMode"),
@@ -317,91 +355,13 @@ public class SettingsPanel extends JPanel {
         storageRow.add(openStorageDirBtn);
         content.add(storageRow);
 
-        section.add(content, BorderLayout.NORTH);
-        return section;
-    }
-
-    private JPanel buildLanguageSection() {
-        JPanel section = new JPanel(new BorderLayout());
-        section.setBorder(
-            BorderFactory.createTitledBorder(
-                BorderFactory.createEtchedBorder(),
-                I18n.t("settings.section.preferences")
-            )
-        );
-
-        JPanel content = new JPanel();
-        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
-
-        JPanel langRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
-        langRow.add(new JBLabel(I18n.t("settings.label.uiLanguage")));
-
-        JComboBox<PluginSettings.Language> langCombo = new JComboBox<>(
-            PluginSettings.Language.values()
-        );
-        langCombo.setSelectedItem(PluginSettings.getInstance().getLanguage());
-        langCombo.setRenderer(
-            new DefaultListCellRenderer() {
-                @Override
-                public Component getListCellRendererComponent(
-                    JList<?> list,
-                    Object value,
-                    int index,
-                    boolean isSelected,
-                    boolean cellHasFocus
-                ) {
-                    super.getListCellRendererComponent(
-                        list,
-                        value,
-                        index,
-                        isSelected,
-                        cellHasFocus
-                    );
-                    if (value instanceof PluginSettings.Language lang) {
-                        setText(lang.getDisplayName(I18n.currentLanguage()));
-                    }
-                    return this;
-                }
-            }
-        );
-        langCombo.addActionListener(e -> onLanguageChanged(langCombo));
-        langRow.add(langCombo);
-        content.add(langRow);
-
-        JComponent hintLabel = createWrappedHintText(
-            I18n.t("settings.hint.restartRequired"),
-            new JBColor(new Color(200, 130, 0), new Color(230, 180, 80))
-        );
-        hintLabel.setBorder(JBUI.Borders.empty(0, 12, 8, 12));
-
-        section.add(content, BorderLayout.NORTH);
-        section.add(hintLabel, BorderLayout.CENTER);
-        return section;
-    }
-
-    /**
-     * CLI 快速启动配置区域：开关 + 命令列表表格 + 添加/移除按钮。
-     */
-    private JPanel buildCliQuickLaunchSection() {
-        JPanel section = new JPanel(new BorderLayout());
-        section.setBorder(
-            BorderFactory.createTitledBorder(
-                BorderFactory.createEtchedBorder(),
-                I18n.t("settings.section.cliQuickLaunch")
-            )
-        );
-
-        JPanel content = new JPanel();
-        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
-
-        // 启用开关行
-        JPanel enableRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
-        enableRow.add(createInfoHintIcon(
+        // ========== 3. CLI 快速启动 ==========
+        JPanel cliQuickLaunchRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
+        cliQuickLaunchRow.add(createInfoHintIcon(
             I18n.t("settings.hint.cliQuickLaunch"),
             I18n.t("settings.section.cliQuickLaunch")
         ));
-
-        enableRow.add(new JBLabel(I18n.t("settings.label.enableCliQuickLaunch")));
+        cliQuickLaunchRow.add(new JBLabel(I18n.t("settings.label.enableCliQuickLaunch")));
 
         cliQuickLaunchEnabledCombo = new JComboBox<>(
             new String[] {
@@ -422,8 +382,8 @@ public class SettingsPanel extends JPanel {
             );
             ActivityTracker.getInstance().inc();
         });
-        enableRow.add(cliQuickLaunchEnabledCombo);
-        content.add(enableRow);
+        cliQuickLaunchRow.add(cliQuickLaunchEnabledCombo);
+        content.add(cliQuickLaunchRow);
 
         // 命令列表区域
         JPanel tableArea = new JPanel(new BorderLayout(0, 4));

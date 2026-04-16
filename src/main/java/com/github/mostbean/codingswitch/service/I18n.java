@@ -429,7 +429,7 @@ public final class I18n {
 
                 // ── CLI Quick Launch ──
                 m.put("settings.section.cliQuickLaunch", "CLI 快速启动");
-                m.put("settings.label.enableCliQuickLaunch", "启用 CLI 快速启动");
+                m.put("settings.label.enableCliQuickLaunch", "CLI 快速启动");
                 m.put("settings.option.enabled", "开启");
                 m.put("settings.option.disabled", "关闭");
                 m.put("settings.label.cliLaunchCommands", "启动命令列表");
@@ -866,7 +866,7 @@ public final class I18n {
 
                 // ── CLI Quick Launch ──
                 m.put("settings.section.cliQuickLaunch", "CLI Quick Launch");
-                m.put("settings.label.enableCliQuickLaunch", "Enable CLI Quick Launch");
+                m.put("settings.label.enableCliQuickLaunch", "CLI Quick Launch");
                 m.put("settings.option.enabled", "Enabled");
                 m.put("settings.option.disabled", "Disabled");
                 m.put("settings.label.cliLaunchCommands", "Launch Commands");
