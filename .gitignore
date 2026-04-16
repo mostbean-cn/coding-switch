@@ -5,6 +5,9 @@
 *.ipr
 .claude/
 
+# Eclipse IDE
+.settings/
+
 # Gradle
 .gradle/
 build/
