@@ -1,6 +1,7 @@
 package com.github.mostbean.codingswitch.ui.dialog;
 
 import com.github.mostbean.codingswitch.service.I18n;
+import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.SkillService;
 import com.intellij.ide.BrowserUtil;
 import com.intellij.openapi.application.ApplicationManager;
@@ -32,6 +33,7 @@ public class SkillDiscoveryDialog extends DialogWrapper {
     private final ComboBox<RepoItem> repoComboBox = new ComboBox<>();
     private final JButton addRepoButton = new JButton(I18n.t("skill.action.addRepo"));
     private final JButton manageRepoButton = new JButton(I18n.t("skill.action.manageRepo"));
+    private final JButton configTokenButton = new JButton(I18n.t("skill.action.configToken"));
     private final JButton refreshButton = new JButton(I18n.t("skill.discovery.button.refresh"));
     private final JButton installButton = new JButton(I18n.t("skill.discovery.button.install"));
     private final JButton openButton = new JButton(I18n.t("skill.discovery.button.open"));
@@ -46,6 +48,7 @@ public class SkillDiscoveryDialog extends DialogWrapper {
         setOKButtonText(I18n.t("skill.discovery.button.close"));
         addRepoButton.setToolTipText(I18n.t("skill.action.addRepo.tooltip"));
         manageRepoButton.setToolTipText(I18n.t("skill.action.manageRepo.tooltip"));
+        configTokenButton.setToolTipText(I18n.t("skill.action.configToken.tooltip"));
 
         configureTable();
         bindActions();
@@ -70,6 +73,7 @@ public class SkillDiscoveryDialog extends DialogWrapper {
         topPanel.add(repoComboBox);
         topPanel.add(addRepoButton);
         topPanel.add(manageRepoButton);
+        topPanel.add(configTokenButton);
         panel.add(topPanel, BorderLayout.NORTH);
 
         panel.add(new JScrollPane(table), BorderLayout.CENTER);
@@ -118,6 +122,7 @@ public class SkillDiscoveryDialog extends DialogWrapper {
         refreshButton.addActionListener(e -> loadRepository(true));
         addRepoButton.addActionListener(e -> onAddRepository());
         manageRepoButton.addActionListener(e -> onManageRepositories());
+        configTokenButton.addActionListener(e -> onConfigToken());
         installButton.addActionListener(e -> onInstallSelected());
         openButton.addActionListener(e -> onOpenSelected());
         updateButtons();
@@ -267,6 +272,11 @@ public class SkillDiscoveryDialog extends DialogWrapper {
         }
         reloadRepositoryOptions(dialog.getPreferredRepoItem());
         loadRepository(true);
+    }
+
+    private void onConfigToken() {
+        TokenConfigDialog dialog = new TokenConfigDialog();
+        dialog.show();
     }
 
     private @Nullable RepoInput promptRepositoryInput(@Nullable RepoInput preset) {
@@ -433,6 +443,7 @@ public class SkillDiscoveryDialog extends DialogWrapper {
         repoComboBox.setEnabled(!loading);
         addRepoButton.setEnabled(!loading);
         manageRepoButton.setEnabled(!loading);
+        configTokenButton.setEnabled(!loading);
         refreshButton.setEnabled(!loading);
         openButton.setEnabled(!loading && hasSelection);
         installButton.setEnabled(!loading && hasSelection);
@@ -671,6 +682,89 @@ public class SkillDiscoveryDialog extends DialogWrapper {
         @Override
         public Object getValueAt(int rowIndex, int columnIndex) {
             return rows.get(rowIndex);
+        }
+    }
+
+    /**
+     * GitHub 令牌配置对话框
+     */
+    private final class TokenConfigDialog extends DialogWrapper {
+        private JPasswordField tokenField;
+        private JToggleButton showToggle;
+
+        TokenConfigDialog() {
+            super(true);
+            setTitle(I18n.t("skill.tokenConfig.title"));
+            setOKButtonText(I18n.t("settings.button.saveGithubToken"));
+            init();
+        }
+
+        @Override
+        protected Action[] createActions() {
+            return new Action[] { getOKAction(), getCancelAction() };
+        }
+
+        @Override
+        protected @Nullable JComponent createCenterPanel() {
+            JPanel panel = new JPanel(new GridBagLayout());
+            panel.setPreferredSize(new Dimension(JBUI.scale(450), JBUI.scale(120)));
+            panel.setBorder(JBUI.Borders.empty(12));
+
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.insets = JBUI.insets(6, 8);
+            gbc.anchor = GridBagConstraints.WEST;
+
+            // 提示信息
+            gbc.gridx = 0;
+            gbc.gridy = 0;
+            gbc.gridwidth = 3;
+            gbc.fill = GridBagConstraints.HORIZONTAL;
+            gbc.weightx = 1.0;
+            JBLabel hintLabel = new JBLabel("<html>" + I18n.t("settings.hint.githubToken") + "</html>");
+            hintLabel.setForeground(javax.swing.UIManager.getColor("Component.info.foreground"));
+            panel.add(hintLabel, gbc);
+
+            // 标签
+            gbc.gridx = 0;
+            gbc.gridy = 1;
+            gbc.gridwidth = 1;
+            gbc.fill = GridBagConstraints.NONE;
+            gbc.weightx = 0;
+            panel.add(new JBLabel(I18n.t("settings.label.githubToken")), gbc);
+
+            // 令牌输入框
+            tokenField = new JPasswordField();
+            tokenField.setText(PluginSettings.getInstance().getGithubToken());
+            gbc.gridx = 1;
+            gbc.fill = GridBagConstraints.HORIZONTAL;
+            gbc.weightx = 1.0;
+            panel.add(tokenField, gbc);
+
+            // 显示/隐藏按钮
+            showToggle = new JToggleButton(I18n.t("settings.button.show"));
+            char defaultEcho = tokenField.getEchoChar();
+            showToggle.addActionListener(e -> {
+                boolean selected = showToggle.isSelected();
+                tokenField.setEchoChar(selected ? (char) 0 : defaultEcho);
+                showToggle.setText(I18n.t(selected ? "settings.button.hide" : "settings.button.show"));
+            });
+            gbc.gridx = 2;
+            gbc.fill = GridBagConstraints.NONE;
+            gbc.weightx = 0;
+            panel.add(showToggle, gbc);
+
+            return panel;
+        }
+
+        @Override
+        protected void doOKAction() {
+            String token = new String(tokenField.getPassword()).trim();
+            PluginSettings.getInstance().setGithubToken(token);
+            Messages.showInfoMessage(
+                    I18n.t("settings.githubToken.saved"),
+                    I18n.t("skill.tokenConfig.title")
+            );
+            super.doOKAction();
         }
     }
 }

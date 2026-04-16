@@ -238,6 +238,9 @@ public final class I18n {
                 m.put("skill.action.addRepo.tooltip", "添加自定义 GitHub 仓库（可选分支）");
                 m.put("skill.action.manageRepo", "仓库管理");
                 m.put("skill.action.manageRepo.tooltip", "新增、移除自定义仓库，并可设置分支");
+                m.put("skill.action.configToken", "配置令牌");
+                m.put("skill.action.configToken.tooltip", "配置 GitHub 令牌以提升 API 速率限制");
+                m.put("skill.tokenConfig.title", "配置 GitHub 令牌");
                 m.put("skill.action.discover", "发现 Skills");
                 m.put("skill.action.discover.tooltip", "从仓库列表发现可安装 Skills");
                 m.put("skill.action.install", "安装 Skill");
@@ -659,6 +662,9 @@ public final class I18n {
                 m.put("skill.action.manageRepo", "Manage Repositories");
                 m.put("skill.action.manageRepo.tooltip",
                                 "Add or remove custom repositories, with optional branch configuration");
+                m.put("skill.action.configToken", "Configure Token");
+                m.put("skill.action.configToken.tooltip", "Configure GitHub token to increase API rate limit");
+                m.put("skill.tokenConfig.title", "Configure GitHub Token");
                 m.put("skill.action.discover", "Discover Skills");
                 m.put("skill.action.discover.tooltip", "Discover installable skills from repositories");
                 m.put("skill.action.install", "Install Skill");
