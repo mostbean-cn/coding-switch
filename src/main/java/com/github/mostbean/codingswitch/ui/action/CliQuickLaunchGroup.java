@@ -7,6 +7,7 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.DefaultActionGroup;
+import com.intellij.openapi.actionSystem.KeepPopupOnPerform;
 import com.intellij.openapi.actionSystem.Separator;
 import com.intellij.openapi.actionSystem.Presentation;
 import java.util.ArrayList;
@@ -86,15 +87,24 @@ public class CliQuickLaunchGroup extends DefaultActionGroup {
         SelectCliAction(PluginSettings.CliQuickLaunchItem item, boolean isSelected) {
             super(item.name);
             this.item = item;
-            getTemplatePresentation().setText(
-                isSelected ? "✓ " + item.name : item.name,
-                false
-            );
+            Presentation presentation = getTemplatePresentation();
+            presentation.setText(isSelected ? "✓ " + item.name : item.name, false);
+            presentation.setKeepPopupOnPerform(KeepPopupOnPerform.Always);
         }
 
         @Override
         public @NotNull ActionUpdateThread getActionUpdateThread() {
             return ActionUpdateThread.BGT;
+        }
+
+        @Override
+        public void update(@NotNull AnActionEvent e) {
+            e.getPresentation().setText(
+                item.command.equals(PluginSettings.getInstance().getCliQuickLaunchSelectedCommand())
+                    ? "✓ " + item.name
+                    : item.name,
+                false
+            );
         }
 
         @Override
