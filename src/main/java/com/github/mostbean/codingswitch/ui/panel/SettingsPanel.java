@@ -9,7 +9,10 @@ import com.github.mostbean.codingswitch.service.PluginStorageModeService;
 import com.intellij.icons.AllIcons;
 import com.intellij.ide.ActivityTracker;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.wm.ToolWindow;
+import com.intellij.openapi.wm.ToolWindowManager;
 import com.intellij.openapi.application.PathManager;
+import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.ui.JBColor;
@@ -42,6 +45,7 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.Action;
 import javax.swing.DefaultListCellRenderer;
+import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JComboBox;
@@ -55,6 +59,7 @@ import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JToggleButton;
+import javax.swing.ListSelectionModel;
 import javax.swing.Scrollable;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
@@ -66,6 +71,7 @@ import javax.swing.table.DefaultTableModel;
  */
 public class SettingsPanel extends JPanel {
 
+    private final Project project;
     private final Map<CliType, JBLabel> statusIcons = new LinkedHashMap<>();
     private final Map<CliType, JBLabel> currentLabels = new LinkedHashMap<>();
     private final Map<CliType, JBLabel> latestLabels = new LinkedHashMap<>();
@@ -78,8 +84,10 @@ public class SettingsPanel extends JPanel {
     private JScrollPane cliCommandTableScrollPane;
     private JPanel cliCommandTableContainer;
     private JToggleButton cliCommandTableToggle;
+    private JButton featureSelectionButton;
 
-    public SettingsPanel() {
+    public SettingsPanel(Project project) {
+        this.project = project;
         setLayout(new BorderLayout());
         setBorder(JBUI.Borders.empty(12));
         add(new JBScrollPane(buildContent()), BorderLayout.CENTER);
@@ -299,6 +307,18 @@ public class SettingsPanel extends JPanel {
         langCombo.addActionListener(e -> onLanguageChanged(langCombo));
         langRow.add(langCombo);
         content.add(langRow);
+
+        JPanel featureRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
+        featureRow.add(createInfoHintIcon(
+            I18n.t("settings.hint.featureSelection"),
+            I18n.t("settings.label.featureSelection")
+        ));
+        featureRow.add(new JBLabel(I18n.t("settings.label.featureSelection")));
+
+        featureSelectionButton = new JButton(I18n.t("settings.button.configure"));
+        featureSelectionButton.addActionListener(e -> showFeatureSelectionDialog());
+        featureRow.add(featureSelectionButton);
+        content.add(featureRow);
 
         // ========== 2. 存储位置 ==========
         JPanel storageRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
@@ -602,6 +622,198 @@ public class SettingsPanel extends JPanel {
         );
         revalidate();
         repaint();
+    }
+
+    private void showFeatureSelectionDialog() {
+        DefaultListModel<PluginSettings.ToolWindowFeature> enabledModel = new DefaultListModel<>();
+        DefaultListModel<PluginSettings.ToolWindowFeature> hiddenModel = new DefaultListModel<>();
+        java.util.List<PluginSettings.ToolWindowFeature> enabledFeatures = PluginSettings.getInstance()
+            .getEnabledToolWindowFeatures();
+
+        for (PluginSettings.ToolWindowFeature feature : PluginSettings.ToolWindowFeature.allInDisplayOrder()) {
+            if (enabledFeatures.contains(feature)) {
+                enabledModel.addElement(feature);
+            } else if (feature.canHide()) {
+                hiddenModel.addElement(feature);
+            }
+        }
+
+        JList<PluginSettings.ToolWindowFeature> enabledList = createFeatureList(enabledModel);
+        JList<PluginSettings.ToolWindowFeature> hiddenList = createFeatureList(hiddenModel);
+
+        JButton hideButton = new JButton("→");
+        hideButton.addActionListener(e -> moveSelectedFeatures(enabledList, enabledModel, hiddenModel, true));
+
+        JButton enableButton = new JButton("←");
+        enableButton.addActionListener(e -> moveSelectedFeatures(hiddenList, hiddenModel, enabledModel, false));
+
+        JPanel transferPanel = new JPanel();
+        transferPanel.setLayout(new BoxLayout(transferPanel, BoxLayout.Y_AXIS));
+        transferPanel.add(Box.createVerticalGlue());
+        transferPanel.add(hideButton);
+        transferPanel.add(Box.createVerticalStrut(8));
+        transferPanel.add(enableButton);
+        transferPanel.add(Box.createVerticalGlue());
+
+        JPanel dialogPanel = new JPanel();
+        dialogPanel.setLayout(new BoxLayout(dialogPanel, BoxLayout.X_AXIS));
+        dialogPanel.setBorder(JBUI.Borders.empty(8));
+        dialogPanel.add(createFeatureListPanel(
+            I18n.t("settings.dialog.featureSelection.enabled"),
+            enabledList,
+            I18n.t("settings.dialog.featureSelection.settingsPinned")
+        ));
+        dialogPanel.add(Box.createHorizontalStrut(12));
+        dialogPanel.add(transferPanel);
+        dialogPanel.add(Box.createHorizontalStrut(12));
+        dialogPanel.add(createFeatureListPanel(
+            I18n.t("settings.dialog.featureSelection.hidden"),
+            hiddenList,
+            null
+        ));
+
+        int result = JOptionPane.showOptionDialog(
+            this,
+            dialogPanel,
+            I18n.t("settings.dialog.featureSelection.title"),
+            JOptionPane.DEFAULT_OPTION,
+            JOptionPane.PLAIN_MESSAGE,
+            null,
+            new Object[] {
+                I18n.t("settings.button.restoreDefault"),
+                I18n.t("common.button.cancel"),
+                I18n.t("common.button.ok")
+            },
+            I18n.t("common.button.ok")
+        );
+
+        if (result == 0) {
+            PluginSettings.getInstance().setEnabledToolWindowFeatures(
+                PluginSettings.ToolWindowFeature.allInDisplayOrder()
+            );
+            refreshToolWindowTabs();
+            return;
+        }
+        if (result != 2) {
+            return;
+        }
+
+        java.util.List<PluginSettings.ToolWindowFeature> selectedFeatures = new java.util.ArrayList<>();
+        for (int i = 0; i < enabledModel.size(); i++) {
+            selectedFeatures.add(enabledModel.getElementAt(i));
+        }
+        PluginSettings.getInstance().setEnabledToolWindowFeatures(selectedFeatures);
+        refreshToolWindowTabs();
+    }
+
+    private JList<PluginSettings.ToolWindowFeature> createFeatureList(
+        DefaultListModel<PluginSettings.ToolWindowFeature> model
+    ) {
+        JList<PluginSettings.ToolWindowFeature> list = new JList<>(model);
+        list.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+        list.setVisibleRowCount(8);
+        list.setCellRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(
+                JList<?> list,
+                Object value,
+                int index,
+                boolean isSelected,
+                boolean cellHasFocus
+            ) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                if (value instanceof PluginSettings.ToolWindowFeature feature) {
+                    setText(feature.getDisplayName());
+                }
+                return this;
+            }
+        });
+        return list;
+    }
+
+    private JPanel createFeatureListPanel(String title, JList<PluginSettings.ToolWindowFeature> list, String hint) {
+        JPanel panel = new JPanel(new BorderLayout(0, 8));
+        panel.setPreferredSize(new Dimension(JBUI.scale(180), JBUI.scale(240)));
+
+        JLabel label = new JLabel(title);
+        label.setFont(label.getFont().deriveFont(Font.BOLD));
+        panel.add(label, BorderLayout.NORTH);
+        panel.add(new JBScrollPane(list), BorderLayout.CENTER);
+
+        if (hint != null && !hint.isBlank()) {
+            JTextArea hintArea = new JTextArea(hint);
+            hintArea.setEditable(false);
+            hintArea.setLineWrap(true);
+            hintArea.setWrapStyleWord(true);
+            hintArea.setOpaque(false);
+            hintArea.setFocusable(false);
+            hintArea.setForeground(JBColor.GRAY);
+            hintArea.setBorder(JBUI.Borders.empty());
+            panel.add(hintArea, BorderLayout.SOUTH);
+        }
+        return panel;
+    }
+
+    private void moveSelectedFeatures(
+        JList<PluginSettings.ToolWindowFeature> sourceList,
+        DefaultListModel<PluginSettings.ToolWindowFeature> sourceModel,
+        DefaultListModel<PluginSettings.ToolWindowFeature> targetModel,
+        boolean removingFromEnabled
+    ) {
+        java.util.List<PluginSettings.ToolWindowFeature> selected = sourceList.getSelectedValuesList();
+        if (selected.isEmpty()) {
+            return;
+        }
+
+        for (PluginSettings.ToolWindowFeature feature : selected) {
+            if (removingFromEnabled && !feature.canHide()) {
+                continue;
+            }
+            if (!containsFeature(targetModel, feature)) {
+                targetModel.addElement(feature);
+            }
+            sourceModel.removeElement(feature);
+        }
+        sortFeatureModel(targetModel);
+        sortFeatureModel(sourceModel);
+    }
+
+    private boolean containsFeature(
+        DefaultListModel<PluginSettings.ToolWindowFeature> model,
+        PluginSettings.ToolWindowFeature feature
+    ) {
+        for (int i = 0; i < model.size(); i++) {
+            if (model.getElementAt(i) == feature) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void sortFeatureModel(DefaultListModel<PluginSettings.ToolWindowFeature> model) {
+        java.util.List<PluginSettings.ToolWindowFeature> features = new java.util.ArrayList<>();
+        for (int i = 0; i < model.size(); i++) {
+            features.add(model.getElementAt(i));
+        }
+        model.clear();
+        for (PluginSettings.ToolWindowFeature feature : PluginSettings.ToolWindowFeature.allInDisplayOrder()) {
+            if (features.contains(feature)) {
+                model.addElement(feature);
+            }
+        }
+    }
+
+    private void refreshToolWindowTabs() {
+        ActivityTracker.getInstance().inc();
+        if (project == null || project.isDisposed()) {
+            return;
+        }
+        ToolWindow toolWindow = ToolWindowManager.getInstance(project).getToolWindow("Coding Switch");
+        if (toolWindow != null) {
+            toolWindow.getContentManager().removeAllContents(true);
+            new com.github.mostbean.codingswitch.ui.toolwindow.CodingSwitchToolWindowFactory()
+                .createToolWindowContent(project, toolWindow);
+        }
     }
 
     private JPanel createWrappedHintRow(String text) {

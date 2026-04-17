@@ -9,6 +9,7 @@ import com.github.mostbean.codingswitch.ui.panel.SettingsPanel;
 import com.github.mostbean.codingswitch.ui.panel.SkillPanel;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.Key;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowFactory;
 import com.intellij.ui.content.Content;
@@ -22,42 +23,42 @@ import org.jetbrains.annotations.NotNull;
  */
 public class CodingSwitchToolWindowFactory implements ToolWindowFactory, DumbAware {
 
+    private static final Key<Boolean> LISTENER_ATTACHED_KEY = Key.create("coding.switch.toolwindow.listener.attached");
+
     @Override
     public void createToolWindowContent(@NotNull Project project, @NotNull ToolWindow toolWindow) {
         ContentFactory contentFactory = ContentFactory.getInstance();
 
-        Content providerContent = contentFactory.createContent(
-                new ProviderPanel(), I18n.t("toolwindow.tab.providers"), false);
-        toolWindow.getContentManager().addContent(providerContent);
+        for (com.github.mostbean.codingswitch.service.PluginSettings.ToolWindowFeature feature
+            : com.github.mostbean.codingswitch.service.PluginSettings.getInstance().getEnabledToolWindowFeatures()) {
+            Content content = switch (feature) {
+                case PROVIDERS -> contentFactory.createContent(
+                    new ProviderPanel(), I18n.t("toolwindow.tab.providers"), false);
+                case SESSIONS -> contentFactory.createContent(
+                    new SessionPanel(), I18n.t("toolwindow.tab.sessions"), false);
+                case MCP -> contentFactory.createContent(
+                    new McpPanel(project), I18n.t("toolwindow.tab.mcp"), false);
+                case SKILLS -> contentFactory.createContent(
+                    new SkillPanel(), I18n.t("toolwindow.tab.skills"), false);
+                case PROMPTS -> contentFactory.createContent(
+                    new PromptPanel(), I18n.t("toolwindow.tab.prompts"), false);
+                case SETTINGS -> contentFactory.createContent(
+                    new SettingsPanel(project), I18n.t("toolwindow.tab.settings"), false);
+            };
+            toolWindow.getContentManager().addContent(content);
+        }
 
-        SessionPanel sessionPanel = new SessionPanel();
-        Content sessionContent = contentFactory.createContent(
-                sessionPanel, I18n.t("toolwindow.tab.sessions"), false);
-        toolWindow.getContentManager().addContent(sessionContent);
-
-        Content mcpContent = contentFactory.createContent(
-                new McpPanel(project), I18n.t("toolwindow.tab.mcp"), false);
-        toolWindow.getContentManager().addContent(mcpContent);
-
-        Content skillContent = contentFactory.createContent(
-                new SkillPanel(), I18n.t("toolwindow.tab.skills"), false);
-        toolWindow.getContentManager().addContent(skillContent);
-
-        Content promptContent = contentFactory.createContent(
-                new PromptPanel(), I18n.t("toolwindow.tab.prompts"), false);
-        toolWindow.getContentManager().addContent(promptContent);
-
-        Content settingsContent = contentFactory.createContent(
-                new SettingsPanel(), I18n.t("toolwindow.tab.settings"), false);
-        toolWindow.getContentManager().addContent(settingsContent);
-
-        toolWindow.getContentManager().addContentManagerListener(new ContentManagerListener() {
-            @Override
-            public void selectionChanged(@NotNull ContentManagerEvent event) {
-                if (toolWindow.getContentManager().getSelectedContent() == sessionContent) {
-                    sessionPanel.autoRefreshOnEntry();
+        if (!Boolean.TRUE.equals(toolWindow.getContentManager().getComponent().getClientProperty(LISTENER_ATTACHED_KEY))) {
+            toolWindow.getContentManager().addContentManagerListener(new ContentManagerListener() {
+                @Override
+                public void selectionChanged(@NotNull ContentManagerEvent event) {
+                    Content selectedContent = toolWindow.getContentManager().getSelectedContent();
+                    if (selectedContent != null && selectedContent.getComponent() instanceof SessionPanel sessionPanel) {
+                        sessionPanel.autoRefreshOnEntry();
+                    }
                 }
-            }
-        });
+            });
+            toolWindow.getContentManager().getComponent().putClientProperty(LISTENER_ATTACHED_KEY, Boolean.TRUE);
+        }
     }
 }

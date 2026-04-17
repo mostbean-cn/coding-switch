@@ -7,7 +7,9 @@ import com.intellij.openapi.components.Service;
 import com.intellij.openapi.components.State;
 import com.intellij.openapi.components.Storage;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -96,6 +98,49 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         }
     }
 
+    public enum ToolWindowFeature {
+        PROVIDERS("providers"),
+        SESSIONS("sessions"),
+        MCP("mcp"),
+        SKILLS("skills"),
+        PROMPTS("prompts"),
+        SETTINGS("settings");
+
+        private final String id;
+
+        ToolWindowFeature(String id) {
+            this.id = id;
+        }
+
+        public String getId() {
+            return id;
+        }
+
+        public boolean canHide() {
+            return this != SETTINGS;
+        }
+
+        public String getDisplayName() {
+            return I18n.t("toolwindow.tab." + id);
+        }
+
+        public static List<ToolWindowFeature> allInDisplayOrder() {
+            return List.of(values());
+        }
+
+        public static ToolWindowFeature fromId(String id) {
+            if (id == null || id.isBlank()) {
+                return null;
+            }
+            for (ToolWindowFeature feature : values()) {
+                if (feature.id.equals(id)) {
+                    return feature;
+                }
+            }
+            return null;
+        }
+    }
+
     public static class CliQuickLaunchItem {
         public String name = "";
         public String command = "";
@@ -115,6 +160,7 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         public boolean cliQuickLaunchEnabled = false;
         public List<CliQuickLaunchItem> cliQuickLaunchItems = new ArrayList<>();
         public String cliQuickLaunchSelectedCommand = "";
+        public List<String> enabledToolWindowFeatureIds = new ArrayList<>();
         public String providerFilterCliId = "";
         public String sessionFilterCliId = "";
         public String promptFilterCliId = "";
@@ -198,6 +244,17 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         saveActiveState(active);
     }
 
+    public List<ToolWindowFeature> getEnabledToolWindowFeatures() {
+        State active = getActiveState();
+        return resolveEnabledToolWindowFeatures(active.enabledToolWindowFeatureIds);
+    }
+
+    public void setEnabledToolWindowFeatures(List<ToolWindowFeature> features) {
+        State active = getActiveState();
+        active.enabledToolWindowFeatureIds = toFeatureIdList(features);
+        saveActiveState(active);
+    }
+
     public CliType getProviderFilterCli() {
         return CliType.fromId(getActiveState().providerFilterCliId);
     }
@@ -253,6 +310,7 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         snapshot.cliQuickLaunchEnabled = active.cliQuickLaunchEnabled;
         snapshot.cliQuickLaunchItems = active.cliQuickLaunchItems == null ? new ArrayList<>() : new ArrayList<>(active.cliQuickLaunchItems);
         snapshot.cliQuickLaunchSelectedCommand = active.cliQuickLaunchSelectedCommand;
+        snapshot.enabledToolWindowFeatureIds = active.enabledToolWindowFeatureIds == null ? new ArrayList<>() : new ArrayList<>(active.enabledToolWindowFeatureIds);
         snapshot.providerFilterCliId = active.providerFilterCliId;
         snapshot.sessionFilterCliId = active.sessionFilterCliId;
         snapshot.promptFilterCliId = active.promptFilterCliId;
@@ -308,6 +366,9 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
             ? new ArrayList<>()
             : new ArrayList<>(state.cliQuickLaunchItems);
         snapshot.cliQuickLaunchSelectedCommand = state.cliQuickLaunchSelectedCommand;
+        snapshot.enabledToolWindowFeatureIds = state.enabledToolWindowFeatureIds == null
+            ? new ArrayList<>()
+            : new ArrayList<>(state.enabledToolWindowFeatureIds);
         snapshot.providerFilterCliId = state.providerFilterCliId;
         snapshot.sessionFilterCliId = state.sessionFilterCliId;
         snapshot.promptFilterCliId = state.promptFilterCliId;
@@ -331,6 +392,9 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         if (normalized.cliQuickLaunchSelectedCommand == null) {
             normalized.cliQuickLaunchSelectedCommand = "";
         }
+        normalized.enabledToolWindowFeatureIds = toFeatureIdList(
+            resolveEnabledToolWindowFeatures(normalized.enabledToolWindowFeatureIds)
+        );
         if (normalized.providerFilterCliId == null) {
             normalized.providerFilterCliId = "";
         }
@@ -341,5 +405,46 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
             normalized.promptFilterCliId = "";
         }
         return normalized;
+    }
+
+    private static List<ToolWindowFeature> resolveEnabledToolWindowFeatures(List<String> featureIds) {
+        Set<ToolWindowFeature> enabled = new LinkedHashSet<>();
+        if (featureIds != null) {
+            for (String featureId : featureIds) {
+                ToolWindowFeature feature = ToolWindowFeature.fromId(featureId);
+                if (feature != null) {
+                    enabled.add(feature);
+                }
+            }
+        }
+        if (enabled.isEmpty()) {
+            enabled.addAll(ToolWindowFeature.allInDisplayOrder());
+        }
+        enabled.add(ToolWindowFeature.SETTINGS);
+        List<ToolWindowFeature> ordered = new ArrayList<>();
+        for (ToolWindowFeature feature : ToolWindowFeature.allInDisplayOrder()) {
+            if (enabled.contains(feature)) {
+                ordered.add(feature);
+            }
+        }
+        return ordered;
+    }
+
+    private static List<String> toFeatureIdList(List<ToolWindowFeature> features) {
+        Set<String> featureIds = new LinkedHashSet<>();
+        if (features != null) {
+            for (ToolWindowFeature feature : features) {
+                if (feature != null) {
+                    featureIds.add(feature.getId());
+                }
+            }
+        }
+        if (featureIds.isEmpty()) {
+            for (ToolWindowFeature feature : ToolWindowFeature.allInDisplayOrder()) {
+                featureIds.add(feature.getId());
+            }
+        }
+        featureIds.add(ToolWindowFeature.SETTINGS.getId());
+        return new ArrayList<>(featureIds);
     }
 }
