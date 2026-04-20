@@ -83,7 +83,7 @@ public final class I18n {
                 m.put("settings.label.featureSelection", "功能选择:");
                 m.put("settings.button.show", "显示");
                 m.put("settings.button.hide", "隐藏");
-                m.put("settings.button.configure", "配置");
+                m.put("settings.button.configure", "配置功能");
                 m.put("settings.button.restoreDefault", "恢复默认");
                 m.put("settings.button.saveGithubToken", "保存令牌");
                 m.put("settings.button.applyStorageMode", "应用");
@@ -510,7 +510,7 @@ public final class I18n {
                 m.put("settings.label.featureSelection", "Feature Selection:");
                 m.put("settings.button.show", "Show");
                 m.put("settings.button.hide", "Hide");
-                m.put("settings.button.configure", "Configure");
+                m.put("settings.button.configure", "Configure Feature");
                 m.put("settings.button.restoreDefault", "Restore Defaults");
                 m.put("settings.button.saveGithubToken", "Save Token");
                 m.put("settings.button.applyStorageMode", "Apply");

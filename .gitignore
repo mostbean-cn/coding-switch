@@ -31,3 +31,4 @@ ehthumbs_vista.db
 # IntelliJ Platform Plugin temporary directories
 .intellijPlatform/
 .qwen
+bin
