@@ -510,7 +510,7 @@ public final class I18n {
                 m.put("settings.label.featureSelection", "Feature Selection:");
                 m.put("settings.button.show", "Show");
                 m.put("settings.button.hide", "Hide");
-                m.put("settings.button.configure", "Feature Configuration");
+                m.put("settings.button.configure", "Feature Config");
                 m.put("settings.button.restoreDefault", "Restore Defaults");
                 m.put("settings.button.saveGithubToken", "Save Token");
                 m.put("settings.button.applyStorageMode", "Apply");
