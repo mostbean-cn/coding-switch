@@ -161,6 +161,7 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         public List<CliQuickLaunchItem> cliQuickLaunchItems = new ArrayList<>();
         public String cliQuickLaunchSelectedCommand = "";
         public List<String> enabledToolWindowFeatureIds = new ArrayList<>();
+        public List<String> visibleSettingsCliIds = new ArrayList<>();
         public String providerFilterCliId = "";
         public String sessionFilterCliId = "";
         public String promptFilterCliId = "";
@@ -255,6 +256,17 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         saveActiveState(active);
     }
 
+    public List<CliType> getVisibleSettingsCliTypes() {
+        State active = getActiveState();
+        return resolveVisibleSettingsCliTypes(active.visibleSettingsCliIds);
+    }
+
+    public void setVisibleSettingsCliTypes(List<CliType> cliTypes) {
+        State active = getActiveState();
+        active.visibleSettingsCliIds = toVisibleSettingsCliIdList(cliTypes);
+        saveActiveState(active);
+    }
+
     public CliType getProviderFilterCli() {
         return CliType.fromId(getActiveState().providerFilterCliId);
     }
@@ -311,6 +323,7 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         snapshot.cliQuickLaunchItems = active.cliQuickLaunchItems == null ? new ArrayList<>() : new ArrayList<>(active.cliQuickLaunchItems);
         snapshot.cliQuickLaunchSelectedCommand = active.cliQuickLaunchSelectedCommand;
         snapshot.enabledToolWindowFeatureIds = active.enabledToolWindowFeatureIds == null ? new ArrayList<>() : new ArrayList<>(active.enabledToolWindowFeatureIds);
+        snapshot.visibleSettingsCliIds = active.visibleSettingsCliIds == null ? new ArrayList<>() : new ArrayList<>(active.visibleSettingsCliIds);
         snapshot.providerFilterCliId = active.providerFilterCliId;
         snapshot.sessionFilterCliId = active.sessionFilterCliId;
         snapshot.promptFilterCliId = active.promptFilterCliId;
@@ -369,6 +382,9 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         snapshot.enabledToolWindowFeatureIds = state.enabledToolWindowFeatureIds == null
             ? new ArrayList<>()
             : new ArrayList<>(state.enabledToolWindowFeatureIds);
+        snapshot.visibleSettingsCliIds = state.visibleSettingsCliIds == null
+            ? new ArrayList<>()
+            : new ArrayList<>(state.visibleSettingsCliIds);
         snapshot.providerFilterCliId = state.providerFilterCliId;
         snapshot.sessionFilterCliId = state.sessionFilterCliId;
         snapshot.promptFilterCliId = state.promptFilterCliId;
@@ -394,6 +410,9 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         }
         normalized.enabledToolWindowFeatureIds = toFeatureIdList(
             resolveEnabledToolWindowFeatures(normalized.enabledToolWindowFeatureIds)
+        );
+        normalized.visibleSettingsCliIds = toVisibleSettingsCliIdList(
+            resolveVisibleSettingsCliTypes(normalized.visibleSettingsCliIds)
         );
         if (normalized.providerFilterCliId == null) {
             normalized.providerFilterCliId = "";
@@ -428,6 +447,45 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
             }
         }
         return ordered;
+    }
+
+    private static List<CliType> resolveVisibleSettingsCliTypes(List<String> cliIds) {
+        Set<CliType> visible = new LinkedHashSet<>();
+        if (cliIds != null) {
+            for (String cliId : cliIds) {
+                CliType cliType = CliType.fromId(cliId);
+                if (cliType != null) {
+                    visible.add(cliType);
+                }
+            }
+        }
+        if (visible.isEmpty()) {
+            visible.addAll(List.of(CliType.values()));
+        }
+        List<CliType> ordered = new ArrayList<>();
+        for (CliType cliType : CliType.values()) {
+            if (visible.contains(cliType)) {
+                ordered.add(cliType);
+            }
+        }
+        return ordered;
+    }
+
+    private static List<String> toVisibleSettingsCliIdList(List<CliType> cliTypes) {
+        Set<String> cliIds = new LinkedHashSet<>();
+        if (cliTypes != null) {
+            for (CliType cliType : cliTypes) {
+                if (cliType != null) {
+                    cliIds.add(cliType.getId());
+                }
+            }
+        }
+        if (cliIds.isEmpty()) {
+            for (CliType cliType : CliType.values()) {
+                cliIds.add(cliType.getId());
+            }
+        }
+        return new ArrayList<>(cliIds);
     }
 
     private static List<String> toFeatureIdList(List<ToolWindowFeature> features) {

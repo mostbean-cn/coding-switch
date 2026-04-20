@@ -39,6 +39,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -85,6 +86,7 @@ public class SettingsPanel extends JPanel {
     private JPanel cliCommandTableContainer;
     private JToggleButton cliCommandTableToggle;
     private JButton featureSelectionButton;
+    private JButton cliSelectionButton;
 
     public SettingsPanel(Project project) {
         this.project = project;
@@ -142,7 +144,7 @@ public class SettingsPanel extends JPanel {
         );
 
         int row = 1;
-        for (CliType cli : CliType.values()) {
+        for (CliType cli : PluginSettings.getInstance().getVisibleSettingsCliTypes()) {
             JBLabel icon = new JBLabel(AllIcons.General.BalloonInformation);
             JBLabel nameLabel = new JBLabel(cli.getDisplayName());
             nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD));
@@ -196,7 +198,7 @@ public class SettingsPanel extends JPanel {
         );
 
         FormBuilder form = FormBuilder.createFormBuilder();
-        for (CliType cli : CliType.values()) {
+        for (CliType cli : PluginSettings.getInstance().getVisibleSettingsCliTypes()) {
             String cmd = CliVersionService.getInstance().getInstallCommand(cli);
             form.addComponent(
                 createCopyableCommandRow(cli, cli.getDisplayName(), cmd)
@@ -318,6 +320,10 @@ public class SettingsPanel extends JPanel {
         featureSelectionButton = new JButton(I18n.t("settings.button.configure"));
         featureSelectionButton.addActionListener(e -> showFeatureSelectionDialog());
         featureRow.add(featureSelectionButton);
+
+        cliSelectionButton = new JButton(I18n.t("settings.button.cliConfig"));
+        cliSelectionButton.addActionListener(e -> showCliSelectionDialog());
+        featureRow.add(cliSelectionButton);
         content.add(featureRow);
 
         // ========== 2. 存储位置 ==========
@@ -706,6 +712,83 @@ public class SettingsPanel extends JPanel {
         refreshToolWindowTabs();
     }
 
+    private void showCliSelectionDialog() {
+        DefaultListModel<CliType> visibleModel = new DefaultListModel<>();
+        DefaultListModel<CliType> hiddenModel = new DefaultListModel<>();
+        java.util.List<CliType> visibleCliTypes = PluginSettings.getInstance().getVisibleSettingsCliTypes();
+
+        for (CliType cliType : CliType.values()) {
+            if (visibleCliTypes.contains(cliType)) {
+                visibleModel.addElement(cliType);
+            } else {
+                hiddenModel.addElement(cliType);
+            }
+        }
+
+        JList<CliType> visibleList = createCliList(visibleModel);
+        JList<CliType> hiddenList = createCliList(hiddenModel);
+
+        JButton hideButton = new JButton("→");
+        hideButton.addActionListener(e -> moveSelectedCliTypes(visibleList, visibleModel, hiddenModel));
+
+        JButton showButton = new JButton("←");
+        showButton.addActionListener(e -> moveSelectedCliTypes(hiddenList, hiddenModel, visibleModel));
+
+        JPanel transferPanel = new JPanel();
+        transferPanel.setLayout(new BoxLayout(transferPanel, BoxLayout.Y_AXIS));
+        transferPanel.add(Box.createVerticalGlue());
+        transferPanel.add(hideButton);
+        transferPanel.add(Box.createVerticalStrut(8));
+        transferPanel.add(showButton);
+        transferPanel.add(Box.createVerticalGlue());
+
+        JPanel dialogPanel = new JPanel();
+        dialogPanel.setLayout(new BoxLayout(dialogPanel, BoxLayout.X_AXIS));
+        dialogPanel.setBorder(JBUI.Borders.empty(8));
+        dialogPanel.add(createCliListPanel(
+            I18n.t("settings.dialog.cliSelection.enabled"),
+            visibleList
+        ));
+        dialogPanel.add(Box.createHorizontalStrut(12));
+        dialogPanel.add(transferPanel);
+        dialogPanel.add(Box.createHorizontalStrut(12));
+        dialogPanel.add(createCliListPanel(
+            I18n.t("settings.dialog.cliSelection.hidden"),
+            hiddenList
+        ));
+
+        int result = JOptionPane.showOptionDialog(
+            this,
+            dialogPanel,
+            I18n.t("settings.dialog.cliSelection.title"),
+            JOptionPane.DEFAULT_OPTION,
+            JOptionPane.PLAIN_MESSAGE,
+            null,
+            new Object[] {
+                I18n.t("settings.button.restoreDefault"),
+                I18n.t("common.button.cancel"),
+                I18n.t("common.button.ok")
+            },
+            I18n.t("common.button.ok")
+        );
+
+        if (result == 0) {
+            PluginSettings.getInstance().setVisibleSettingsCliTypes(List.of(CliType.values()));
+            rebuildSettingsContent();
+            return;
+        }
+        if (result != 2) {
+            return;
+        }
+
+        java.util.List<CliType> selectedCliTypes = new java.util.ArrayList<>();
+        for (int i = 0; i < visibleModel.size(); i++) {
+            selectedCliTypes.add(visibleModel.getElementAt(i));
+        }
+        PluginSettings.getInstance().setVisibleSettingsCliTypes(selectedCliTypes);
+        rebuildSettingsContent();
+    }
+
     private JList<PluginSettings.ToolWindowFeature> createFeatureList(
         DefaultListModel<PluginSettings.ToolWindowFeature> model
     ) {
@@ -729,6 +812,40 @@ public class SettingsPanel extends JPanel {
             }
         });
         return list;
+    }
+
+    private JList<CliType> createCliList(DefaultListModel<CliType> model) {
+        JList<CliType> list = new JList<>(model);
+        list.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+        list.setVisibleRowCount(8);
+        list.setCellRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(
+                JList<?> list,
+                Object value,
+                int index,
+                boolean isSelected,
+                boolean cellHasFocus
+            ) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                if (value instanceof CliType cliType) {
+                    setText(cliType.getDisplayName());
+                }
+                return this;
+            }
+        });
+        return list;
+    }
+
+    private JPanel createCliListPanel(String title, JList<CliType> list) {
+        JPanel panel = new JPanel(new BorderLayout(0, 8));
+        panel.setPreferredSize(new Dimension(JBUI.scale(180), JBUI.scale(240)));
+
+        JLabel label = new JLabel(title);
+        label.setFont(label.getFont().deriveFont(Font.BOLD));
+        panel.add(label, BorderLayout.NORTH);
+        panel.add(new JBScrollPane(list), BorderLayout.CENTER);
+        return panel;
     }
 
     private JPanel createFeatureListPanel(String title, JList<PluginSettings.ToolWindowFeature> list, String hint) {
@@ -778,12 +895,41 @@ public class SettingsPanel extends JPanel {
         sortFeatureModel(sourceModel);
     }
 
+    private void moveSelectedCliTypes(
+        JList<CliType> sourceList,
+        DefaultListModel<CliType> sourceModel,
+        DefaultListModel<CliType> targetModel
+    ) {
+        java.util.List<CliType> selected = sourceList.getSelectedValuesList();
+        if (selected.isEmpty()) {
+            return;
+        }
+
+        for (CliType cliType : selected) {
+            if (!containsCliType(targetModel, cliType)) {
+                targetModel.addElement(cliType);
+            }
+            sourceModel.removeElement(cliType);
+        }
+        sortCliModel(targetModel);
+        sortCliModel(sourceModel);
+    }
+
     private boolean containsFeature(
         DefaultListModel<PluginSettings.ToolWindowFeature> model,
         PluginSettings.ToolWindowFeature feature
     ) {
         for (int i = 0; i < model.size(); i++) {
             if (model.getElementAt(i) == feature) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean containsCliType(DefaultListModel<CliType> model, CliType cliType) {
+        for (int i = 0; i < model.size(); i++) {
+            if (model.getElementAt(i) == cliType) {
                 return true;
             }
         }
@@ -803,6 +949,19 @@ public class SettingsPanel extends JPanel {
         }
     }
 
+    private void sortCliModel(DefaultListModel<CliType> model) {
+        java.util.List<CliType> cliTypes = new java.util.ArrayList<>();
+        for (int i = 0; i < model.size(); i++) {
+            cliTypes.add(model.getElementAt(i));
+        }
+        model.clear();
+        for (CliType cliType : CliType.values()) {
+            if (cliTypes.contains(cliType)) {
+                model.addElement(cliType);
+            }
+        }
+    }
+
     private void refreshToolWindowTabs() {
         ActivityTracker.getInstance().inc();
         if (project == null || project.isDisposed()) {
@@ -814,6 +973,17 @@ public class SettingsPanel extends JPanel {
             new com.github.mostbean.codingswitch.ui.toolwindow.CodingSwitchToolWindowFactory()
                 .createToolWindowContent(project, toolWindow);
         }
+    }
+
+    private void rebuildSettingsContent() {
+        statusIcons.clear();
+        currentLabels.clear();
+        latestLabels.clear();
+        commandFields.clear();
+        removeAll();
+        add(new JBScrollPane(buildContent()), BorderLayout.CENTER);
+        revalidate();
+        repaint();
     }
 
     private JPanel createWrappedHintRow(String text) {
@@ -1031,7 +1201,7 @@ public class SettingsPanel extends JPanel {
     }
 
     private void checkAllVersions() {
-        for (CliType cli : CliType.values()) {
+        for (CliType cli : PluginSettings.getInstance().getVisibleSettingsCliTypes()) {
             currentLabels.get(cli).setText(I18n.t("settings.status.checking"));
             currentLabels.get(cli).setForeground(JBColor.GRAY);
             latestLabels.get(cli).setText(I18n.t("settings.status.checking"));
@@ -1040,7 +1210,7 @@ public class SettingsPanel extends JPanel {
         }
 
         CliVersionService service = CliVersionService.getInstance();
-        for (CliType cli : CliType.values()) {
+        for (CliType cli : PluginSettings.getInstance().getVisibleSettingsCliTypes()) {
             ApplicationManager.getApplication().executeOnPooledThread(() -> {
                 CliVersionService.VersionResult current =
                     service.getVersionResult(cli);
@@ -1063,6 +1233,9 @@ public class SettingsPanel extends JPanel {
         JBLabel icon = statusIcons.get(cli);
         JBLabel curLabel = currentLabels.get(cli);
         JBLabel latLabel = latestLabels.get(cli);
+        if (icon == null || curLabel == null || latLabel == null) {
+            return;
+        }
 
         String current = currentResult != null ? currentResult.version() : null;
         CliVersionService.VersionStatus status =

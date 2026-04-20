@@ -81,9 +81,11 @@ public final class I18n {
                 m.put("settings.label.githubToken", "GitHub 令牌:");
                 m.put("settings.label.dataStorageMode", "存储位置:");
                 m.put("settings.label.featureSelection", "功能选择:");
+                m.put("settings.label.cliSelection", "CLI配置:");
                 m.put("settings.button.show", "显示");
                 m.put("settings.button.hide", "隐藏");
                 m.put("settings.button.configure", "功能配置");
+                m.put("settings.button.cliConfig", "CLI配置");
                 m.put("settings.button.restoreDefault", "恢复默认");
                 m.put("settings.button.saveGithubToken", "保存令牌");
                 m.put("settings.button.applyStorageMode", "应用");
@@ -91,6 +93,7 @@ public final class I18n {
                 m.put("settings.hint.githubToken", "可选。配置 GitHub 令牌可提升 API 速率限制（仅影响 GitHub Skills 仓库）。");
                 m.put("settings.hint.dataStorageMode", "Coding Switch 默认将配置数据保存在当前 IDE 的本地目录中。如需在 JetBrains 全家桶之间共享配置，请切换到“用户级共享”。");
                 m.put("settings.hint.featureSelection", "用于控制顶部标签显示。");
+                m.put("settings.hint.cliSelection", "用于控制本页“版本检测”和“安装/更新命令”中显示哪些 CLI。未选中时默认显示全部 CLI。");
                 m.put("settings.githubToken.title", "设置");
                 m.put("settings.githubToken.saved", "GitHub 令牌已保存");
                 m.put("settings.hint.restartRequired", "⚠️ 切换语言后需要重启 IDE 才能完全生效");
@@ -122,6 +125,9 @@ public final class I18n {
                 m.put("settings.dialog.featureSelection.enabled", "启用的功能");
                 m.put("settings.dialog.featureSelection.hidden", "隐藏的功能");
                 m.put("settings.dialog.featureSelection.settingsPinned", "“设置”固定显示，不支持隐藏。 ");
+                m.put("settings.dialog.cliSelection.title", "CLI配置");
+                m.put("settings.dialog.cliSelection.enabled", "显示的 CLI");
+                m.put("settings.dialog.cliSelection.hidden", "隐藏的 CLI");
 
                 // ── Session 面板 ──
                 m.put("session.empty.selectHint", "选择一个会话查看详情");
@@ -508,9 +514,11 @@ public final class I18n {
                 m.put("settings.label.githubToken", "GitHub Token:");
                 m.put("settings.label.dataStorageMode", "Storage Location:");
                 m.put("settings.label.featureSelection", "Feature Selection:");
+                m.put("settings.label.cliSelection", "CLI Config:");
                 m.put("settings.button.show", "Show");
                 m.put("settings.button.hide", "Hide");
                 m.put("settings.button.configure", "Feature Config");
+                m.put("settings.button.cliConfig", "CLI Config");
                 m.put("settings.button.restoreDefault", "Restore Defaults");
                 m.put("settings.button.saveGithubToken", "Save Token");
                 m.put("settings.button.applyStorageMode", "Apply");
@@ -518,6 +526,7 @@ public final class I18n {
                 m.put("settings.hint.githubToken", "Optional. Increases GitHub API rate limit (only affects GitHub Skills repositories).");
                 m.put("settings.hint.dataStorageMode", "Coding Switch stores configuration data in the current IDE's local directory by default. Switch to \"User Shared\" if you want to reuse configuration across JetBrains IDEs.");
                 m.put("settings.hint.featureSelection", "Controls which top tabs are visible.");
+                m.put("settings.hint.cliSelection", "Controls which CLI entries are shown in the version check and install/update command sections on this page. If none are selected, all CLIs are shown by default.");
                 m.put("settings.githubToken.title", "Settings");
                 m.put("settings.githubToken.saved", "GitHub token saved");
                 m.put("settings.hint.restartRequired", "⚠️ Restart IDE after switching language for full effect");
@@ -550,6 +559,9 @@ public final class I18n {
                 m.put("settings.dialog.featureSelection.enabled", "Enabled Features");
                 m.put("settings.dialog.featureSelection.hidden", "Hidden Features");
                 m.put("settings.dialog.featureSelection.settingsPinned", "Settings is always visible and cannot be hidden.");
+                m.put("settings.dialog.cliSelection.title", "CLI Config");
+                m.put("settings.dialog.cliSelection.enabled", "Visible CLIs");
+                m.put("settings.dialog.cliSelection.hidden", "Hidden CLIs");
 
                 // ── Session Panel ──
                 m.put("session.empty.selectHint", "Select a session to view details");
