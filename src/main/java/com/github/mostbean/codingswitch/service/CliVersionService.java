@@ -1,6 +1,7 @@
 package com.github.mostbean.codingswitch.service;
 
 import com.github.mostbean.codingswitch.model.CliType;
+import com.github.mostbean.codingswitch.model.SettingsCli;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.diagnostic.Logger;
@@ -134,6 +135,36 @@ public final class CliVersionService {
         return result.status() == VersionStatus.INSTALLED ? result.version() : null;
     }
 
+    public VersionResult getVersionResult(SettingsCli cliType) {
+        String commandName = getCommandName(cliType);
+        if (!isCommandAvailable(commandName)) {
+            return VersionResult.notInstalled();
+        }
+
+        String[] commands = getVersionCommands(cliType);
+        long versionTimeoutSeconds = getVersionTimeoutSeconds(cliType);
+        boolean hasTimeout = false;
+        String lastFailure = null;
+        for (String command : commands) {
+            VersionResult result = runAndParse(command, versionTimeoutSeconds);
+            if (result.status() == VersionStatus.INSTALLED) {
+                return result;
+            }
+            if (result.status() == VersionStatus.TIMEOUT) {
+                hasTimeout = true;
+            } else if (result.status() == VersionStatus.COMMAND_FAILED) {
+                lastFailure = result.detail();
+            }
+        }
+        if (hasTimeout) {
+            return VersionResult.timeout("version command timeout");
+        }
+        if (lastFailure != null) {
+            return VersionResult.failed(lastFailure);
+        }
+        return VersionResult.notInstalled();
+    }
+
     public VersionResult getVersionResult(CliType cliType) {
         String commandName = getCommandName(cliType);
         if (!isCommandAvailable(commandName)) {
@@ -162,6 +193,36 @@ public final class CliVersionService {
             return VersionResult.failed(lastFailure);
         }
         return VersionResult.notInstalled();
+    }
+
+    public String getLatestVersion(SettingsCli cliType) {
+        return getLatestVersion(cliType, null);
+    }
+
+    public String getLatestVersion(SettingsCli cliType, String currentVersion) {
+        String packageName = getNpmPackageName(cliType);
+        if (packageName == null) {
+            return null;
+        }
+
+        String configuredRegistry = getConfiguredNpmRegistry();
+        String latest = getLatestVersionFromRegistry(packageName, configuredRegistry);
+        if (
+            latest != null &&
+            (currentVersion == null ||
+                compareVersions(latest, currentVersion) >= 0 ||
+                isOfficialRegistry(configuredRegistry))
+        ) {
+            return latest;
+        }
+
+        String officialLatest = getLatestVersionFromRegistry(
+            packageName,
+            OFFICIAL_NPM_REGISTRY
+        );
+        return compareVersions(officialLatest, latest) > 0
+            ? officialLatest
+            : latest;
     }
 
     public String getLatestVersion(CliType cliType) {
@@ -194,6 +255,27 @@ public final class CliVersionService {
             : latest;
     }
 
+    public String getUpdateCommand(SettingsCli cliType) {
+        return switch (cliType) {
+            case CLAUDE -> "claude update";
+            case CODEX -> "npm i -g @openai/codex@latest";
+            case GEMINI -> "npm i -g @google/gemini-cli@latest";
+            case OPENCODE -> "npm i -g opencode-ai@latest";
+            case CODEBUDDY -> "npm i -g @tencent-ai/codebuddy-code@latest";
+            case QWEN -> "npm i -g @qwen-code/qwen-code@latest";
+            case MMX -> "npm i -g mmx-cli@latest";
+            case QODER -> "npm i -g @qoder-ai/qodercli@latest";
+            case AUGGIE -> "npm i -g @augmentcode/auggie@latest";
+        };
+    }
+
+    public String getInstallCommand(SettingsCli cliType) {
+        return switch (cliType) {
+            case CLAUDE -> "npm install -g @anthropic-ai/claude-code";
+            default -> getUpdateCommand(cliType);
+        };
+    }
+
     public String getUpdateCommand(CliType cliType) {
         return switch (cliType) {
             case CLAUDE -> "claude update";
@@ -210,11 +292,32 @@ public final class CliVersionService {
         };
     }
 
+    public String getRecommendedCommand(SettingsCli cliType, VersionStatus status) {
+        if (status == VersionStatus.INSTALLED) {
+            return getUpdateCommand(cliType);
+        }
+        return getInstallCommand(cliType);
+    }
+
     public String getRecommendedCommand(CliType cliType, VersionStatus status) {
         if (status == VersionStatus.INSTALLED) {
             return getUpdateCommand(cliType);
         }
         return getInstallCommand(cliType);
+    }
+
+    private String[] getVersionCommands(SettingsCli cliType) {
+        return switch (cliType) {
+            case CLAUDE -> new String[]{"claude --version", "claude -v"};
+            case CODEX -> new String[]{"codex --version", "codex -v"};
+            case GEMINI -> new String[]{"gemini --version", "gemini -v"};
+            case OPENCODE -> new String[]{"opencode --version", "opencode -v"};
+            case CODEBUDDY -> new String[]{"codebuddy --version"};
+            case QWEN -> new String[]{"qwen --version"};
+            case MMX -> new String[]{"mmx --version"};
+            case QODER -> new String[]{"qodercli --version"};
+            case AUGGIE -> new String[]{"auggie --version"};
+        };
     }
 
     private String[] getVersionCommands(CliType cliType) {
@@ -226,10 +329,30 @@ public final class CliVersionService {
         };
     }
 
+    private long getVersionTimeoutSeconds(SettingsCli cliType) {
+        return cliType == SettingsCli.GEMINI
+            ? GEMINI_VERSION_TIMEOUT_SECONDS
+            : VERSION_TIMEOUT_SECONDS;
+    }
+
     private long getVersionTimeoutSeconds(CliType cliType) {
         return cliType == CliType.GEMINI
             ? GEMINI_VERSION_TIMEOUT_SECONDS
             : VERSION_TIMEOUT_SECONDS;
+    }
+
+    private String getCommandName(SettingsCli cliType) {
+        return switch (cliType) {
+            case CLAUDE -> "claude";
+            case CODEX -> "codex";
+            case GEMINI -> "gemini";
+            case OPENCODE -> "opencode";
+            case CODEBUDDY -> "codebuddy";
+            case QWEN -> "qwen";
+            case MMX -> "mmx";
+            case QODER -> "qodercli";
+            case AUGGIE -> "auggie";
+        };
     }
 
     private String getCommandName(CliType cliType) {
@@ -238,6 +361,20 @@ public final class CliVersionService {
             case CODEX -> "codex";
             case GEMINI -> "gemini";
             case OPENCODE -> "opencode";
+        };
+    }
+
+    private String getNpmPackageName(SettingsCli cliType) {
+        return switch (cliType) {
+            case CLAUDE -> "@anthropic-ai/claude-code";
+            case CODEX -> "@openai/codex";
+            case GEMINI -> "@google/gemini-cli";
+            case OPENCODE -> "opencode-ai";
+            case CODEBUDDY -> "@tencent-ai/codebuddy-code";
+            case QWEN -> "@qwen-code/qwen-code";
+            case MMX -> "mmx-cli";
+            case QODER -> "@qoder-ai/qodercli";
+            case AUGGIE -> "@augmentcode/auggie";
         };
     }
 

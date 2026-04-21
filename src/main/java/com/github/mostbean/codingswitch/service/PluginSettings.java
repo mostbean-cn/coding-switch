@@ -1,6 +1,7 @@
 package com.github.mostbean.codingswitch.service;
 
 import com.github.mostbean.codingswitch.model.CliType;
+import com.github.mostbean.codingswitch.model.SettingsCli;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.PersistentStateComponent;
 import com.intellij.openapi.components.Service;
@@ -256,12 +257,12 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         saveActiveState(active);
     }
 
-    public List<CliType> getVisibleSettingsCliTypes() {
+    public List<SettingsCli> getVisibleSettingsCliTypes() {
         State active = getActiveState();
         return resolveVisibleSettingsCliTypes(active.visibleSettingsCliIds);
     }
 
-    public void setVisibleSettingsCliTypes(List<CliType> cliTypes) {
+    public void setVisibleSettingsCliTypes(List<SettingsCli> cliTypes) {
         State active = getActiveState();
         active.visibleSettingsCliIds = toVisibleSettingsCliIdList(cliTypes);
         saveActiveState(active);
@@ -449,21 +450,21 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         return ordered;
     }
 
-    private static List<CliType> resolveVisibleSettingsCliTypes(List<String> cliIds) {
-        Set<CliType> visible = new LinkedHashSet<>();
+    private static List<SettingsCli> resolveVisibleSettingsCliTypes(List<String> cliIds) {
+        Set<SettingsCli> visible = new LinkedHashSet<>();
         if (cliIds != null) {
             for (String cliId : cliIds) {
-                CliType cliType = CliType.fromId(cliId);
+                SettingsCli cliType = SettingsCli.fromId(cliId);
                 if (cliType != null) {
                     visible.add(cliType);
                 }
             }
         }
         if (visible.isEmpty()) {
-            visible.addAll(List.of(CliType.values()));
+            visible.addAll(SettingsCli.defaultVisibleValues());
         }
-        List<CliType> ordered = new ArrayList<>();
-        for (CliType cliType : CliType.values()) {
+        List<SettingsCli> ordered = new ArrayList<>();
+        for (SettingsCli cliType : SettingsCli.values()) {
             if (visible.contains(cliType)) {
                 ordered.add(cliType);
             }
@@ -471,17 +472,17 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         return ordered;
     }
 
-    private static List<String> toVisibleSettingsCliIdList(List<CliType> cliTypes) {
+    private static List<String> toVisibleSettingsCliIdList(List<SettingsCli> cliTypes) {
         Set<String> cliIds = new LinkedHashSet<>();
         if (cliTypes != null) {
-            for (CliType cliType : cliTypes) {
+            for (SettingsCli cliType : cliTypes) {
                 if (cliType != null) {
                     cliIds.add(cliType.getId());
                 }
             }
         }
         if (cliIds.isEmpty()) {
-            for (CliType cliType : CliType.values()) {
+            for (SettingsCli cliType : SettingsCli.defaultVisibleValues()) {
                 cliIds.add(cliType.getId());
             }
         }

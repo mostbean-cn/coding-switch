@@ -1,6 +1,6 @@
 package com.github.mostbean.codingswitch.ui.panel;
 
-import com.github.mostbean.codingswitch.model.CliType;
+import com.github.mostbean.codingswitch.model.SettingsCli;
 import com.github.mostbean.codingswitch.service.CliVersionService;
 import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.PluginDataStorage;
@@ -73,10 +73,10 @@ import javax.swing.table.DefaultTableModel;
 public class SettingsPanel extends JPanel {
 
     private final Project project;
-    private final Map<CliType, JBLabel> statusIcons = new LinkedHashMap<>();
-    private final Map<CliType, JBLabel> currentLabels = new LinkedHashMap<>();
-    private final Map<CliType, JBLabel> latestLabels = new LinkedHashMap<>();
-    private final Map<CliType, JTextField> commandFields = new LinkedHashMap<>();
+    private final Map<SettingsCli, JBLabel> statusIcons = new LinkedHashMap<>();
+    private final Map<SettingsCli, JBLabel> currentLabels = new LinkedHashMap<>();
+    private final Map<SettingsCli, JBLabel> latestLabels = new LinkedHashMap<>();
+    private final Map<SettingsCli, JTextField> commandFields = new LinkedHashMap<>();
 
     // CLI Quick Launch UI components
     private JComboBox<String> cliQuickLaunchEnabledCombo;
@@ -144,7 +144,7 @@ public class SettingsPanel extends JPanel {
         );
 
         int row = 1;
-        for (CliType cli : PluginSettings.getInstance().getVisibleSettingsCliTypes()) {
+        for (SettingsCli cli : PluginSettings.getInstance().getVisibleSettingsCliTypes()) {
             JBLabel icon = new JBLabel(AllIcons.General.BalloonInformation);
             JBLabel nameLabel = new JBLabel(cli.getDisplayName());
             nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD));
@@ -198,7 +198,7 @@ public class SettingsPanel extends JPanel {
         );
 
         FormBuilder form = FormBuilder.createFormBuilder();
-        for (CliType cli : PluginSettings.getInstance().getVisibleSettingsCliTypes()) {
+        for (SettingsCli cli : PluginSettings.getInstance().getVisibleSettingsCliTypes()) {
             String cmd = CliVersionService.getInstance().getInstallCommand(cli);
             form.addComponent(
                 createCopyableCommandRow(cli, cli.getDisplayName(), cmd)
@@ -212,7 +212,7 @@ public class SettingsPanel extends JPanel {
     }
 
     private JPanel createCopyableCommandRow(
-        CliType cli,
+        SettingsCli cli,
         String cliName,
         String command
     ) {
@@ -713,11 +713,11 @@ public class SettingsPanel extends JPanel {
     }
 
     private void showCliSelectionDialog() {
-        DefaultListModel<CliType> visibleModel = new DefaultListModel<>();
-        DefaultListModel<CliType> hiddenModel = new DefaultListModel<>();
-        java.util.List<CliType> visibleCliTypes = PluginSettings.getInstance().getVisibleSettingsCliTypes();
+        DefaultListModel<SettingsCli> visibleModel = new DefaultListModel<>();
+        DefaultListModel<SettingsCli> hiddenModel = new DefaultListModel<>();
+        java.util.List<SettingsCli> visibleCliTypes = PluginSettings.getInstance().getVisibleSettingsCliTypes();
 
-        for (CliType cliType : CliType.values()) {
+        for (SettingsCli cliType : SettingsCli.values()) {
             if (visibleCliTypes.contains(cliType)) {
                 visibleModel.addElement(cliType);
             } else {
@@ -725,8 +725,8 @@ public class SettingsPanel extends JPanel {
             }
         }
 
-        JList<CliType> visibleList = createCliList(visibleModel);
-        JList<CliType> hiddenList = createCliList(hiddenModel);
+        JList<SettingsCli> visibleList = createCliList(visibleModel);
+        JList<SettingsCli> hiddenList = createCliList(hiddenModel);
 
         JButton hideButton = new JButton("→");
         hideButton.addActionListener(e -> moveSelectedCliTypes(visibleList, visibleModel, hiddenModel));
@@ -773,7 +773,7 @@ public class SettingsPanel extends JPanel {
         );
 
         if (result == 0) {
-            PluginSettings.getInstance().setVisibleSettingsCliTypes(List.of(CliType.values()));
+            PluginSettings.getInstance().setVisibleSettingsCliTypes(SettingsCli.defaultVisibleValues());
             rebuildSettingsContent();
             return;
         }
@@ -781,7 +781,7 @@ public class SettingsPanel extends JPanel {
             return;
         }
 
-        java.util.List<CliType> selectedCliTypes = new java.util.ArrayList<>();
+        java.util.List<SettingsCli> selectedCliTypes = new java.util.ArrayList<>();
         for (int i = 0; i < visibleModel.size(); i++) {
             selectedCliTypes.add(visibleModel.getElementAt(i));
         }
@@ -814,8 +814,8 @@ public class SettingsPanel extends JPanel {
         return list;
     }
 
-    private JList<CliType> createCliList(DefaultListModel<CliType> model) {
-        JList<CliType> list = new JList<>(model);
+    private JList<SettingsCli> createCliList(DefaultListModel<SettingsCli> model) {
+        JList<SettingsCli> list = new JList<>(model);
         list.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         list.setVisibleRowCount(8);
         list.setCellRenderer(new DefaultListCellRenderer() {
@@ -828,7 +828,7 @@ public class SettingsPanel extends JPanel {
                 boolean cellHasFocus
             ) {
                 super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                if (value instanceof CliType cliType) {
+                if (value instanceof SettingsCli cliType) {
                     setText(cliType.getDisplayName());
                 }
                 return this;
@@ -837,7 +837,7 @@ public class SettingsPanel extends JPanel {
         return list;
     }
 
-    private JPanel createCliListPanel(String title, JList<CliType> list) {
+    private JPanel createCliListPanel(String title, JList<SettingsCli> list) {
         JPanel panel = new JPanel(new BorderLayout(0, 8));
         panel.setPreferredSize(new Dimension(JBUI.scale(180), JBUI.scale(240)));
 
@@ -896,16 +896,16 @@ public class SettingsPanel extends JPanel {
     }
 
     private void moveSelectedCliTypes(
-        JList<CliType> sourceList,
-        DefaultListModel<CliType> sourceModel,
-        DefaultListModel<CliType> targetModel
+        JList<SettingsCli> sourceList,
+        DefaultListModel<SettingsCli> sourceModel,
+        DefaultListModel<SettingsCli> targetModel
     ) {
-        java.util.List<CliType> selected = sourceList.getSelectedValuesList();
+        java.util.List<SettingsCli> selected = sourceList.getSelectedValuesList();
         if (selected.isEmpty()) {
             return;
         }
 
-        for (CliType cliType : selected) {
+        for (SettingsCli cliType : selected) {
             if (!containsCliType(targetModel, cliType)) {
                 targetModel.addElement(cliType);
             }
@@ -927,7 +927,7 @@ public class SettingsPanel extends JPanel {
         return false;
     }
 
-    private boolean containsCliType(DefaultListModel<CliType> model, CliType cliType) {
+    private boolean containsCliType(DefaultListModel<SettingsCli> model, SettingsCli cliType) {
         for (int i = 0; i < model.size(); i++) {
             if (model.getElementAt(i) == cliType) {
                 return true;
@@ -949,13 +949,13 @@ public class SettingsPanel extends JPanel {
         }
     }
 
-    private void sortCliModel(DefaultListModel<CliType> model) {
-        java.util.List<CliType> cliTypes = new java.util.ArrayList<>();
+    private void sortCliModel(DefaultListModel<SettingsCli> model) {
+        java.util.List<SettingsCli> cliTypes = new java.util.ArrayList<>();
         for (int i = 0; i < model.size(); i++) {
             cliTypes.add(model.getElementAt(i));
         }
         model.clear();
-        for (CliType cliType : CliType.values()) {
+        for (SettingsCli cliType : SettingsCli.values()) {
             if (cliTypes.contains(cliType)) {
                 model.addElement(cliType);
             }
@@ -1201,7 +1201,7 @@ public class SettingsPanel extends JPanel {
     }
 
     private void checkAllVersions() {
-        for (CliType cli : PluginSettings.getInstance().getVisibleSettingsCliTypes()) {
+        for (SettingsCli cli : PluginSettings.getInstance().getVisibleSettingsCliTypes()) {
             currentLabels.get(cli).setText(I18n.t("settings.status.checking"));
             currentLabels.get(cli).setForeground(JBColor.GRAY);
             latestLabels.get(cli).setText(I18n.t("settings.status.checking"));
@@ -1210,7 +1210,7 @@ public class SettingsPanel extends JPanel {
         }
 
         CliVersionService service = CliVersionService.getInstance();
-        for (CliType cli : PluginSettings.getInstance().getVisibleSettingsCliTypes()) {
+        for (SettingsCli cli : PluginSettings.getInstance().getVisibleSettingsCliTypes()) {
             ApplicationManager.getApplication().executeOnPooledThread(() -> {
                 CliVersionService.VersionResult current =
                     service.getVersionResult(cli);
@@ -1226,7 +1226,7 @@ public class SettingsPanel extends JPanel {
     }
 
     private void updateDisplay(
-        CliType cli,
+        SettingsCli cli,
         CliVersionService.VersionResult currentResult,
         String latest
     ) {
@@ -1303,7 +1303,7 @@ public class SettingsPanel extends JPanel {
     }
 
     private void updateRecommendedCommand(
-        CliType cli,
+        SettingsCli cli,
         CliVersionService.VersionStatus status
     ) {
         JTextField commandField = commandFields.get(cli);
