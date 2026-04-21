@@ -1052,7 +1052,9 @@ public class ProviderDialog extends DialogWrapper {
 
         JPanel featureRow = createOptionsRow();
         featureRow.add(createCheckboxWithLabel(claudeTeamModeEnabled, I18n.t("providerDialog.label.teamMode")));
+        featureRow.add(Box.createHorizontalStrut(12));
         featureRow.add(createCheckboxWithLabel(claudeToolSearchEnabled, I18n.t("providerDialog.label.toolSearch")));
+        featureRow.add(Box.createHorizontalStrut(12));
         featureRow.add(createCheckboxWithLabel(claudeDisableAutoUpdaterEnabled, I18n.t("providerDialog.label.disableAutoUpdater")));
 
         JPanel form = FormBuilder.createFormBuilder()
@@ -1123,13 +1125,15 @@ public class ProviderDialog extends DialogWrapper {
     private JPanel buildCodexOptionsRow() {
         JPanel row = createOptionsRow();
         row.add(createCheckboxWithLabel(codex1MContext, I18n.t("providerDialog.label.1mContext")));
+        row.add(Box.createHorizontalStrut(12));
         row.add(createCheckboxWithLabel(codexMultiAgent, I18n.t("providerDialog.label.multiAgent")));
+        row.add(Box.createHorizontalStrut(12));
         row.add(createCheckboxWithLabel(codexFastMode, I18n.t("providerDialog.label.fastMode")));
         return row;
     }
 
     private JPanel createOptionsRow() {
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         row.setOpaque(false);
         return row;
     }
