@@ -393,11 +393,11 @@ public final class I18n {
                 m.put("providerDialog.label.toolSearch", "Tool Search");
                 m.put("providerDialog.label.disableAutoUpdater", "禁用自动升级");
                 m.put("providerDialog.label.dangerousMode", "危险模式:");
-                m.put("providerDialog.label.noFlickerMode", "无闪烁渲染:");
+                m.put("providerDialog.label.noFlickerMode", "TUI:");
                 m.put("providerDialog.option.default", "默认");
                 m.put("providerDialog.dangerousMode.skipPermissions", "跳过确认");
                 m.put("providerDialog.dangerousMode.skipAll", "跳过确认和提示");
-                m.put("providerDialog.noFlickerMode.enabled", "开启");
+                m.put("providerDialog.noFlickerMode.enabled", "开启全屏");
                 m.put("providerDialog.noFlickerMode.enabledDisableMouse", "开启但禁用鼠标");
                 m.put("providerDialog.label.maxThinkingTokens", "思考令牌预算:");
                 m.put("providerDialog.label.npmPackage", "NPM 包:");
@@ -844,11 +844,11 @@ public final class I18n {
                 m.put("providerDialog.label.toolSearch", "Tool Search");
                 m.put("providerDialog.label.disableAutoUpdater", "Disable Auto Update");
                 m.put("providerDialog.label.dangerousMode", "Dangerous Mode:");
-                m.put("providerDialog.label.noFlickerMode", "No Flicker Rendering:");
+                m.put("providerDialog.label.noFlickerMode", "TUI:");
                 m.put("providerDialog.option.default", "Default");
                 m.put("providerDialog.dangerousMode.skipPermissions", "Skip Permissions");
                 m.put("providerDialog.dangerousMode.skipAll", "Skip Permissions & Prompt");
-                m.put("providerDialog.noFlickerMode.enabled", "Enabled");
+                m.put("providerDialog.noFlickerMode.enabled", "Enable Fullscreen");
                 m.put("providerDialog.noFlickerMode.enabledDisableMouse", "Enabled Without Mouse");
                 m.put("providerDialog.label.maxThinkingTokens", "Max Thinking Tokens:");
                 m.put("providerDialog.label.npmPackage", "NPM Package:");
