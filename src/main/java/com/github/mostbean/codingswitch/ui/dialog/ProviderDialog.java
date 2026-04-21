@@ -31,6 +31,7 @@ import java.awt.*;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -217,6 +218,7 @@ public class ProviderDialog extends DialogWrapper {
         openDirButton.addActionListener(e -> openConfigDir());
 
         init();
+        initValidation();
 
         CliType initial = (CliType) cliTypeCombo.getSelectedItem();
         if (initial != null) {
@@ -356,6 +358,7 @@ public class ProviderDialog extends DialogWrapper {
         cliTypeCombo.addActionListener(e -> {
             if (!updatingFromPreview) {
                 updatePreview();
+                scheduleValidation();
             }
         });
 
@@ -364,12 +367,15 @@ public class ProviderDialog extends DialogWrapper {
         addTextFieldListener(claudeApiKey);
         addTextFieldListener(claudeBaseUrl);
         claudeModel.addActionListener(e -> {
-            if (!updatingFromPreview) updatePreview();
+            if (!updatingFromPreview) {
+                updatePreview();
+                scheduleValidation();
+            }
         });
-        addTextFieldListener((JTextField) claudeModel.getEditor().getEditorComponent());
-        addTextFieldListener(claudeHaiku);
-        addTextFieldListener(claudeSonnet);
-        addTextFieldListener(claudeOpus);
+        addTextFieldListenerWithValidation((JTextField) claudeModel.getEditor().getEditorComponent());
+        addTextFieldListenerWithValidation(claudeHaiku);
+        addTextFieldListenerWithValidation(claudeSonnet);
+        addTextFieldListenerWithValidation(claudeOpus);
         claudeApiKeyField.addActionListener(e -> {
             if (!updatingFromPreview) updatePreview();
         });
@@ -425,6 +431,34 @@ public class ProviderDialog extends DialogWrapper {
 
     private void addTextFieldListener(JTextField field) {
         field.getDocument().addDocumentListener(createDocumentListener());
+    }
+
+    private void addTextFieldListenerWithValidation(JTextField field) {
+        field.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                if (!updatingFromPreview) {
+                    updatePreview();
+                    scheduleValidation();
+                }
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                if (!updatingFromPreview) {
+                    updatePreview();
+                    scheduleValidation();
+                }
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                if (!updatingFromPreview) {
+                    updatePreview();
+                    scheduleValidation();
+                }
+            }
+        });
     }
 
     private void setupPreviewSyncListeners() {
@@ -554,6 +588,7 @@ public class ProviderDialog extends DialogWrapper {
             }
 
             testStatusLabel.setText(" ");
+            scheduleValidation();
         } catch (Exception e) {
             if (showErrorDialog) {
                 Messages.showErrorDialog(
@@ -778,6 +813,7 @@ public class ProviderDialog extends DialogWrapper {
             presetHintLabel.setText(" ");
             testStatusLabel.setText(" ");
             updatePreview();
+            scheduleValidation();
             return;
         }
 
@@ -794,6 +830,7 @@ public class ProviderDialog extends DialogWrapper {
                 }
                 testStatusLabel.setText(" ");
                 updatePreview();
+                scheduleValidation();
                 return;
             }
         }
@@ -1721,6 +1758,34 @@ public class ProviderDialog extends DialogWrapper {
         return line.substring(eq + 1).trim().replace("\"", "");
     }
 
+    private void scheduleValidation() {
+        if (!isShowing()) {
+            return;
+        }
+        SwingUtilities.invokeLater(this::initValidation);
+    }
+
+    private boolean isClaudeVariantSelected(String variant) {
+        String mainModel = getComboText(claudeModel).trim().toLowerCase(Locale.ROOT);
+        if (mainModel.isEmpty()) {
+            return false;
+        }
+        return mainModel.equals(variant) || mainModel.startsWith(variant + "[");
+    }
+
+    private ValidationInfo validateClaudeVariantRequirement() {
+        if (isClaudeVariantSelected("haiku") && claudeHaiku.getText().isBlank()) {
+            return new ValidationInfo("Haiku " + I18n.t("providerDialog.validate.modelRequired"), claudeHaiku);
+        }
+        if (isClaudeVariantSelected("sonnet") && claudeSonnet.getText().isBlank()) {
+            return new ValidationInfo("Sonnet " + I18n.t("providerDialog.validate.modelRequired"), claudeSonnet);
+        }
+        if (isClaudeVariantSelected("opus") && claudeOpus.getText().isBlank()) {
+            return new ValidationInfo("Opus " + I18n.t("providerDialog.validate.modelRequired"), claudeOpus);
+        }
+        return null;
+    }
+
     @Override
     protected @Nullable ValidationInfo doValidate() {
         if (nameField.getText().isBlank()) {
@@ -1751,6 +1816,10 @@ public class ProviderDialog extends DialogWrapper {
         }
         if (getComboText(claudeModel).isBlank()) {
             return new ValidationInfo(I18n.t("providerDialog.validate.modelRequired"), claudeModel);
+        }
+        ValidationInfo variantValidation = validateClaudeVariantRequirement();
+        if (variantValidation != null) {
+            return variantValidation;
         }
         return null;
     }
