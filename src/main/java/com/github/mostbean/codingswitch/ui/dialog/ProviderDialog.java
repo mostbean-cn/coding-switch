@@ -75,6 +75,7 @@ public class ProviderDialog extends DialogWrapper {
             new String[] { DEFAULT_OPTION_LABEL, "true", "false" });
     private final JCheckBox claudeTeamModeEnabled = new JCheckBox();
     private final JCheckBox claudeToolSearchEnabled = new JCheckBox();
+    private final JCheckBox claudeDisableAutoUpdaterEnabled = new JCheckBox();
     private final JComboBox<String> claudeDangerousMode = new JComboBox<>(new String[] {
             DEFAULT_OPTION_LABEL, I18n.t("providerDialog.dangerousMode.skipPermissions"),
             I18n.t("providerDialog.dangerousMode.skipAll") });
@@ -397,6 +398,9 @@ public class ProviderDialog extends DialogWrapper {
             if (!updatingFromPreview) updatePreview();
         });
         claudeToolSearchEnabled.addActionListener(e -> {
+            if (!updatingFromPreview) updatePreview();
+        });
+        claudeDisableAutoUpdaterEnabled.addActionListener(e -> {
             if (!updatingFromPreview) updatePreview();
         });
         claudeDangerousMode.addActionListener(e -> {
@@ -968,6 +972,7 @@ public class ProviderDialog extends DialogWrapper {
                 claudeAlwaysThinkingEnabled.setSelectedIndex(0);
                 claudeTeamModeEnabled.setSelected(false);
                 claudeToolSearchEnabled.setSelected(false);
+                claudeDisableAutoUpdaterEnabled.setSelected(false);
                 claudeDangerousMode.setSelectedIndex(0);
                 claudeNoFlickerMode.setSelectedIndex(0);
             }
@@ -1026,9 +1031,29 @@ public class ProviderDialog extends DialogWrapper {
         gbc.gridx = 5; gbc.weightx = 1.0; gbc.fill = GridBagConstraints.HORIZONTAL;
         thinkingRow.add(Box.createHorizontalGlue(), gbc);
 
+        JPanel dangerousModeRow = new JPanel(new GridBagLayout());
+        GridBagConstraints dangerousGbc = new GridBagConstraints();
+        dangerousGbc.anchor = GridBagConstraints.WEST;
+
+        dangerousGbc.gridx = 0; dangerousGbc.weightx = 0; dangerousGbc.fill = GridBagConstraints.NONE;
+        dangerousGbc.insets = JBUI.insets(0, 0, 0, 0);
+        dangerousModeRow.add(claudeDangerousMode, dangerousGbc);
+
+        dangerousGbc.gridx = 1; dangerousGbc.weightx = 0; dangerousGbc.fill = GridBagConstraints.NONE;
+        dangerousGbc.insets = JBUI.insets(0, 12, 0, 4);
+        dangerousModeRow.add(new JBLabel(I18n.t("providerDialog.label.noFlickerMode")), dangerousGbc);
+
+        dangerousGbc.gridx = 2; dangerousGbc.weightx = 0; dangerousGbc.fill = GridBagConstraints.NONE;
+        dangerousGbc.insets = JBUI.insets(0, 0, 0, 0);
+        dangerousModeRow.add(claudeNoFlickerMode, dangerousGbc);
+
+        dangerousGbc.gridx = 3; dangerousGbc.weightx = 1.0; dangerousGbc.fill = GridBagConstraints.HORIZONTAL;
+        dangerousModeRow.add(Box.createHorizontalGlue(), dangerousGbc);
+
         JPanel featureRow = createOptionsRow();
         featureRow.add(createCheckboxWithLabel(claudeTeamModeEnabled, I18n.t("providerDialog.label.teamMode")));
         featureRow.add(createCheckboxWithLabel(claudeToolSearchEnabled, I18n.t("providerDialog.label.toolSearch")));
+        featureRow.add(createCheckboxWithLabel(claudeDisableAutoUpdaterEnabled, I18n.t("providerDialog.label.disableAutoUpdater")));
 
         JPanel form = FormBuilder.createFormBuilder()
                 .addLabeledComponent(I18n.t("providerDialog.label.keyFieldName"), claudeApiKeyField)
@@ -1041,8 +1066,7 @@ public class ProviderDialog extends DialogWrapper {
                 .addLabeledComponent("Opus:", claudeOpus)
                 .addSeparator(8)
                 .addLabeledComponent(I18n.t("providerDialog.label.alwaysThinkingEnabled"), thinkingRow)
-                .addLabeledComponent(I18n.t("providerDialog.label.dangerousMode"), claudeDangerousMode)
-                .addLabeledComponent(I18n.t("providerDialog.label.noFlickerMode"), claudeNoFlickerMode)
+                .addLabeledComponent(I18n.t("providerDialog.label.dangerousMode"), dangerousModeRow)
                 .addComponent(featureRow)
                 .getPanel();
         return wrapWithTitledBorder(form, I18n.t("providerDialog.border.claude"));
@@ -1297,6 +1321,9 @@ public class ProviderDialog extends DialogWrapper {
         boolean toolSearchEnabled = env.has("ENABLE_TOOL_SEARCH")
                 && "true".equalsIgnoreCase(env.get("ENABLE_TOOL_SEARCH").getAsString());
         claudeToolSearchEnabled.setSelected(toolSearchEnabled);
+        boolean disableAutoUpdaterEnabled = env.has("DISABLE_AUTOUPDATER")
+                && "1".equals(env.get("DISABLE_AUTOUPDATER").getAsString());
+        claudeDisableAutoUpdaterEnabled.setSelected(disableAutoUpdaterEnabled);
         boolean noFlickerEnabled = env.has("CLAUDE_CODE_NO_FLICKER")
                 && "true".equalsIgnoreCase(env.get("CLAUDE_CODE_NO_FLICKER").getAsString());
         boolean disableMouseEnabled = env.has("CLAUDE_CODE_DISABLE_MOUSE")
@@ -1466,6 +1493,9 @@ public class ProviderDialog extends DialogWrapper {
         }
         if (claudeToolSearchEnabled.isSelected()) {
             env.addProperty("ENABLE_TOOL_SEARCH", "true");
+        }
+        if (claudeDisableAutoUpdaterEnabled.isSelected()) {
+            env.addProperty("DISABLE_AUTOUPDATER", "1");
         }
         String noFlickerMode = (String) claudeNoFlickerMode.getSelectedItem();
         String noFlickerEnabledLabel = I18n.t("providerDialog.noFlickerMode.enabled");
@@ -1706,6 +1736,7 @@ public class ProviderDialog extends DialogWrapper {
                 "CLAUDE_CODE_AUTO_COMPACT_WINDOW",
                 "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS",
                 "ENABLE_TOOL_SEARCH",
+                "DISABLE_AUTOUPDATER",
                 "CLAUDE_CODE_NO_FLICKER",
                 "CLAUDE_CODE_DISABLE_MOUSE"));
         merged.add("env", mergedEnv);

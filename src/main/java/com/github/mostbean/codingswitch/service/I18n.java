@@ -391,6 +391,7 @@ public final class I18n {
                 m.put("providerDialog.label.alwaysThinkingEnabled", "扩展思考:");
                 m.put("providerDialog.label.teamMode", "Team 模式");
                 m.put("providerDialog.label.toolSearch", "Tool Search");
+                m.put("providerDialog.label.disableAutoUpdater", "禁用自动升级");
                 m.put("providerDialog.label.dangerousMode", "危险模式:");
                 m.put("providerDialog.label.noFlickerMode", "无闪烁渲染:");
                 m.put("providerDialog.option.default", "默认");
@@ -841,6 +842,7 @@ public final class I18n {
                 m.put("providerDialog.label.alwaysThinkingEnabled", "Extended Thinking:");
                 m.put("providerDialog.label.teamMode", "Team Mode");
                 m.put("providerDialog.label.toolSearch", "Tool Search");
+                m.put("providerDialog.label.disableAutoUpdater", "Disable Auto Update");
                 m.put("providerDialog.label.dangerousMode", "Dangerous Mode:");
                 m.put("providerDialog.label.noFlickerMode", "No Flicker Rendering:");
                 m.put("providerDialog.option.default", "Default");

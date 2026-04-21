@@ -248,6 +248,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             env.remove("CLAUDE_CODE_EFFORT_LEVEL");
             env.remove("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS");
             env.remove("ENABLE_TOOL_SEARCH");
+            env.remove("DISABLE_AUTOUPDATER");
             env.remove("CLAUDE_CODE_NO_FLICKER");
             env.remove("CLAUDE_CODE_DISABLE_MOUSE");
 
