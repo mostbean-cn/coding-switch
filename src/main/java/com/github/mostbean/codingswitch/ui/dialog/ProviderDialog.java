@@ -52,7 +52,12 @@ public class ProviderDialog extends DialogWrapper {
 
     private final JTextField claudeApiKey = new JTextField(30);
     private final JTextField claudeBaseUrl = new JTextField(30);
-    private final JTextField claudeModel = new JTextField(30);
+    private final JComboBox<String> claudeModel = createEditableCombo(
+            "Haiku",
+            "Sonnet",
+            "Sonnet[1m]",
+            "Opus",
+            "Opus[1m]");
     private final JBLabel claudeApiKeyLabel = requiredLabel("API Key:");
     private final JBLabel claudeBaseUrlLabel = requiredLabel("Base URL:");
     private final JBLabel claudeModelLabel = requiredLabel(I18n.t("providerDialog.label.mainModel"));
@@ -63,6 +68,8 @@ public class ProviderDialog extends DialogWrapper {
             new String[] { "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY" });
     private final JComboBox<String> claudeEffortLevel = createEditableCombo(
             "", "high", "medium", "low");
+    private final JComboBox<String> claudeAutoCompactWindow = createEditableCombo(
+            "", "400000", "900000");
     private final JComboBox<String> claudeAlwaysThinkingEnabled = new JComboBox<>(
             new String[] { DEFAULT_OPTION_LABEL, "true", "false" });
     private final JCheckBox claudeTeamModeEnabled = new JCheckBox();
@@ -201,6 +208,7 @@ public class ProviderDialog extends DialogWrapper {
             if (defaultCliType != null) {
                 cliTypeCombo.setSelectedItem(defaultCliType);
             }
+            claudeModel.setSelectedItem("");
             opencodeNpm.setSelectedItem("@ai-sdk/openai-compatible");
         }
 
@@ -355,7 +363,10 @@ public class ProviderDialog extends DialogWrapper {
 
         addTextFieldListener(claudeApiKey);
         addTextFieldListener(claudeBaseUrl);
-        addTextFieldListener(claudeModel);
+        claudeModel.addActionListener(e -> {
+            if (!updatingFromPreview) updatePreview();
+        });
+        addTextFieldListener((JTextField) claudeModel.getEditor().getEditorComponent());
         addTextFieldListener(claudeHaiku);
         addTextFieldListener(claudeSonnet);
         addTextFieldListener(claudeOpus);
@@ -365,6 +376,10 @@ public class ProviderDialog extends DialogWrapper {
         claudeEffortLevel.addActionListener(e -> {
             if (!updatingFromPreview) updatePreview();
         });
+        claudeAutoCompactWindow.addActionListener(e -> {
+            if (!updatingFromPreview) updatePreview();
+        });
+        addTextFieldListener((JTextField) claudeAutoCompactWindow.getEditor().getEditorComponent());
         claudeAlwaysThinkingEnabled.addActionListener(e -> {
             if (!updatingFromPreview) updatePreview();
         });
@@ -848,6 +863,12 @@ public class ProviderDialog extends DialogWrapper {
                 claudeApiKey.setEnabled(!officialLogin);
                 claudeBaseUrl.setEnabled(!officialLogin);
                 claudeModel.setEnabled(!officialLogin);
+                if (claudeModel.isEditable()) {
+                    Component editorComponent = claudeModel.getEditor().getEditorComponent();
+                    if (editorComponent != null) {
+                        editorComponent.setEnabled(!officialLogin);
+                    }
+                }
                 claudeHaiku.setEnabled(!officialLogin);
                 claudeSonnet.setEnabled(!officialLogin);
                 claudeOpus.setEnabled(!officialLogin);
@@ -886,11 +907,12 @@ public class ProviderDialog extends DialogWrapper {
                 claudeApiKeyField.setSelectedItem("ANTHROPIC_AUTH_TOKEN");
                 claudeApiKey.setText("");
                 claudeBaseUrl.setText("");
-                claudeModel.setText("");
+                claudeModel.setSelectedItem("");
                 claudeHaiku.setText("");
                 claudeSonnet.setText("");
                 claudeOpus.setText("");
                 claudeEffortLevel.setSelectedItem("");
+                claudeAutoCompactWindow.setSelectedItem("");
                 claudeAlwaysThinkingEnabled.setSelectedIndex(0);
                 claudeTeamModeEnabled.setSelected(false);
                 claudeToolSearchEnabled.setSelected(false);
@@ -939,7 +961,15 @@ public class ProviderDialog extends DialogWrapper {
         gbc.insets = JBUI.insets(0, 0, 0, 0);
         thinkingRow.add(claudeEffortLevel, gbc);
 
-        gbc.gridx = 3; gbc.weightx = 1.0; gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.gridx = 3; gbc.weightx = 0; gbc.fill = GridBagConstraints.NONE;
+        gbc.insets = JBUI.insets(0, 12, 0, 4);
+        thinkingRow.add(new JBLabel("压缩窗口"), gbc);
+
+        gbc.gridx = 4; gbc.weightx = 0; gbc.fill = GridBagConstraints.NONE;
+        gbc.insets = JBUI.insets(0, 0, 0, 0);
+        thinkingRow.add(claudeAutoCompactWindow, gbc);
+
+        gbc.gridx = 5; gbc.weightx = 1.0; gbc.fill = GridBagConstraints.HORIZONTAL;
         thinkingRow.add(Box.createHorizontalGlue(), gbc);
 
         JPanel featureRow = createOptionsRow();
@@ -1160,7 +1190,7 @@ public class ProviderDialog extends DialogWrapper {
             claudeApiKey.setText(env.get("ANTHROPIC_AUTH_TOKEN").getAsString());
         }
         setFieldFromJson(env, "ANTHROPIC_BASE_URL", claudeBaseUrl);
-        setFieldFromJson(env, "ANTHROPIC_MODEL", claudeModel);
+        setComboFromJson(env, "ANTHROPIC_MODEL", claudeModel);
         setFieldFromJson(env, "ANTHROPIC_DEFAULT_HAIKU_MODEL", claudeHaiku);
         setFieldFromJson(env, "ANTHROPIC_DEFAULT_SONNET_MODEL", claudeSonnet);
         setFieldFromJson(env, "ANTHROPIC_DEFAULT_OPUS_MODEL", claudeOpus);
@@ -1170,6 +1200,7 @@ public class ProviderDialog extends DialogWrapper {
             // 兼容历史配置：旧版本将 effort 写在 env.CLAUDE_CODE_EFFORT_LEVEL
             claudeEffortLevel.setSelectedItem(env.get("CLAUDE_CODE_EFFORT_LEVEL").getAsString());
         }
+        setComboFromJson(env, "CLAUDE_CODE_AUTO_COMPACT_WINDOW", claudeAutoCompactWindow);
         if (config.has("alwaysThinkingEnabled") && !config.get("alwaysThinkingEnabled").isJsonNull()) {
             String alwaysThinkingValue = config.get("alwaysThinkingEnabled").getAsString();
             if ("true".equalsIgnoreCase(alwaysThinkingValue) || "false".equalsIgnoreCase(alwaysThinkingValue)) {
@@ -1342,10 +1373,11 @@ public class ProviderDialog extends DialogWrapper {
         String keyFieldName = (String) claudeApiKeyField.getSelectedItem();
         addIfNotBlank(env, keyFieldName, claudeApiKey);
         addIfNotBlank(env, "ANTHROPIC_BASE_URL", claudeBaseUrl);
-        addIfNotBlank(env, "ANTHROPIC_MODEL", claudeModel);
+        addIfNotBlank(env, "ANTHROPIC_MODEL", getComboText(claudeModel));
         addIfNotBlank(env, "ANTHROPIC_DEFAULT_HAIKU_MODEL", claudeHaiku);
         addIfNotBlank(env, "ANTHROPIC_DEFAULT_SONNET_MODEL", claudeSonnet);
         addIfNotBlank(env, "ANTHROPIC_DEFAULT_OPUS_MODEL", claudeOpus);
+        addIfNotBlank(env, "CLAUDE_CODE_AUTO_COMPACT_WINDOW", getComboText(claudeAutoCompactWindow));
         if (claudeTeamModeEnabled.isSelected()) {
             env.addProperty("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS", "1");
         }
@@ -1518,10 +1550,31 @@ public class ProviderDialog extends DialogWrapper {
         }
     }
 
+    private void setComboFromJson(JsonObject json, String key, JComboBox<String> combo) {
+        if (json.has(key) && !json.get(key).isJsonNull()) {
+            combo.setSelectedItem(json.get(key).getAsString());
+        }
+    }
+
     private void addIfNotBlank(JsonObject json, String key, JTextField field) {
         String value = field.getText().trim();
         if (!value.isEmpty())
             json.addProperty(key, value);
+    }
+
+    private void addIfNotBlank(JsonObject json, String key, String value) {
+        if (value != null && !value.isBlank()) {
+            json.addProperty(key, value.trim());
+        }
+    }
+
+    private String getComboText(JComboBox<String> combo) {
+        Object item = combo.getEditor().getItem();
+        if (item != null) {
+            return item.toString().trim();
+        }
+        Object selectedItem = combo.getSelectedItem();
+        return selectedItem == null ? "" : selectedItem.toString().trim();
     }
 
     private void rememberRawSettings(CliType cliType, JsonObject config) {
@@ -1564,6 +1617,7 @@ public class ProviderDialog extends DialogWrapper {
                 "ANTHROPIC_DEFAULT_HAIKU_MODEL",
                 "ANTHROPIC_DEFAULT_SONNET_MODEL",
                 "ANTHROPIC_DEFAULT_OPUS_MODEL",
+                "CLAUDE_CODE_AUTO_COMPACT_WINDOW",
                 "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS",
                 "ENABLE_TOOL_SEARCH",
                 "CLAUDE_CODE_NO_FLICKER",
@@ -1695,7 +1749,7 @@ public class ProviderDialog extends DialogWrapper {
         if (claudeBaseUrl.getText().isBlank()) {
             return new ValidationInfo(I18n.t("providerDialog.validate.baseUrlRequired"), claudeBaseUrl);
         }
-        if (claudeModel.getText().isBlank()) {
+        if (getComboText(claudeModel).isBlank()) {
             return new ValidationInfo(I18n.t("providerDialog.validate.modelRequired"), claudeModel);
         }
         return null;

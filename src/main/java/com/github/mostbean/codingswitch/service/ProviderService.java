@@ -244,6 +244,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             env.remove("ANTHROPIC_DEFAULT_HAIKU_MODEL");
             env.remove("ANTHROPIC_DEFAULT_SONNET_MODEL");
             env.remove("ANTHROPIC_DEFAULT_OPUS_MODEL");
+            env.remove("CLAUDE_CODE_AUTO_COMPACT_WINDOW");
             env.remove("CLAUDE_CODE_EFFORT_LEVEL");
             env.remove("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS");
             env.remove("ENABLE_TOOL_SEARCH");
