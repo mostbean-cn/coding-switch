@@ -39,6 +39,12 @@
     ]]>    </description>
 
     <change-notes><![CDATA[
+    <h3>0.2.12</h3>
+    <ul>
+        <li><b>功能 配置</b> — 设置页新增“功能配置”按钮，可单独控制功能Tab的显示与隐藏。</li>
+        <li><b>CLI 配置</b> — 设置页新增“CLI配置”按钮，可单独控制“CLI 版本状态”和“安装/更新命令”中显示与检测的 CLI。</li>
+        <li><b>更多 CLI 安装检测</b> — 设置页安装检测新增支持 CodeBuddy、Qwen Code、MMX、Qoder CLI、Auggie CLI，默认隐藏，可按需启用。</li>
+    </ul>
     <h3>0.2.11</h3>
     <ul>
         <li><b>设置页面重构</b> — 将"数据管理"和"CLI 快速启动"合并到"偏好设置"区域，界面更紧凑。</li>
