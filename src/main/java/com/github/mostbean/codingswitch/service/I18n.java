@@ -386,6 +386,7 @@ public final class I18n {
                 m.put("providerDialog.label.securityPolicy", "安全策略:");
                 m.put("providerDialog.label.reasoningEffort", "推理强度:");
                 m.put("providerDialog.label.1mContext", "1M 上下文");
+                m.put("providerDialog.label.autoCompactWindow", "压缩窗口:");
                 m.put("providerDialog.label.effortLevel", "推理强度:");
                 m.put("providerDialog.label.alwaysThinkingEnabled", "扩展思考:");
                 m.put("providerDialog.label.teamMode", "Team 模式");
@@ -835,6 +836,7 @@ public final class I18n {
                 m.put("providerDialog.label.securityPolicy", "Security Policy:");
                 m.put("providerDialog.label.reasoningEffort", "Reasoning Effort:");
                 m.put("providerDialog.label.1mContext", "1M Context");
+                m.put("providerDialog.label.autoCompactWindow", "Compact Window:");
                 m.put("providerDialog.label.effortLevel", "Effort Level:");
                 m.put("providerDialog.label.alwaysThinkingEnabled", "Extended Thinking:");
                 m.put("providerDialog.label.teamMode", "Team Mode");

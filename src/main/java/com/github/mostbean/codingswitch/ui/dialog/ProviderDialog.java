@@ -90,6 +90,8 @@ public class ProviderDialog extends DialogWrapper {
     private final JBLabel codexModelLabel = requiredLabel(I18n.t("providerDialog.label.model"));
     private final JComboBox<String> codexReasoningEffort = new JComboBox<>(
             new String[] { "xhigh", "high", "medium", "low" });
+    private final JComboBox<String> codexAutoCompactWindow = createEditableCombo(
+            "", "400000", "900000");
     private final JComboBox<SecurityPolicy> codexSecurityPolicy = new JComboBox<>(SecurityPolicy.values());
     private final JCheckBox codex1MContext = new JCheckBox();
     private final JCheckBox codexMultiAgent = new JCheckBox();
@@ -147,6 +149,8 @@ public class ProviderDialog extends DialogWrapper {
     private final JPanel previewPanel = new JPanel(new BorderLayout());
     private final JButton togglePreviewButton = new JButton(I18n.t("providerDialog.button.showPreview"));
     private final JButton openDirButton = new JButton(I18n.t("providerDialog.button.openDir"));
+    private JPanel codexAutoCompactWindowRow;
+    private JPanel codexAutoCompactWindowContainer;
     private boolean previewVisible = false;
     private boolean updatingFromPreview = false;
     private JSplitPane splitPane;
@@ -408,7 +412,15 @@ public class ProviderDialog extends DialogWrapper {
         codexReasoningEffort.addActionListener(e -> {
             if (!updatingFromPreview) updatePreview();
         });
+        codexAutoCompactWindow.addActionListener(e -> {
+            if (!updatingFromPreview) updatePreview();
+        });
+        addTextFieldListener((JTextField) codexAutoCompactWindow.getEditor().getEditorComponent());
         codex1MContext.addActionListener(e -> {
+            if (codex1MContext.isSelected() && getComboText(codexAutoCompactWindow).isBlank()) {
+                codexAutoCompactWindow.setSelectedItem("400000");
+            }
+            updateCodexAutoCompactWindowVisibility();
             if (!updatingFromPreview) updatePreview();
         });
         codexMultiAgent.addActionListener(e -> {
@@ -655,6 +667,8 @@ public class ProviderDialog extends DialogWrapper {
                     if ("1000000".equals(value)) {
                         has1MContext = true;
                     }
+                } else if (trimmed.startsWith("model_auto_compact_token_limit =")) {
+                    codexAutoCompactWindow.setSelectedItem(extractTomlValue(trimmed));
                 } else if (trimmed.startsWith("service_tier =")) {
                     hasFastMode = "fast".equalsIgnoreCase(extractTomlValue(trimmed));
                 } else if (trimmed.startsWith("fast_mode =")) {
@@ -662,6 +676,7 @@ public class ProviderDialog extends DialogWrapper {
                 }
             }
             codex1MContext.setSelected(has1MContext);
+            updateCodexAutoCompactWindowVisibility();
             codexFastMode.setSelected(hasFastMode);
         } else {
             rawCodex.remove("config");
@@ -961,7 +976,9 @@ public class ProviderDialog extends DialogWrapper {
                 codexBaseUrl.setText("");
                 codexModel.setText("");
                 codexReasoningEffort.setSelectedItem("high");
+                codexAutoCompactWindow.setSelectedItem("400000");
                 codex1MContext.setSelected(false);
+                updateCodexAutoCompactWindowVisibility();
                 codexMultiAgent.setSelected(false);
                 codexFastMode.setSelected(false);
             }
@@ -1000,7 +1017,7 @@ public class ProviderDialog extends DialogWrapper {
 
         gbc.gridx = 3; gbc.weightx = 0; gbc.fill = GridBagConstraints.NONE;
         gbc.insets = JBUI.insets(0, 12, 0, 4);
-        thinkingRow.add(new JBLabel("压缩窗口"), gbc);
+        thinkingRow.add(new JBLabel(I18n.t("providerDialog.label.autoCompactWindow")), gbc);
 
         gbc.gridx = 4; gbc.weightx = 0; gbc.fill = GridBagConstraints.NONE;
         gbc.insets = JBUI.insets(0, 0, 0, 0);
@@ -1054,6 +1071,14 @@ public class ProviderDialog extends DialogWrapper {
             if (!updatingFromPreview) updatePreview();
         });
 
+        codexAutoCompactWindowRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        codexAutoCompactWindowRow.setOpaque(false);
+        codexAutoCompactWindowRow.add(codexAutoCompactWindow);
+
+        codexAutoCompactWindowContainer = new JPanel(new BorderLayout());
+        codexAutoCompactWindowContainer.setOpaque(false);
+        codexAutoCompactWindowContainer.add(codexAutoCompactWindowRow, BorderLayout.CENTER);
+
         JPanel form = FormBuilder.createFormBuilder()
                 .addLabeledComponent(codexApiKeyLabel, codexApiKey)
                 .addLabeledComponent(codexBaseUrlLabel, codexBaseUrl)
@@ -1061,8 +1086,10 @@ public class ProviderDialog extends DialogWrapper {
                 .addSeparator(8)
                 .addLabeledComponent(I18n.t("providerDialog.label.securityPolicy"), codexSecurityPolicy)
                 .addLabeledComponent(I18n.t("providerDialog.label.reasoningEffort"), codexReasoningEffort)
+                .addLabeledComponent(I18n.t("providerDialog.label.autoCompactWindow"), codexAutoCompactWindowContainer)
                 .addComponent(buildCodexOptionsRow())
                 .getPanel();
+        updateCodexAutoCompactWindowVisibility();
         return wrapWithTitledBorder(form, I18n.t("providerDialog.border.codex"));
     }
 
@@ -1081,6 +1108,21 @@ public class ProviderDialog extends DialogWrapper {
         JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
         row.setOpaque(false);
         return row;
+    }
+
+    private void updateCodexAutoCompactWindowVisibility() {
+        boolean enabled = codex1MContext.isSelected();
+        codexAutoCompactWindow.setEnabled(enabled);
+        if (codexAutoCompactWindow.isEditable()) {
+            Component editorComponent = codexAutoCompactWindow.getEditor().getEditorComponent();
+            if (editorComponent != null) {
+                editorComponent.setEnabled(enabled);
+            }
+        }
+        if (codexAutoCompactWindowContainer != null) {
+            codexAutoCompactWindowContainer.revalidate();
+            codexAutoCompactWindowContainer.repaint();
+        }
     }
 
     private JPanel createCheckboxWithLabel(JCheckBox checkbox, String labelText) {
@@ -1286,6 +1328,7 @@ public class ProviderDialog extends DialogWrapper {
         }
         if (config.has("config")) {
             String toml = config.get("config").getAsString();
+            codexAutoCompactWindow.setSelectedItem("400000");
             boolean has1MContext = false;
             boolean hasMultiAgent = false;
             boolean hasFastMode = false;
@@ -1304,6 +1347,8 @@ public class ProviderDialog extends DialogWrapper {
                     if ("1000000".equals(value)) {
                         has1MContext = true;
                     }
+                } else if (trimmed.startsWith("model_auto_compact_token_limit =")) {
+                    codexAutoCompactWindow.setSelectedItem(extractTomlValue(trimmed));
                 } else if (trimmed.startsWith("multi_agent =")) {
                     hasMultiAgent = "true".equalsIgnoreCase(extractTomlValue(trimmed));
                 } else if (trimmed.startsWith("service_tier =")) {
@@ -1317,6 +1362,7 @@ public class ProviderDialog extends DialogWrapper {
                 }
             }
             codex1MContext.setSelected(has1MContext);
+            updateCodexAutoCompactWindowVisibility();
             codexMultiAgent.setSelected(hasMultiAgent);
             codexFastMode.setSelected(hasFastMode);
 
@@ -1470,6 +1516,7 @@ public class ProviderDialog extends DialogWrapper {
         boolean enable1MContext = codex1MContext.isSelected();
         boolean enableMultiAgent = codexMultiAgent.isSelected();
         boolean enableFastMode = codexFastMode.isSelected();
+        String autoCompactWindow = getComboText(codexAutoCompactWindow);
         SecurityPolicy securityPolicy = (SecurityPolicy) codexSecurityPolicy.getSelectedItem();
 
         if (!baseUrl.isEmpty()) {
@@ -1500,7 +1547,9 @@ public class ProviderDialog extends DialogWrapper {
 
         if (enable1MContext) {
             toml.append("model_context_window = 1000000\n");
-            toml.append("model_auto_compact_token_limit = 900000\n");
+            if (!autoCompactWindow.isBlank()) {
+                toml.append("model_auto_compact_token_limit = ").append(autoCompactWindow).append("\n");
+            }
         }
         if (enableMultiAgent) {
             toml.append("multi_agent = true\n");
