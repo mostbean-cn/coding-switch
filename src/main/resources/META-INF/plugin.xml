@@ -39,6 +39,12 @@
     ]]>    </description>
 
     <change-notes><![CDATA[
+    <h3>0.2.14</h3>
+    <ul>
+        <li><b>Skills 仓库包安装</b> - 发现窗口改为按仓库整体安装，支持将包含多个 Skills 的 GitHub 仓库作为一个仓库包统一管理。</li>
+        <li><b>Skills 仓库包同步</b> - 仓库包会展开已归属且已安装的子 Skill 同步到 Claude、Codex、Gemini 和 OpenCode，避免重复维护。</li>
+        <li><b>更新与冲突处理修复</b> - 修复仓库子 Skill 更新失败后安装状态可能不准确的问题，并在首次安装全量跳过时保留仓库包记录，避免后续无法更新或删除。</li>
+    </ul>
     <h3>0.2.13</h3>
     <ul>
         <li><b>Claude 主模型增强</b> — 主模型输入改为支持自由输入的下拉框，并内置1M模型关联选项，实现默认1M上下文配置。</li>

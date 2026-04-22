@@ -184,24 +184,17 @@ public class SkillDiscoveryDialog extends DialogWrapper {
     }
 
     private void onInstallSelected() {
-        String skillName = getSelectedSkill();
-        if (skillName == null || currentRepoInfo == null) {
+        if (currentRepoInfo == null || currentRepoInfo.skillCount() <= 0) {
             return;
         }
 
-        SkillService.RepoDiscoveryInfo singleSkillRepo = new SkillService.RepoDiscoveryInfo(
-                currentRepoInfo.repositoryUrl(),
-                currentRepoInfo.owner(),
-                currentRepoInfo.repo(),
-                currentRepoInfo.branch(),
-                List.of(skillName),
-                null);
-
-        setLoading(true, I18n.t("skill.discovery.status.installing", skillName));
+        String repoName = currentRepoInfo.displayName();
+        SkillService.RepoDiscoveryInfo repoToInstall = currentRepoInfo;
+        setLoading(true, I18n.t("skill.discovery.status.installing", repoName));
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
             SkillService.RepoInstallResult result;
             try {
-                result = SkillService.getInstance().installSkillsFromRepository(singleSkillRepo);
+                result = SkillService.getInstance().installSkillsFromRepository(repoToInstall);
             } catch (Exception ex) {
                 String reason = ex.getMessage() == null || ex.getMessage().isBlank()
                         ? ex.getClass().getSimpleName()
@@ -214,12 +207,12 @@ public class SkillDiscoveryDialog extends DialogWrapper {
                         finalResult.skipped(), finalResult.failed()));
                 if (finalResult.success()) {
                     Messages.showInfoMessage(
-                            I18n.t("skill.discovery.install.success", skillName, finalResult.installed(),
+                            I18n.t("skill.discovery.install.success", repoName, finalResult.installed(),
                                     finalResult.skipped(), finalResult.failed()),
                             I18n.t("skill.discovery.install.title"));
                 } else {
                     Messages.showErrorDialog(
-                            I18n.t("skill.discovery.install.failed", skillName, finalResult.message()),
+                            I18n.t("skill.discovery.install.failed", repoName, finalResult.message()),
                             I18n.t("provider.dialog.error"));
                 }
             }, ModalityState.any());
@@ -439,6 +432,7 @@ public class SkillDiscoveryDialog extends DialogWrapper {
     private void updateButtons() {
         String selected = getSelectedSkill();
         boolean hasSelection = selected != null;
+        boolean hasInstallableRepository = currentRepoInfo != null && currentRepoInfo.skillCount() > 0;
 
         repoComboBox.setEnabled(!loading);
         addRepoButton.setEnabled(!loading);
@@ -446,7 +440,7 @@ public class SkillDiscoveryDialog extends DialogWrapper {
         configTokenButton.setEnabled(!loading);
         refreshButton.setEnabled(!loading);
         openButton.setEnabled(!loading && hasSelection);
-        installButton.setEnabled(!loading && hasSelection);
+        installButton.setEnabled(!loading && hasInstallableRepository);
     }
 
     private String getSelectedSkill() {

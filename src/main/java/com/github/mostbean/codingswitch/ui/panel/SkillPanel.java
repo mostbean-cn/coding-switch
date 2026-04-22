@@ -133,8 +133,7 @@ public class SkillPanel extends JPanel {
 
                     @Override
                     public void update(@NotNull AnActionEvent e) {
-                        e.getPresentation().setEnabled(
-                                SkillService.getInstance().isGitAvailable() && hasInstalledSelection);
+                        e.getPresentation().setEnabled(hasInstalledSelection);
                     }
                 })
                 .addExtraAction(new AnAction(I18n.t("skill.action.installZip"),
@@ -229,12 +228,12 @@ public class SkillPanel extends JPanel {
     }
 
     private void onUpdateSelected() {
-        if (!SkillService.getInstance().isGitAvailable()) {
-            Messages.showWarningDialog(I18n.t("skill.dialog.gitRequired"), I18n.t("provider.dialog.error"));
-            return;
-        }
         Skill selected = getSelectedSkill();
         if (selected == null) {
+            return;
+        }
+        if (!selected.isRepositoryPackage() && !SkillService.getInstance().isGitAvailable()) {
+            Messages.showWarningDialog(I18n.t("skill.dialog.gitRequired"), I18n.t("provider.dialog.error"));
             return;
         }
         SkillService.OperationResult result = SkillService.getInstance().updateInstalledSkill(selected.getId());
@@ -438,6 +437,11 @@ public class SkillPanel extends JPanel {
             }
             if (columnIndex == COL_DESC) {
                 String desc = s.getDescription();
+                if (s.isRepositoryPackage()) {
+                    int childCount = s.getChildren() == null ? 0 : s.getChildren().size();
+                    String prefix = I18n.t("skill.table.repositoryPackageDesc", childCount);
+                    desc = desc == null || desc.isBlank() ? prefix : prefix + " · " + desc;
+                }
                 if (desc == null || desc.isEmpty())
                     return "";
                 desc = desc.replace("\n", " ");

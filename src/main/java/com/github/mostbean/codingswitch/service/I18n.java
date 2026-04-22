@@ -239,6 +239,7 @@ public final class I18n {
                 m.put("skill.table.col.name", "名称");
                 m.put("skill.table.col.status", "状态");
                 m.put("skill.table.col.desc", "描述");
+                m.put("skill.table.repositoryPackageDesc", "包含 {0} 个 Skills");
                 m.put("skill.status.installed", "已安装");
                 m.put("skill.status.notInstalled", "未安装");
                 m.put("skill.action.save", "保存更改");
@@ -319,15 +320,15 @@ public final class I18n {
                 m.put("skill.discovery.label.repo", "选择仓库: ");
                 m.put("skill.discovery.hint", "内置 2 个推荐仓库，也支持添加自定义仓库地址（可包含多个 skills 或单个 skill）。");
                 m.put("skill.discovery.button.refresh", "刷新");
-                m.put("skill.discovery.button.install", "安装");
+                m.put("skill.discovery.button.install", "安装整个仓库");
                 m.put("skill.discovery.button.open", "打开地址");
                 m.put("skill.discovery.button.close", "关闭");
-                m.put("skill.discovery.col.skillName", "技能名称");
+                m.put("skill.discovery.col.skillName", "仓库内 Skills");
                 m.put("skill.discovery.status.loading", "正在发现仓库...");
                 m.put("skill.discovery.status.loaded", "当前仓库共 {0} 个技能");
                 m.put("skill.discovery.status.loadFailed", "仓库发现失败: {0}");
                 m.put("skill.discovery.status.rateLimited", "GitHub API rate limit exceeded. Retry later or configure a token.");
-                m.put("skill.discovery.status.installing", "正在安装: {0}");
+                m.put("skill.discovery.status.installing", "正在安装仓库: {0}");
                 m.put("skill.discovery.status.installDone", "安装完成，成功 {0} / 跳过 {1} / 失败 {2}");
                 m.put("skill.discovery.row.error", "异常: {0}");
                 m.put("skill.discovery.row.empty", "未识别到可安装 skills");
@@ -678,6 +679,7 @@ public final class I18n {
                 m.put("skill.table.col.name", "Name");
                 m.put("skill.table.col.status", "Status");
                 m.put("skill.table.col.desc", "Description");
+                m.put("skill.table.repositoryPackageDesc", "{0} Skills");
                 m.put("skill.status.installed", "Installed");
                 m.put("skill.status.notInstalled", "Not Installed");
                 m.put("skill.action.save", "Save Changes");
@@ -767,15 +769,15 @@ public final class I18n {
                 m.put("skill.discovery.hint",
                                 "Built-in 2 recommended repositories. You can also add a custom repository URL (supports repositories with multiple skills or a single skill).");
                 m.put("skill.discovery.button.refresh", "Refresh");
-                m.put("skill.discovery.button.install", "Install");
+                m.put("skill.discovery.button.install", "Install Repository");
                 m.put("skill.discovery.button.open", "Open URL");
                 m.put("skill.discovery.button.close", "Close");
-                m.put("skill.discovery.col.skillName", "Skill Name");
+                m.put("skill.discovery.col.skillName", "Repository Skills");
                 m.put("skill.discovery.status.loading", "Discovering repositories...");
                 m.put("skill.discovery.status.loaded", "{0} skills in current repository");
                 m.put("skill.discovery.status.loadFailed", "Repository discovery failed: {0}");
                 m.put("skill.discovery.status.rateLimited", "GitHub API rate limit exceeded. Retry later or configure a token.");
-                m.put("skill.discovery.status.installing", "Installing: {0}");
+                m.put("skill.discovery.status.installing", "Installing repository: {0}");
                 m.put("skill.discovery.status.installDone", "Install done, success {0} / skipped {1} / failed {2}");
                 m.put("skill.discovery.row.error", "Error: {0}");
                 m.put("skill.discovery.row.empty", "No installable skills found");
