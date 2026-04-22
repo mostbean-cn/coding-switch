@@ -240,6 +240,7 @@ public final class I18n {
                 m.put("skill.table.col.status", "状态");
                 m.put("skill.table.col.desc", "描述");
                 m.put("skill.table.repositoryPackageDesc", "包含 {0} 个 Skills");
+                m.put("skill.table.repositoryChildUnowned", "已存在，未由仓库包管理");
                 m.put("skill.status.installed", "已安装");
                 m.put("skill.status.notInstalled", "未安装");
                 m.put("skill.action.save", "保存更改");
@@ -272,6 +273,7 @@ public final class I18n {
                 m.put("skill.dialog.uninstallTitle", "确认卸载");
                 m.put("skill.dialog.removeConfirm", "从列表移除并卸载 \"{0}\" 吗？此操作将删除其本地文件夹并取消所有 CLI 桥接。");
                 m.put("skill.dialog.removeTitle", "确认移除");
+                m.put("skill.dialog.removeChildNotSupported", "请选中仓库包行移除整个仓库，子 Skill 目前不支持单独移除。");
                 m.put("skill.dialog.uninstallFailed", "卸载失败: {0}");
                 m.put("skill.dialog.uninstallFailedWithTip", "卸载失败: {0}\n\n请关闭可能占用该目录的终端、文件管理器或杀毒软件后重试。");
                 m.put("skill.dialog.addRepoPrompt",
@@ -680,6 +682,7 @@ public final class I18n {
                 m.put("skill.table.col.status", "Status");
                 m.put("skill.table.col.desc", "Description");
                 m.put("skill.table.repositoryPackageDesc", "{0} Skills");
+                m.put("skill.table.repositoryChildUnowned", "Existing local skill, not managed by package");
                 m.put("skill.status.installed", "Installed");
                 m.put("skill.status.notInstalled", "Not Installed");
                 m.put("skill.action.save", "Save Changes");
@@ -715,6 +718,8 @@ public final class I18n {
                 m.put("skill.dialog.removeConfirm",
                                 "Remove and uninstall \"{0}\"? This will delete its local folder and cancel all CLI bridges.");
                 m.put("skill.dialog.removeTitle", "Confirm Remove");
+                m.put("skill.dialog.removeChildNotSupported",
+                                "Select the repository package row to remove the whole repository. Removing a child skill separately is not supported yet.");
                 m.put("skill.dialog.uninstallFailed", "Uninstall failed: {0}");
                 m.put("skill.dialog.uninstallFailedWithTip",
                                 "Uninstall failed: {0}\n\nPlease close terminals, file explorers, or antivirus processes that may lock this directory, then retry.");

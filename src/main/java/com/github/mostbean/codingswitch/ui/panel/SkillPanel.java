@@ -24,12 +24,16 @@ import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableCellEditor;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Skills 管理面板。
@@ -70,6 +74,24 @@ public class SkillPanel extends JPanel {
             }
             updateSelectedSkillState();
         });
+        skillTable.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (!SwingUtilities.isLeftMouseButton(e) || e.getClickCount() != 1) {
+                    return;
+                }
+                int viewRow = skillTable.rowAtPoint(e.getPoint());
+                int viewColumn = skillTable.columnAtPoint(e.getPoint());
+                if (viewRow < 0 || viewColumn < 0) {
+                    return;
+                }
+                int modelRow = skillTable.convertRowIndexToModel(viewRow);
+                int modelColumn = skillTable.convertColumnIndexToModel(viewColumn);
+                if (modelColumn == SkillTableModel.COL_NAME && tableModel.toggleRepositoryExpanded(modelRow)) {
+                    updateSelectedSkillState();
+                }
+            }
+        });
 
         // 列宽设置
         skillTable.getColumnModel().getColumn(0).setPreferredWidth(140); // 名称
@@ -96,6 +118,26 @@ public class SkillPanel extends JPanel {
                     c.setForeground(UIManager.getColor("Label.disabledForeground"));
                 }
                 setHorizontalAlignment(SwingConstants.CENTER);
+                return c;
+            }
+        });
+
+        skillTable.getColumnModel().getColumn(0).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value,
+                    boolean isSelected, boolean hasFocus,
+                    int row, int column) {
+                Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                int modelRow = table.convertRowIndexToModel(row);
+                SkillTableModel.SkillRow skillRow = tableModel.getRowAt(modelRow);
+                if (skillRow != null && skillRow.isRepositoryPackage()) {
+                    setFont(getFont().deriveFont(Font.BOLD));
+                } else {
+                    setFont(getFont().deriveFont(Font.PLAIN));
+                }
+                if (!isSelected && skillRow != null && skillRow.isRepositoryChild() && !skillRow.isOwned()) {
+                    c.setForeground(UIManager.getColor("Label.disabledForeground"));
+                }
                 return c;
             }
         });
@@ -247,7 +289,14 @@ public class SkillPanel extends JPanel {
     }
 
     private void onRemoveSkill() {
-        Skill selected = getSelectedSkill();
+        SkillTableModel.SkillRow selectedRow = getSelectedSkillRow();
+        if (selectedRow != null && selectedRow.isRepositoryChild()) {
+            Messages.showInfoMessage(
+                    I18n.t("skill.dialog.removeChildNotSupported"),
+                    I18n.t("skill.dialog.removeTitle"));
+            return;
+        }
+        Skill selected = selectedRow == null ? null : selectedRow.skill();
         if (selected == null)
             return;
         int result = Messages.showYesNoDialog(
@@ -285,20 +334,11 @@ public class SkillPanel extends JPanel {
                 continue;
             }
             Skill before = beforeById.get(current.getId());
-            boolean changed = false;
-            for (CliType cliType : CLI_TYPES) {
-                boolean now = current.isSyncedTo(cliType);
-                boolean old = before != null && before.isSyncedTo(cliType);
-                if (now != old) {
-                    changed = true;
-                    break;
-                }
-            }
-            if (!changed) {
+            if (!hasCliSyncChanged(current, before)) {
                 continue;
             }
             for (CliType cliType : CLI_TYPES) {
-                if (current.isSyncedTo(cliType)) {
+                if (isSkillOrChildSyncedTo(current, cliType)) {
                     changedSelectedCliSet.add(cliType);
                 }
             }
@@ -337,18 +377,71 @@ public class SkillPanel extends JPanel {
     }
 
     private Skill getSelectedSkill() {
+        SkillTableModel.SkillRow row = getSelectedSkillRow();
+        return row == null ? null : row.skill();
+    }
+
+    private SkillTableModel.SkillRow getSelectedSkillRow() {
         int viewRow = skillTable.getSelectedRow();
         if (viewRow < 0) {
             return null;
         }
         int modelRow = skillTable.convertRowIndexToModel(viewRow);
-        return tableModel.getSkillAt(modelRow);
+        return tableModel.getRowAt(modelRow);
     }
 
     private void updateSelectedSkillState() {
-        Skill selected = getSelectedSkill();
-        hasInstalledSelection = selected != null && selected.isInstalled();
+        SkillTableModel.SkillRow selected = getSelectedSkillRow();
+        hasInstalledSelection = selected != null && selected.isRepositoryPackage() && selected.isInstalled();
         ActivityTracker.getInstance().inc();
+    }
+
+    private static boolean hasCliSyncChanged(Skill current, Skill before) {
+        for (CliType cliType : CLI_TYPES) {
+            if (current.isSyncedTo(cliType) != (before != null && before.isSyncedTo(cliType))) {
+                return true;
+            }
+        }
+        if (current.isRepositoryPackage() && current.getChildren() != null) {
+            for (Skill.SkillChild child : current.getChildren()) {
+                Skill.SkillChild beforeChild = findChildByName(before, child == null ? null : child.getName());
+                for (CliType cliType : CLI_TYPES) {
+                    boolean now = child != null && child.isSyncedTo(cliType);
+                    boolean old = beforeChild != null && beforeChild.isSyncedTo(cliType);
+                    if (now != old) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean isSkillOrChildSyncedTo(Skill skill, CliType cliType) {
+        if (skill.isSyncedTo(cliType)) {
+            return true;
+        }
+        if (!skill.isRepositoryPackage() || skill.getChildren() == null) {
+            return false;
+        }
+        for (Skill.SkillChild child : skill.getChildren()) {
+            if (child != null && child.isSyncedTo(cliType)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static Skill.SkillChild findChildByName(Skill skill, String childName) {
+        if (skill == null || skill.getChildren() == null || childName == null) {
+            return null;
+        }
+        for (Skill.SkillChild child : skill.getChildren()) {
+            if (child != null && childName.equalsIgnoreCase(String.valueOf(child.getName()))) {
+                return child;
+            }
+        }
+        return null;
     }
 
     // =====================================================================
@@ -356,6 +449,81 @@ public class SkillPanel extends JPanel {
     // =====================================================================
 
     private static class SkillTableModel extends AbstractTableModel {
+
+        static class SkillRow {
+            private final Skill skill;
+            private final Skill.SkillChild child;
+            private final boolean expanded;
+
+            SkillRow(Skill skill, Skill.SkillChild child, boolean expanded) {
+                this.skill = skill;
+                this.child = child;
+                this.expanded = expanded;
+            }
+
+            Skill skill() {
+                return skill;
+            }
+
+            boolean isRepositoryPackage() {
+                return skill != null && child == null && skill.isRepositoryPackage();
+            }
+
+            boolean isExpanded() {
+                return expanded;
+            }
+
+            boolean isRepositoryChild() {
+                return child != null;
+            }
+
+            boolean isInstalled() {
+                return child == null ? skill != null && skill.isInstalled() : child.isInstalled();
+            }
+
+            boolean isOwned() {
+                return child == null || child.isOwned();
+            }
+
+            String displayName() {
+                if (child == null) {
+                    if (skill == null) {
+                        return "";
+                    }
+                    if (skill.isRepositoryPackage()) {
+                        return (expanded ? "[-] " : "[+] ") + skill.getName();
+                    }
+                    return skill.getName();
+                }
+                return "  - " + child.getName();
+            }
+
+            boolean isSyncedTo(CliType cliType) {
+                if (child == null) {
+                    return skill != null && skill.isSyncedTo(cliType);
+                }
+                return child.isOwned() && child.isInstalled()
+                        && ((skill != null && skill.isSyncedTo(cliType)) || child.isSyncedTo(cliType));
+            }
+
+            void setSyncedTo(CliType cliType, boolean enabled) {
+                if (child == null) {
+                    skill.setSyncedTo(cliType, enabled);
+                } else {
+                    child.setSyncedTo(cliType, enabled);
+                }
+            }
+
+            boolean canEditCli(CliType cliType) {
+                if (!isInstalled()) {
+                    return false;
+                }
+                if (child == null) {
+                    return true;
+                }
+                return child.isOwned() && (skill == null || !skill.isSyncedTo(cliType));
+            }
+        }
 
         // 列定义: 名称 | 状态 | Claude | Codex | Gemini | OpenCode | 描述
         private static final int COL_NAME = 0;
@@ -366,6 +534,8 @@ public class SkillPanel extends JPanel {
 
         private final Runnable dirtyCallback;
         private List<Skill> data = new ArrayList<>();
+        private List<SkillRow> rows = new ArrayList<>();
+        private final Set<String> expandedRepositoryIds = new HashSet<>();
 
         public SkillTableModel(Runnable dirtyCallback) {
             this.dirtyCallback = dirtyCallback;
@@ -373,6 +543,7 @@ public class SkillPanel extends JPanel {
 
         public void setSkills(List<Skill> skills) {
             this.data = new ArrayList<>(skills);
+            rebuildRows();
             fireTableDataChanged();
         }
 
@@ -381,14 +552,81 @@ public class SkillPanel extends JPanel {
         }
 
         public Skill getSkillAt(int row) {
-            if (row >= 0 && row < data.size())
-                return data.get(row);
+            SkillRow skillRow = getRowAt(row);
+            if (skillRow != null) {
+                return skillRow.skill();
+            }
             return null;
+        }
+
+        public SkillRow getRowAt(int row) {
+            if (row >= 0 && row < rows.size()) {
+                return rows.get(row);
+            }
+            return null;
+        }
+
+        private void rebuildRows() {
+            pruneExpandedRepositoryIds();
+            List<SkillRow> rebuilt = new ArrayList<>();
+            for (Skill skill : data) {
+                boolean expanded = isRepositoryExpanded(skill);
+                rebuilt.add(new SkillRow(skill, null, expanded));
+                if (skill == null || !skill.isRepositoryPackage() || skill.getChildren() == null) {
+                    continue;
+                }
+                if (!expanded) {
+                    continue;
+                }
+                for (Skill.SkillChild child : skill.getChildren()) {
+                    if (child != null) {
+                        rebuilt.add(new SkillRow(skill, child, false));
+                    }
+                }
+            }
+            this.rows = rebuilt;
+        }
+
+        public boolean toggleRepositoryExpanded(int row) {
+            SkillRow skillRow = getRowAt(row);
+            if (skillRow == null || !skillRow.isRepositoryPackage() || skillRow.skill() == null) {
+                return false;
+            }
+            String key = repositoryExpansionKey(skillRow.skill());
+            if (expandedRepositoryIds.contains(key)) {
+                expandedRepositoryIds.remove(key);
+            } else {
+                expandedRepositoryIds.add(key);
+            }
+            rebuildRows();
+            fireTableDataChanged();
+            return true;
+        }
+
+        private boolean isRepositoryExpanded(Skill skill) {
+            return skill != null && expandedRepositoryIds.contains(repositoryExpansionKey(skill));
+        }
+
+        private void pruneExpandedRepositoryIds() {
+            Set<String> existingIds = new HashSet<>();
+            for (Skill skill : data) {
+                if (skill != null && skill.isRepositoryPackage()) {
+                    existingIds.add(repositoryExpansionKey(skill));
+                }
+            }
+            expandedRepositoryIds.retainAll(existingIds);
+        }
+
+        private static String repositoryExpansionKey(Skill skill) {
+            if (skill.getId() != null && !skill.getId().isBlank()) {
+                return skill.getId();
+            }
+            return String.valueOf(skill.getRepository()) + "#" + String.valueOf(skill.getBranch());
         }
 
         @Override
         public int getRowCount() {
-            return data.size();
+            return rows.size();
         }
 
         @Override
@@ -421,21 +659,40 @@ public class SkillPanel extends JPanel {
         @Override
         public boolean isCellEditable(int rowIndex, int columnIndex) {
             // 所有 CLI 列均可编辑
-            return columnIndex >= COL_CLI_START && columnIndex < COL_DESC;
+            if (columnIndex < COL_CLI_START || columnIndex >= COL_DESC) {
+                return false;
+            }
+            SkillRow row = getRowAt(rowIndex);
+            return row != null && row.canEditCli(CLI_TYPES[columnIndex - COL_CLI_START]);
         }
 
         @Override
         public Object getValueAt(int rowIndex, int columnIndex) {
-            Skill s = data.get(rowIndex);
+            SkillRow row = rows.get(rowIndex);
+            Skill s = row.skill();
             if (columnIndex == COL_NAME)
-                return s.getName();
+                return row.displayName();
             if (columnIndex == COL_STATUS)
-                return s.isInstalled() ? I18n.t("skill.status.installed") : I18n.t("skill.status.notInstalled");
+                return row.isInstalled() ? I18n.t("skill.status.installed") : I18n.t("skill.status.notInstalled");
             if (columnIndex >= COL_CLI_START && columnIndex < COL_DESC) {
                 CliType cli = CLI_TYPES[columnIndex - COL_CLI_START];
-                return s.isSyncedTo(cli);
+                return row.isSyncedTo(cli);
             }
             if (columnIndex == COL_DESC) {
+                if (row.isRepositoryChild()) {
+                    String desc = row.child.getRelativePath();
+                    if (desc == null || desc.isBlank()) {
+                        desc = row.child.getName();
+                    }
+                    if (desc == null || desc.isBlank()) {
+                        desc = "";
+                    }
+                    if (!row.isOwned()) {
+                        String unowned = I18n.t("skill.table.repositoryChildUnowned");
+                        desc = desc.isBlank() ? unowned : desc + " - " + unowned;
+                    }
+                    return desc.length() > 80 ? desc.substring(0, 80) + "..." : desc;
+                }
                 String desc = s.getDescription();
                 if (s.isRepositoryPackage()) {
                     int childCount = s.getChildren() == null ? 0 : s.getChildren().size();
@@ -453,13 +710,16 @@ public class SkillPanel extends JPanel {
         @Override
         public void setValueAt(Object aValue, int rowIndex, int columnIndex) {
             if (columnIndex >= COL_CLI_START && columnIndex < COL_DESC) {
-                Skill s = data.get(rowIndex);
+                SkillRow row = getRowAt(rowIndex);
+                if (row == null) {
+                    return;
+                }
                 CliType cli = CLI_TYPES[columnIndex - COL_CLI_START];
                 boolean enabled = Boolean.TRUE.equals(aValue);
-                if (s.isSyncedTo(cli) != enabled) {
-                    s.setSyncedTo(cli, enabled);
+                if (row.isSyncedTo(cli) != enabled) {
+                    row.setSyncedTo(cli, enabled);
                     dirtyCallback.run();
-                    fireTableCellUpdated(rowIndex, columnIndex);
+                    fireTableDataChanged();
                 }
             }
         }

@@ -24,8 +24,10 @@ public class Skill {
         private String localPath;
         private boolean installed;
         private Boolean owned;
+        private Map<CliType, Boolean> syncTargets;
 
         public SkillChild() {
+            this.syncTargets = createDefaultSyncTargets();
         }
 
         public SkillChild(String name, String relativePath, String localPath, boolean installed) {
@@ -38,6 +40,7 @@ public class Skill {
             this.localPath = localPath;
             this.installed = installed;
             this.owned = owned;
+            this.syncTargets = createDefaultSyncTargets();
         }
 
         public String getName() {
@@ -83,6 +86,25 @@ public class Skill {
         public Boolean getOwned() {
             return owned;
         }
+
+        public Map<CliType, Boolean> getSyncTargets() {
+            return syncTargets;
+        }
+
+        public void setSyncTargets(Map<CliType, Boolean> syncTargets) {
+            this.syncTargets = syncTargets;
+        }
+
+        public boolean isSyncedTo(CliType cliType) {
+            return syncTargets != null && Boolean.TRUE.equals(syncTargets.get(cliType));
+        }
+
+        public void setSyncedTo(CliType cliType, boolean synced) {
+            if (syncTargets == null) {
+                syncTargets = createDefaultSyncTargets();
+            }
+            syncTargets.put(cliType, synced);
+        }
     }
 
     private String id;
@@ -103,12 +125,7 @@ public class Skill {
         this.id = UUID.randomUUID().toString();
         this.kind = Kind.SINGLE;
         this.children = new ArrayList<>();
-        this.syncTargets = new HashMap<>();
-        // 默认均不启用，用户手动勾选后生效
-        syncTargets.put(CliType.CLAUDE, false);
-        syncTargets.put(CliType.CODEX, false);
-        syncTargets.put(CliType.GEMINI, false);
-        syncTargets.put(CliType.OPENCODE, false);
+        this.syncTargets = createDefaultSyncTargets();
     }
 
     public Skill(String name, String description, String repository, String path) {
@@ -219,8 +236,18 @@ public class Skill {
 
     public void setSyncedTo(CliType cliType, boolean synced) {
         if (syncTargets == null)
-            syncTargets = new HashMap<>();
+            syncTargets = createDefaultSyncTargets();
         syncTargets.put(cliType, synced);
+    }
+
+    private static Map<CliType, Boolean> createDefaultSyncTargets() {
+        Map<CliType, Boolean> targets = new HashMap<>();
+        // 默认均不启用，用户手动勾选后生效
+        targets.put(CliType.CLAUDE, false);
+        targets.put(CliType.CODEX, false);
+        targets.put(CliType.GEMINI, false);
+        targets.put(CliType.OPENCODE, false);
+        return targets;
     }
 
     @Override

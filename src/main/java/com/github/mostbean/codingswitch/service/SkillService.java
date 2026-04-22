@@ -22,6 +22,7 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AccessDeniedException;
@@ -73,6 +74,7 @@ public final class SkillService implements PersistentStateComponent<SkillService
     private static final String SKILL_BRIDGE_END = "<!-- coding-switch:skills-bridge:end -->";
     private static final String SKILL_BRIDGE_MANIFEST = ".coding-switch-managed.json";
     private static final String SKILL_TEMP_ROOT_DIR = ".coding-switch-tmp";
+    private static final String REPOSITORY_PACKAGE_PATH_MARKER = "#coding-switch-repository-package=";
     private static final List<CliType> SKILL_SYNC_TARGET_CLIS = List.of(CliType.CLAUDE, CliType.CODEX, CliType.GEMINI, CliType.OPENCODE);
 
     /** 内置推荐的 Skills 仓库列表 */
@@ -199,6 +201,7 @@ public final class SkillService implements PersistentStateComponent<SkillService
             for (Skill skill : list) {
                 normalized = normalizeSkill(skill) || normalized;
             }
+            normalized = repairFlattenedRepositoryPackages(list) || normalized;
             boolean removedLegacyPlaceholders = list.removeIf(SkillService::isLegacyRepoPlaceholder);
             boolean removedTempEntries = list.removeIf(SkillService::isTemporaryInstallArtifact);
             if (normalized || removedLegacyPlaceholders || removedTempEntries) {
@@ -501,7 +504,7 @@ public final class SkillService implements PersistentStateComponent<SkillService
         target.setName(packageName);
         target.setRepository(repoInfo.repositoryUrl());
         target.setBranch(branch);
-        target.setPath(repoInfo.skillsPageUrl());
+        target.setPath(buildRepositoryPackagePath(repoInfo.skillsPageUrl(), children));
         target.setDescription("GitHub: " + packageName + " (" + children.size() + " skills)");
         target.setInstalled(children.stream().anyMatch(Skill.SkillChild::isInstalled));
         target.setLocalPath(skillsDir.toString());
@@ -517,6 +520,104 @@ public final class SkillService implements PersistentStateComponent<SkillService
                 targetDir.toString(),
                 installed,
                 owned);
+    }
+
+    private static String buildRepositoryPackagePath(String skillsPageUrl, List<Skill.SkillChild> children) {
+        String base = stripRepositoryPackageMarker(skillsPageUrl);
+        if (base == null) {
+            base = "";
+        }
+        List<String> names = new ArrayList<>();
+        if (children != null) {
+            for (Skill.SkillChild child : children) {
+                if (child != null && child.getName() != null && !child.getName().isBlank()) {
+                    names.add(child.getName().trim() + "\t" + encodeChildSyncTargets(child));
+                }
+            }
+        }
+        return base + REPOSITORY_PACKAGE_PATH_MARKER
+                + URLEncoder.encode(String.join("\n", names), StandardCharsets.UTF_8);
+    }
+
+    private static String stripRepositoryPackageMarker(String path) {
+        if (path == null) {
+            return null;
+        }
+        int markerIndex = path.indexOf(REPOSITORY_PACKAGE_PATH_MARKER);
+        return markerIndex < 0 ? path : path.substring(0, markerIndex);
+    }
+
+    private static List<String> parseRepositoryPackageChildNames(String path) {
+        if (path == null) {
+            return List.of();
+        }
+        int markerIndex = path.indexOf(REPOSITORY_PACKAGE_PATH_MARKER);
+        if (markerIndex < 0) {
+            return List.of();
+        }
+        String encoded = path.substring(markerIndex + REPOSITORY_PACKAGE_PATH_MARKER.length());
+        try {
+            String decoded = URLDecoder.decode(encoded, StandardCharsets.UTF_8);
+            List<String> names = new ArrayList<>();
+            for (String line : decoded.split("\\R")) {
+                if (line != null && !line.isBlank()) {
+                    names.add(line.split("\\t", 2)[0].trim());
+                }
+            }
+            return names;
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
+
+    private static String encodeChildSyncTargets(Skill.SkillChild child) {
+        List<String> enabled = new ArrayList<>();
+        for (CliType cliType : SKILL_SYNC_TARGET_CLIS) {
+            if (child.isSyncedTo(cliType)) {
+                enabled.add(cliType.name());
+            }
+        }
+        return String.join(",", enabled);
+    }
+
+    private static Map<String, Map<CliType, Boolean>> parseRepositoryPackageChildSyncTargets(String path) {
+        if (path == null) {
+            return Map.of();
+        }
+        int markerIndex = path.indexOf(REPOSITORY_PACKAGE_PATH_MARKER);
+        if (markerIndex < 0) {
+            return Map.of();
+        }
+        String encoded = path.substring(markerIndex + REPOSITORY_PACKAGE_PATH_MARKER.length());
+        try {
+            String decoded = URLDecoder.decode(encoded, StandardCharsets.UTF_8);
+            Map<String, Map<CliType, Boolean>> result = new HashMap<>();
+            for (String line : decoded.split("\\R")) {
+                if (line == null || line.isBlank()) {
+                    continue;
+                }
+                String[] parts = line.split("\\t", 2);
+                if (parts.length < 2 || parts[0].isBlank()) {
+                    continue;
+                }
+                Map<CliType, Boolean> syncTargets = new HashMap<>();
+                for (CliType cliType : SKILL_SYNC_TARGET_CLIS) {
+                    syncTargets.put(cliType, false);
+                }
+                for (String rawCli : parts[1].split(",")) {
+                    try {
+                        if (rawCli != null && !rawCli.isBlank()) {
+                            syncTargets.put(CliType.valueOf(rawCli.trim()), true);
+                        }
+                    } catch (IllegalArgumentException ignored) {
+                    }
+                }
+                result.put(safeFolderName(parts[0]).toLowerCase(Locale.ROOT), syncTargets);
+            }
+            return result;
+        } catch (Exception e) {
+            return Map.of();
+        }
     }
 
     private void cleanupPartialDirectory(Path targetDir) {
@@ -585,7 +686,12 @@ public final class SkillService implements PersistentStateComponent<SkillService
         if (changedChildren != null) {
             for (Skill.SkillChild child : changedChildren) {
                 if (child != null && child.getName() != null && !child.getName().isBlank()) {
-                    merged.put(safeFolderName(child.getName()).toLowerCase(Locale.ROOT), child);
+                    String key = safeFolderName(child.getName()).toLowerCase(Locale.ROOT);
+                    Skill.SkillChild previous = merged.get(key);
+                    if (previous != null) {
+                        child.setSyncTargets(previous.getSyncTargets());
+                    }
+                    merged.put(key, child);
                 }
             }
         }
@@ -640,11 +746,11 @@ public final class SkillService implements PersistentStateComponent<SkillService
 
         for (CliType cliType : SKILL_SYNC_TARGET_CLIS) {
             List<Skill> selected = allSkills.stream()
-                    .filter(skill -> skill.isInstalled() && skill.isSyncedTo(cliType))
+                    .filter(skill -> isSkillSelectedForCli(skill, cliType))
                     .toList();
             boolean hasInstalledSelected = !selected.isEmpty();
             try {
-                syncSkillBridgeForCli(configService, cliType, expandRepositoryPackages(selected));
+                syncSkillBridgeForCli(configService, cliType, expandRepositoryPackages(selected, cliType));
                 if (hasInstalledSelected) {
                     updated++;
                 }
@@ -659,7 +765,29 @@ public final class SkillService implements PersistentStateComponent<SkillService
         return new SkillBridgeSyncResult(updated, failed, detail);
     }
 
-    private List<Skill> expandRepositoryPackages(List<Skill> selectedSkills) {
+    private boolean isSkillSelectedForCli(Skill skill, CliType cliType) {
+        if (skill == null || !skill.isInstalled()) {
+            return false;
+        }
+        if (!skill.isRepositoryPackage()) {
+            return skill.isSyncedTo(cliType);
+        }
+        if (skill.isSyncedTo(cliType)) {
+            return true;
+        }
+        List<Skill.SkillChild> children = skill.getChildren();
+        if (children == null) {
+            return false;
+        }
+        for (Skill.SkillChild child : children) {
+            if (isRepositoryChildSelectedForCli(child, cliType, false)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private List<Skill> expandRepositoryPackages(List<Skill> selectedSkills, CliType cliType) {
         List<Skill> expanded = new ArrayList<>();
         if (selectedSkills == null) {
             return expanded;
@@ -676,9 +804,9 @@ public final class SkillService implements PersistentStateComponent<SkillService
             if (children == null) {
                 continue;
             }
+            boolean packageSelected = skill.isSyncedTo(cliType);
             for (Skill.SkillChild child : children) {
-                if (child == null || !child.isOwned() || !child.isInstalled()
-                        || child.getName() == null || child.getName().isBlank()) {
+                if (!isRepositoryChildSelectedForCli(child, cliType, packageSelected)) {
                     continue;
                 }
                 Skill childSkill = new Skill();
@@ -693,6 +821,14 @@ public final class SkillService implements PersistentStateComponent<SkillService
             }
         }
         return dedupeExpandedSkills(expanded);
+    }
+
+    private boolean isRepositoryChildSelectedForCli(Skill.SkillChild child, CliType cliType, boolean packageSelected) {
+        if (child == null || !child.isOwned() || !child.isInstalled()
+                || child.getName() == null || child.getName().isBlank()) {
+            return false;
+        }
+        return packageSelected || child.isSyncedTo(cliType);
     }
 
     private List<Skill> dedupeExpandedSkills(List<Skill> skills) {
@@ -2011,6 +2147,228 @@ public final class SkillService implements PersistentStateComponent<SkillService
         return null;
     }
 
+    private boolean repairFlattenedRepositoryPackages(List<Skill> skills) {
+        if (skills == null || skills.isEmpty()) {
+            return false;
+        }
+        boolean changed = false;
+        List<Skill> repairedPackages = new ArrayList<>();
+        for (Skill skill : skills) {
+            if (!isFlattenedRepositoryPackageCandidate(skill)) {
+                continue;
+            }
+            if (repairFlattenedRepositoryPackage(skill)) {
+                repairedPackages.add(skill);
+                changed = true;
+            }
+        }
+        if (!repairedPackages.isEmpty()) {
+            changed = removeDuplicateRepositoryChildSkills(skills, repairedPackages) || changed;
+        }
+        return changed;
+    }
+
+    private boolean isFlattenedRepositoryPackageCandidate(Skill skill) {
+        if (skill == null || skill.isRepositoryPackage()) {
+            return false;
+        }
+        if (parseRepo(skill.getRepository()) == null) {
+            return false;
+        }
+        if (skill.getChildren() != null && !skill.getChildren().isEmpty()) {
+            return false;
+        }
+        if (skill.getPath() != null && skill.getPath().contains(REPOSITORY_PACKAGE_PATH_MARKER)) {
+            return true;
+        }
+        Path globalSkillsDir = ConfigFileService.getInstance().getGlobalSkillsDir().toAbsolutePath().normalize();
+        if (skill.getLocalPath() != null && !skill.getLocalPath().isBlank()) {
+            try {
+                Path localPath = Path.of(skill.getLocalPath()).toAbsolutePath().normalize();
+                if (localPath.equals(globalSkillsDir)) {
+                    return true;
+                }
+            } catch (InvalidPathException ignored) {
+            }
+        }
+        String path = stripRepositoryPackageMarker(skill.getPath());
+        return path != null && path.contains("/tree/") && path.endsWith("/skills");
+    }
+
+    private boolean repairFlattenedRepositoryPackage(Skill skill) {
+        Path skillsDir = ConfigFileService.getInstance().getGlobalSkillsDir();
+        String branch = skill.getBranch();
+        if (branch == null || branch.isBlank()) {
+            branch = extractBranchFromSkillsPageUrl(skill.getPath());
+        }
+
+        List<String> childNames = new ArrayList<>(parseRepositoryPackageChildNames(skill.getPath()));
+        Map<String, Map<CliType, Boolean>> childSyncTargets = parseRepositoryPackageChildSyncTargets(skill.getPath());
+        if (childNames.isEmpty()) {
+            try {
+                RepoDiscoveryInfo repoInfo = discoverSkillRepository(skill.getRepository(), branch, false);
+                if (repoInfo != null && repoInfo.skillNames() != null && !repoInfo.skillNames().isEmpty()) {
+                    childNames.addAll(repoInfo.skillNames());
+                    branch = repoInfo.branch();
+                }
+            } catch (Exception e) {
+                LOG.debug("Failed to rediscover flattened repository package: " + skill.getRepository(), e);
+            }
+        }
+        if (childNames.isEmpty()) {
+            childNames.addAll(collectLocalChildNamesForFlattenedPackage(skill));
+        }
+        if (childNames.isEmpty()) {
+            return false;
+        }
+
+        List<Skill.SkillChild> children = new ArrayList<>();
+        for (String childName : childNames) {
+            if (childName == null || childName.isBlank()) {
+                continue;
+            }
+            Path childDir = skillsDir.resolve(safeFolderName(childName));
+            boolean installed = Files.isDirectory(childDir);
+            Skill.SkillChild child = new Skill.SkillChild(
+                    childName,
+                    "skills/" + childName,
+                    childDir.toString(),
+                    installed,
+                    installed);
+            Map<CliType, Boolean> syncTargets = childSyncTargets.get(safeFolderName(childName).toLowerCase(Locale.ROOT));
+            if (syncTargets != null) {
+                child.setSyncTargets(syncTargets);
+            }
+            children.add(child);
+        }
+        if (children.isEmpty()) {
+            return false;
+        }
+
+        skill.setKind(Skill.Kind.REPOSITORY);
+        skill.setBranch(normalizeBranch(branch));
+        skill.setLocalPath(skillsDir.toString());
+        skill.setChildren(children);
+        skill.setInstalled(children.stream().anyMatch(Skill.SkillChild::isInstalled));
+        skill.setPath(buildRepositoryPackagePath(buildSkillsPageUrl(skill), children));
+        return true;
+    }
+
+    private List<String> collectLocalChildNamesForFlattenedPackage(Skill skill) {
+        Integer expectedCount = extractRepositoryPackageChildCount(skill.getDescription());
+        if (expectedCount == null || expectedCount <= 0) {
+            return List.of();
+        }
+
+        Path skillsDir = ConfigFileService.getInstance().getGlobalSkillsDir();
+        List<String> names = new ArrayList<>();
+        if (!Files.isDirectory(skillsDir)) {
+            return List.of();
+        }
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(skillsDir)) {
+            for (Path child : stream) {
+                if (Files.isDirectory(child) && !isTemporaryInstallDirectory(child) && child.getFileName() != null) {
+                    names.add(child.getFileName().toString());
+                }
+            }
+        } catch (IOException e) {
+            LOG.debug("Failed to collect local skill directories for repository package repair", e);
+            return List.of();
+        }
+        return names.size() == expectedCount ? names : List.of();
+    }
+
+    private static @Nullable Integer extractRepositoryPackageChildCount(String description) {
+        if (description == null || description.isBlank()) {
+            return null;
+        }
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("\\((\\d+)\\s+skills\\)", java.util.regex.Pattern.CASE_INSENSITIVE)
+                .matcher(description);
+        if (!matcher.find()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(matcher.group(1));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private boolean removeDuplicateRepositoryChildSkills(List<Skill> skills, List<Skill> repairedPackages) {
+        return skills.removeIf(skill -> {
+            if (skill == null || skill.isRepositoryPackage()) {
+                return false;
+            }
+            for (Skill repositoryPackage : repairedPackages) {
+                if (isDuplicateRepositoryChildSkill(skill, repositoryPackage)) {
+                    return true;
+                }
+            }
+            return false;
+        });
+    }
+
+    private boolean isDuplicateRepositoryChildSkill(Skill skill, Skill repositoryPackage) {
+        if (repositoryPackage == null || repositoryPackage.getChildren() == null) {
+            return false;
+        }
+        Path skillPath = null;
+        if (skill.getLocalPath() != null && !skill.getLocalPath().isBlank()) {
+            try {
+                skillPath = Path.of(skill.getLocalPath()).toAbsolutePath().normalize();
+            } catch (InvalidPathException ignored) {
+            }
+        }
+        for (Skill.SkillChild child : repositoryPackage.getChildren()) {
+            if (child == null || !child.isOwned()) {
+                continue;
+            }
+            if (skillPath != null && child.getLocalPath() != null && !child.getLocalPath().isBlank()) {
+                try {
+                    Path childPath = Path.of(child.getLocalPath()).toAbsolutePath().normalize();
+                    if (skillPath.equals(childPath)) {
+                        return true;
+                    }
+                } catch (InvalidPathException ignored) {
+                }
+            }
+            if (skill.getName() != null && child.getName() != null
+                    && safeFolderName(skill.getName()).equalsIgnoreCase(safeFolderName(child.getName()))
+                    && (skill.getRepository() == null || skill.getRepository().isBlank())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static @Nullable String extractBranchFromSkillsPageUrl(String path) {
+        String cleanPath = stripRepositoryPackageMarker(path);
+        if (cleanPath == null || cleanPath.isBlank()) {
+            return null;
+        }
+        String marker = "/tree/";
+        int start = cleanPath.indexOf(marker);
+        int end = cleanPath.lastIndexOf("/skills");
+        if (start < 0 || end <= start + marker.length()) {
+            return null;
+        }
+        return normalizeBranch(cleanPath.substring(start + marker.length(), end));
+    }
+
+    private static String buildSkillsPageUrl(Skill skill) {
+        String existing = stripRepositoryPackageMarker(skill.getPath());
+        if (existing != null && !existing.isBlank()) {
+            return existing;
+        }
+        String branch = normalizeBranch(skill.getBranch());
+        if (branch == null) {
+            branch = "main";
+        }
+        String repository = skill.getRepository() == null ? "" : skill.getRepository().replaceAll("/+$", "");
+        return repository + "/tree/" + branch + "/skills";
+    }
+
     private void syncInstallState(List<Skill> skills) {
         Path baseDir = ConfigFileService.getInstance().getGlobalSkillsDir();
         for (Skill skill : skills) {
@@ -2111,10 +2469,19 @@ public final class SkillService implements PersistentStateComponent<SkillService
         }
         if (skill.isRepositoryPackage()) {
             for (Skill.SkillChild child : skill.getChildren()) {
-                if (child != null && child.getOwned() == null) {
+                if (child == null) {
+                    continue;
+                }
+                if (child.getOwned() == null) {
                     child.setOwned(child.isInstalled() && child.getLocalPath() != null && !child.getLocalPath().isBlank());
                     changed = true;
                 }
+                changed = normalizeChildSyncTargets(child) || changed;
+            }
+            String markedPath = buildRepositoryPackagePath(buildSkillsPageUrl(skill), skill.getChildren());
+            if (!Objects.equals(skill.getPath(), markedPath)) {
+                skill.setPath(markedPath);
+                changed = true;
             }
         }
 
@@ -2122,6 +2489,22 @@ public final class SkillService implements PersistentStateComponent<SkillService
         if (syncTargets == null) {
             syncTargets = new HashMap<>();
             skill.setSyncTargets(syncTargets);
+            changed = true;
+        }
+
+        changed = putDefaultIfMissing(syncTargets, CliType.CLAUDE, false) || changed;
+        changed = putDefaultIfMissing(syncTargets, CliType.CODEX, false) || changed;
+        changed = putDefaultIfMissing(syncTargets, CliType.GEMINI, false) || changed;
+        changed = putDefaultIfMissing(syncTargets, CliType.OPENCODE, false) || changed;
+        return changed;
+    }
+
+    private static boolean normalizeChildSyncTargets(Skill.SkillChild child) {
+        Map<CliType, Boolean> syncTargets = child.getSyncTargets();
+        boolean changed = false;
+        if (syncTargets == null) {
+            syncTargets = new HashMap<>();
+            child.setSyncTargets(syncTargets);
             changed = true;
         }
 
