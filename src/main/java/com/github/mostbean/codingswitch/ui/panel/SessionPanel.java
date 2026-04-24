@@ -131,7 +131,6 @@ public class SessionPanel extends JPanel {
         filterBar.add(filterCombo, BorderLayout.CENTER);
 
         JButton batchDeleteBtn = new JButton(I18n.t("session.button.batchDelete"));
-        batchDeleteBtn.setIcon(AllIcons.General.Remove);
         batchDeleteBtn.addActionListener(e -> onBatchDelete());
         filterBar.add(batchDeleteBtn, BorderLayout.EAST);
 
@@ -332,7 +331,7 @@ public class SessionPanel extends JPanel {
         }
 
         JButton deleteBtn = new JButton(I18n.t("session.button.delete"));
-        deleteBtn.setIcon(AllIcons.General.Remove);
+        deleteBtn.setIcon(AllIcons.General.Delete);
         boolean deleteSupported = SessionScannerService.getInstance().supportsDelete(session);
         deleteBtn.setEnabled(deleteSupported);
         deleteBtn.setToolTipText(deleteSupported

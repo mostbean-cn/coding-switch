@@ -153,6 +153,13 @@ public class ProviderPanel extends JPanel {
                         e.getPresentation().setEnabled(providerTable.getSelectedRow() != -1);
                     }
                 })
+                .addExtraAction(new AnAction(I18n.t("provider.action.refresh"),
+                        I18n.t("provider.action.refresh.tooltip"), AllIcons.Actions.Refresh) {
+                    @Override
+                    public void actionPerformed(@NotNull AnActionEvent e) {
+                        onRefreshExternalChanges();
+                    }
+                })
                 .addExtraAction(
                         new AnAction(I18n.t("provider.action.activate"), I18n.t("provider.action.activate.tooltip"),
                                 AllIcons.Actions.Execute) {
@@ -211,6 +218,16 @@ public class ProviderPanel extends JPanel {
         ProviderService.getInstance().duplicateProvider(selected.getId());
     }
 
+    private void onRefreshExternalChanges() {
+        String selectedProviderId = null;
+        Provider selected = getSelectedProvider();
+        if (selected != null) {
+            selectedProviderId = selected.getId();
+        }
+        refreshTable();
+        restoreSelection(selectedProviderId);
+    }
+
     private void onActivate() {
         Provider selected = getSelectedProvider();
         if (selected == null)
@@ -249,6 +266,20 @@ public class ProviderPanel extends JPanel {
             providers = ProviderService.getInstance().getProvidersByType(filter);
         }
         tableModel.setProviders(providers);
+    }
+
+    private void restoreSelection(String providerId) {
+        if (providerId == null || providerId.isBlank()) {
+            return;
+        }
+        for (int row = 0; row < tableModel.getRowCount(); row++) {
+            Provider provider = tableModel.getProviderAt(row);
+            if (providerId.equals(provider.getId())) {
+                providerTable.getSelectionModel().setSelectionInterval(row, row);
+                providerTable.scrollRectToVisible(providerTable.getCellRect(row, 0, true));
+                return;
+            }
+        }
     }
 
     private String buildActivationMessage(Provider provider, CodexActivationResult codexResult,

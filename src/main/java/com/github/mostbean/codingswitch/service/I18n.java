@@ -242,6 +242,8 @@ public final class I18n {
                 m.put("provider.status.pendingActivation", "待激活");
                 m.put("provider.action.duplicate", "复制");
                 m.put("provider.action.duplicate.tooltip", "复制选中的配置");
+                m.put("provider.action.refresh", "刷新");
+                m.put("provider.action.refresh.tooltip", "同步其他 IDE 的配置修改");
                 m.put("provider.action.activate", "激活");
                 m.put("provider.action.activate.tooltip", "激活选中的配置并同步到 CLI");
                 m.put("provider.dialog.deleteConfirm", "确定删除配置 \"{0}\" 吗？");
@@ -709,6 +711,8 @@ public final class I18n {
                 m.put("provider.status.pendingActivation", "Pending Activation");
                 m.put("provider.action.duplicate", "Duplicate");
                 m.put("provider.action.duplicate.tooltip", "Duplicate selected config");
+                m.put("provider.action.refresh", "Refresh");
+                m.put("provider.action.refresh.tooltip", "Sync config changes from other IDEs");
                 m.put("provider.action.activate", "Activate");
                 m.put("provider.action.activate.tooltip", "Activate selected config and sync to CLI");
                 m.put("provider.dialog.deleteConfirm", "Delete config \"{0}\"?");
