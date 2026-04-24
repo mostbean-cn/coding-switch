@@ -1,8 +1,10 @@
 package com.github.mostbean.codingswitch.service;
 
+import com.intellij.DynamicBundle;
 import java.text.MessageFormat;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -17,10 +19,29 @@ public final class I18n {
 
         public static PluginSettings.Language currentLanguage() {
                 try {
-                        return PluginSettings.getInstance().getLanguage();
+                        return resolveEffectiveLanguage(PluginSettings.getInstance().getLanguage());
                 } catch (Exception ignored) {
-                        return PluginSettings.Language.ZH;
+                        return PluginSettings.Language.EN;
                 }
+        }
+
+        private static PluginSettings.Language resolveEffectiveLanguage(PluginSettings.Language configuredLanguage) {
+                if (configuredLanguage == PluginSettings.Language.ZH || configuredLanguage == PluginSettings.Language.EN) {
+                        return configuredLanguage;
+                }
+                return resolveIdeLanguage();
+        }
+
+        private static PluginSettings.Language resolveIdeLanguage() {
+                try {
+                        Locale locale = DynamicBundle.getLocale();
+                        if (locale != null && Locale.CHINESE.getLanguage().equalsIgnoreCase(locale.getLanguage())) {
+                                return PluginSettings.Language.ZH;
+                        }
+                } catch (Exception ignored) {
+                        // 未能读取 IDE UI Locale 时，按非中英文 IDE 处理为英文。
+                }
+                return PluginSettings.Language.EN;
         }
 
         public static String t(String key, Object... args) {

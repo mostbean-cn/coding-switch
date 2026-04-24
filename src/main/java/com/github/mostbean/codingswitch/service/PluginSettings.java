@@ -34,12 +34,14 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
     }
 
     public enum Language {
+        FOLLOW_IDE,
         ZH,
         EN;
 
         public String getDisplayName(Language uiLanguage) {
             boolean englishUi = uiLanguage == EN;
             return switch (this) {
+                case FOLLOW_IDE -> englishUi ? "Follow IDE" : "跟随 IDE";
                 case ZH -> englishUi ? "Chinese" : "中文";
                 case EN -> "English";
             };
@@ -155,7 +157,7 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
     }
 
     public static class State {
-        public String language = Language.ZH.name();
+        public String language = Language.FOLLOW_IDE.name();
         public String githubToken = "";
         public String storageMode = DataStorageMode.IDE_LOCAL.name();
         public boolean cliQuickLaunchEnabled = false;
@@ -188,7 +190,7 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         try {
             return Language.valueOf(getActiveState().language);
         } catch (Exception e) {
-            return Language.ZH;
+            return Language.FOLLOW_IDE;
         }
     }
 
@@ -299,7 +301,7 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
     }
 
     public boolean isChinese() {
-        return getLanguage() == Language.ZH;
+        return I18n.currentLanguage() == Language.ZH;
     }
 
     public DataStorageMode getStorageMode() {
@@ -395,7 +397,7 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
     private static State normalizeState(State state) {
         State normalized = state == null ? new State() : state;
         if (normalized.language == null || normalized.language.isBlank()) {
-            normalized.language = Language.ZH.name();
+            normalized.language = Language.FOLLOW_IDE.name();
         }
         if (normalized.githubToken == null) {
             normalized.githubToken = "";
