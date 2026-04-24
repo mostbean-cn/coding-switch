@@ -12,7 +12,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * 解析当前上下文中的活动文件，并转换为相对项目根目录的路径文本。
+ * 解析当前上下文中的文件或目录，并转换为相对项目根目录的路径文本。
  */
 public final class ActiveFilePathResolver {
 
@@ -65,12 +65,13 @@ public final class ActiveFilePathResolver {
             return PathResolution.unavailable("cliQuickLaunch.insertFilePath.noProject");
         }
 
-        VirtualFile activeFile = resolveSelectedFile(project);
-        if (activeFile == null) {
-            activeFile = e.getData(CommonDataKeys.VIRTUAL_FILE);
-        }
-        if (activeFile != null && activeFile.isDirectory()) {
+        if (hasMultipleContextFiles(e)) {
             return PathResolution.unavailable("cliQuickLaunch.insertFilePath.noActiveFile");
+        }
+
+        VirtualFile activeFile = resolveContextFile(e);
+        if (activeFile == null) {
+            activeFile = resolveSelectedEditorFile(project);
         }
         if (activeFile == null) {
             return PathResolution.unavailable("cliQuickLaunch.insertFilePath.noActiveFile");
@@ -84,7 +85,20 @@ public final class ActiveFilePathResolver {
         return PathResolution.available(relativePath);
     }
 
-    private static @Nullable VirtualFile resolveSelectedFile(@NotNull Project project) {
+    private static @Nullable VirtualFile resolveContextFile(@NotNull AnActionEvent e) {
+        VirtualFile[] selectedFiles = e.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY);
+        if (selectedFiles != null && selectedFiles.length == 1) {
+            return selectedFiles[0];
+        }
+        return e.getData(CommonDataKeys.VIRTUAL_FILE);
+    }
+
+    private static boolean hasMultipleContextFiles(@NotNull AnActionEvent e) {
+        VirtualFile[] selectedFiles = e.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY);
+        return selectedFiles != null && selectedFiles.length > 1;
+    }
+
+    private static @Nullable VirtualFile resolveSelectedEditorFile(@NotNull Project project) {
         FileEditorManager editorManager = FileEditorManager.getInstance(project);
         VirtualFile[] selectedFiles = editorManager.getSelectedFiles();
         return selectedFiles.length > 0 ? selectedFiles[0] : null;
@@ -104,7 +118,8 @@ public final class ActiveFilePathResolver {
             if (!filePath.startsWith(basePath)) {
                 return null;
             }
-            return basePath.relativize(filePath).toString().replace('\\', '/');
+            String relativePath = basePath.relativize(filePath).toString().replace('\\', '/');
+            return relativePath.isBlank() ? "." : relativePath;
         } catch (InvalidPathException ignored) {
             return null;
         }

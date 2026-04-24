@@ -467,10 +467,10 @@ public final class I18n {
                 m.put("cliQuickLaunch.execute", "执行 {0}");
                 m.put("cliQuickLaunch.action.text", "启动 CLI");
                 m.put("cliQuickLaunch.insertFilePath", "插入文件路径");
-                m.put("cliQuickLaunch.insertFilePath.description", "将当前打开文件的相对路径插入到当前激活终端");
+                m.put("cliQuickLaunch.insertFilePath.description", "将当前文件或目录的相对路径插入到当前激活终端");
                 m.put("cliQuickLaunch.insertFilePath.noProject", "当前未打开项目");
-                m.put("cliQuickLaunch.insertFilePath.noActiveFile", "当前没有可插入的活动文件");
-                m.put("cliQuickLaunch.insertFilePath.fileOutOfProject", "当前文件不在项目目录内");
+                m.put("cliQuickLaunch.insertFilePath.noActiveFile", "当前没有可插入的文件或目录");
+                m.put("cliQuickLaunch.insertFilePath.fileOutOfProject", "当前文件或目录不在项目目录内");
                 m.put("cliQuickLaunch.insertFilePath.noActiveTerminal", "当前没有可用的激活终端");
                 m.put("cliQuickLaunch.insertFilePath.failed", "插入文件路径失败");
                 m.put("cliQuickLaunch.insertFilePath.failedWithReason", "插入文件路径失败: {0}");
@@ -924,10 +924,10 @@ public final class I18n {
                 m.put("cliQuickLaunch.execute", "Execute {0}");
                 m.put("cliQuickLaunch.action.text", "Launch CLI");
                 m.put("cliQuickLaunch.insertFilePath", "Insert File Path");
-                m.put("cliQuickLaunch.insertFilePath.description", "Insert the relative path of the current file into the active terminal");
+                m.put("cliQuickLaunch.insertFilePath.description", "Insert the relative path of the current file or directory into the active terminal");
                 m.put("cliQuickLaunch.insertFilePath.noProject", "No project is currently open");
-                m.put("cliQuickLaunch.insertFilePath.noActiveFile", "No active file is available");
-                m.put("cliQuickLaunch.insertFilePath.fileOutOfProject", "The current file is outside the project directory");
+                m.put("cliQuickLaunch.insertFilePath.noActiveFile", "No file or directory is available");
+                m.put("cliQuickLaunch.insertFilePath.fileOutOfProject", "The current file or directory is outside the project directory");
                 m.put("cliQuickLaunch.insertFilePath.noActiveTerminal", "No active terminal is available");
                 m.put("cliQuickLaunch.insertFilePath.failed", "Failed to insert the file path");
                 m.put("cliQuickLaunch.insertFilePath.failedWithReason", "Failed to insert the file path: {0}");
