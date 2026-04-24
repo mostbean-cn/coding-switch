@@ -33,6 +33,10 @@ public enum SettingsCli {
         return id;
     }
 
+    public boolean supportsManagedFeatures() {
+        return this == CLAUDE || this == CODEX || this == GEMINI || this == OPENCODE;
+    }
+
     public static SettingsCli fromId(String id) {
         if (id == null || id.isBlank()) {
             return null;

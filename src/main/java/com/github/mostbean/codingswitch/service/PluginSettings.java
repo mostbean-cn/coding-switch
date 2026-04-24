@@ -264,6 +264,17 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         return resolveVisibleSettingsCliTypes(active.visibleSettingsCliIds);
     }
 
+    public List<CliType> getVisibleManagedCliTypes() {
+        List<CliType> cliTypes = new ArrayList<>();
+        for (SettingsCli settingsCli : getVisibleSettingsCliTypes()) {
+            CliType cliType = CliType.fromId(settingsCli.getId());
+            if (cliType != null) {
+                cliTypes.add(cliType);
+            }
+        }
+        return cliTypes;
+    }
+
     public void setVisibleSettingsCliTypes(List<SettingsCli> cliTypes) {
         State active = getActiveState();
         active.visibleSettingsCliIds = toVisibleSettingsCliIdList(cliTypes);

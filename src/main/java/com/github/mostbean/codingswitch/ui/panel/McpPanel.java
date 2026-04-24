@@ -4,6 +4,7 @@ import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.McpServer;
 import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.McpService;
+import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.ui.dialog.McpServerDialog;
 import com.google.gson.Gson;
 import com.intellij.icons.AllIcons;
@@ -34,9 +35,8 @@ import java.util.List;
  */
 public class McpPanel extends JPanel {
 
-    private static final CliType[] CLI_TYPES = CliType.values();
-
-    private final McpTableModel tableModel = new McpTableModel(this::markDirty);
+    private final CliType[] cliTypes = PluginSettings.getInstance().getVisibleManagedCliTypes().toArray(CliType[]::new);
+    private final McpTableModel tableModel = new McpTableModel(cliTypes, this::markDirty);
     private final JBTable serverTable = new JBTable(tableModel);
     private final Path projectRoot;
 
@@ -73,11 +73,11 @@ public class McpPanel extends JPanel {
 
         serverTable.getColumnModel().getColumn(0).setPreferredWidth(130);
         serverTable.getColumnModel().getColumn(1).setPreferredWidth(60);
-        for (int i = 0; i < CLI_TYPES.length; i++) {
+        for (int i = 0; i < cliTypes.length; i++) {
             serverTable.getColumnModel().getColumn(2 + i).setPreferredWidth(70);
             serverTable.getColumnModel().getColumn(2 + i).setMaxWidth(90);
         }
-        int detailCol = 2 + CLI_TYPES.length;
+        int detailCol = 2 + cliTypes.length;
         serverTable.getColumnModel().getColumn(detailCol).setPreferredWidth(250);
 
         DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
@@ -89,7 +89,7 @@ public class McpPanel extends JPanel {
             public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 2) {
                     int col = serverTable.columnAtPoint(e.getPoint());
-                    if (col < 2 || col >= 2 + CLI_TYPES.length) {
+                    if (col < 2 || col >= 2 + cliTypes.length) {
                         if (serverTable.getSelectedRow() != -1) {
                             onEdit();
                         }
@@ -231,14 +231,18 @@ public class McpPanel extends JPanel {
         private static final int COL_NAME = 0;
         private static final int COL_TRANSPORT = 1;
         private static final int COL_CLI_START = 2;
-        private static final int COL_DETAIL = COL_CLI_START + CLI_TYPES.length;
-        private static final int COLUMN_COUNT = COL_DETAIL + 1;
-
+        private static final int COL_DETAIL_BASE = COL_CLI_START;
+        private final CliType[] cliTypes;
         private final Runnable dirtyCallback;
         private List<McpServer> data = new ArrayList<>();
 
-        public McpTableModel(Runnable dirtyCallback) {
+        public McpTableModel(CliType[] cliTypes, Runnable dirtyCallback) {
+            this.cliTypes = cliTypes;
             this.dirtyCallback = dirtyCallback;
+        }
+
+        private int detailColumn() {
+            return COL_DETAIL_BASE + cliTypes.length;
         }
 
         public void setServers(List<McpServer> servers) {
@@ -261,7 +265,7 @@ public class McpPanel extends JPanel {
 
         @Override
         public int getColumnCount() {
-            return COLUMN_COUNT;
+            return detailColumn() + 1;
         }
 
         @Override
@@ -272,10 +276,11 @@ public class McpPanel extends JPanel {
             if (column == COL_TRANSPORT) {
                 return I18n.t("mcp.table.col.transport");
             }
-            if (column >= COL_CLI_START && column < COL_DETAIL) {
-                return CLI_TYPES[column - COL_CLI_START].getDisplayName();
+            int detailColumn = detailColumn();
+            if (column >= COL_CLI_START && column < detailColumn) {
+                return cliTypes[column - COL_CLI_START].getDisplayName();
             }
-            if (column == COL_DETAIL) {
+            if (column == detailColumn) {
                 return I18n.t("mcp.table.col.detail");
             }
             return "";
@@ -283,7 +288,7 @@ public class McpPanel extends JPanel {
 
         @Override
         public Class<?> getColumnClass(int columnIndex) {
-            if (columnIndex >= COL_CLI_START && columnIndex < COL_DETAIL) {
+            if (columnIndex >= COL_CLI_START && columnIndex < detailColumn()) {
                 return Boolean.class;
             }
             return String.class;
@@ -291,7 +296,7 @@ public class McpPanel extends JPanel {
 
         @Override
         public boolean isCellEditable(int rowIndex, int columnIndex) {
-            return columnIndex >= COL_CLI_START && columnIndex < COL_DETAIL;
+            return columnIndex >= COL_CLI_START && columnIndex < detailColumn();
         }
 
         @Override
@@ -303,11 +308,12 @@ public class McpPanel extends JPanel {
             if (columnIndex == COL_TRANSPORT) {
                 return s.getTransportType().name();
             }
-            if (columnIndex >= COL_CLI_START && columnIndex < COL_DETAIL) {
-                CliType cli = CLI_TYPES[columnIndex - COL_CLI_START];
+            int detailColumn = detailColumn();
+            if (columnIndex >= COL_CLI_START && columnIndex < detailColumn) {
+                CliType cli = cliTypes[columnIndex - COL_CLI_START];
                 return s.isSyncedTo(cli);
             }
-            if (columnIndex == COL_DETAIL) {
+            if (columnIndex == detailColumn) {
                 if (s.getTransportType() == McpServer.TransportType.STDIO) {
                     return s.getCommand() + (s.getArgs() != null && s.getArgs().length > 0
                             ? " " + String.join(" ", s.getArgs())
@@ -320,9 +326,9 @@ public class McpPanel extends JPanel {
 
         @Override
         public void setValueAt(Object aValue, int rowIndex, int columnIndex) {
-            if (columnIndex >= COL_CLI_START && columnIndex < COL_DETAIL) {
+            if (columnIndex >= COL_CLI_START && columnIndex < detailColumn()) {
                 McpServer s = data.get(rowIndex);
-                CliType cli = CLI_TYPES[columnIndex - COL_CLI_START];
+                CliType cli = cliTypes[columnIndex - COL_CLI_START];
                 boolean enabled = Boolean.TRUE.equals(aValue);
                 if (s.isSyncedTo(cli) != enabled) {
                     s.setSyncedTo(cli, enabled);

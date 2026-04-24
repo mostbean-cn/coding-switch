@@ -50,11 +50,14 @@ public class PromptPanel extends JPanel {
     private JPanel createToolbar() {
         JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
         toolbar.add(new JBLabel(I18n.t("prompt.filter.label")));
-        for (CliType cli : CliType.values()) {
+        for (CliType cli : PluginSettings.getInstance().getVisibleManagedCliTypes()) {
             filterCombo.addItem(cli);
         }
         CliType savedCli = PluginSettings.getInstance().getPromptFilterCli();
-        filterCombo.setSelectedItem(savedCli != null ? savedCli : CliType.CLAUDE);
+        CliType initialCli = isFilterCliAvailable(savedCli)
+                ? savedCli
+                : (filterCombo.getItemCount() > 0 ? filterCombo.getItemAt(0) : null);
+        filterCombo.setSelectedItem(initialCli);
         filterCombo.addActionListener(e -> {
             PluginSettings.getInstance().setPromptFilterCli((CliType) filterCombo.getSelectedItem());
             refreshList();
@@ -62,6 +65,18 @@ public class PromptPanel extends JPanel {
         });
         toolbar.add(filterCombo);
         return toolbar;
+    }
+
+    private boolean isFilterCliAvailable(CliType cliType) {
+        if (cliType == null) {
+            return false;
+        }
+        for (int i = 0; i < filterCombo.getItemCount(); i++) {
+            if (filterCombo.getItemAt(i) == cliType) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private JComponent createSplitPane() {
@@ -138,10 +153,16 @@ public class PromptPanel extends JPanel {
     }
 
     private void onAdd() {
+        CliType cli = (CliType) filterCombo.getSelectedItem();
+        if (cli == null) {
+            Messages.showWarningDialog(
+                    I18n.t("providerDialog.validate.cliTypeRequired"),
+                    I18n.t("prompt.dialog.addTitle"));
+            return;
+        }
         String name = Messages.showInputDialog(I18n.t("prompt.dialog.addPrompt"), I18n.t("prompt.dialog.addTitle"),
                 Messages.getQuestionIcon());
         if (name != null && !name.isBlank()) {
-            CliType cli = (CliType) filterCombo.getSelectedItem();
             PromptPreset preset = new PromptPreset(name.trim(), "", cli);
             PromptService.getInstance().addPreset(preset);
             presetList.setSelectedValue(preset, true);

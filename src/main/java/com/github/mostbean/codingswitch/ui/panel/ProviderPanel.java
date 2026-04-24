@@ -56,7 +56,7 @@ public class ProviderPanel extends JPanel {
         toolbar.add(new JBLabel(I18n.t("provider.filter.label")));
 
         filterCombo.addItem(null); // "All" 选项
-        for (CliType cli : CliType.values()) {
+        for (CliType cli : PluginSettings.getInstance().getVisibleManagedCliTypes()) {
             filterCombo.addItem(cli);
         }
         filterCombo.setRenderer(new DefaultListCellRenderer() {
@@ -68,7 +68,8 @@ public class ProviderPanel extends JPanel {
                 return this;
             }
         });
-        filterCombo.setSelectedItem(PluginSettings.getInstance().getProviderFilterCli());
+        CliType savedCli = PluginSettings.getInstance().getProviderFilterCli();
+        filterCombo.setSelectedItem(isFilterCliAvailable(savedCli) ? savedCli : null);
         filterCombo.addActionListener(e -> {
             PluginSettings.getInstance().setProviderFilterCli((CliType) filterCombo.getSelectedItem());
             refreshTable();
@@ -76,6 +77,18 @@ public class ProviderPanel extends JPanel {
         toolbar.add(filterCombo);
 
         return toolbar;
+    }
+
+    private boolean isFilterCliAvailable(CliType cliType) {
+        if (cliType == null) {
+            return true;
+        }
+        for (int i = 0; i < filterCombo.getItemCount(); i++) {
+            if (filterCombo.getItemAt(i) == cliType) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private JComponent createTablePanel() {
@@ -226,9 +239,15 @@ public class ProviderPanel extends JPanel {
 
     private void refreshTable() {
         CliType filter = (CliType) filterCombo.getSelectedItem();
-        List<Provider> providers = filter == null
-                ? ProviderService.getInstance().getProviders()
-                : ProviderService.getInstance().getProvidersByType(filter);
+        List<Provider> providers;
+        if (filter == null) {
+            List<CliType> visibleCliTypes = PluginSettings.getInstance().getVisibleManagedCliTypes();
+            providers = ProviderService.getInstance().getProviders().stream()
+                    .filter(provider -> visibleCliTypes.contains(provider.getCliType()))
+                    .toList();
+        } else {
+            providers = ProviderService.getInstance().getProvidersByType(filter);
+        }
         tableModel.setProviders(providers);
     }
 

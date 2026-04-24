@@ -149,6 +149,7 @@ public final class I18n {
                 m.put("settings.dialog.cliSelection.title", "CLI配置");
                 m.put("settings.dialog.cliSelection.enabled", "显示的 CLI");
                 m.put("settings.dialog.cliSelection.hidden", "隐藏的 CLI");
+                m.put("settings.dialog.cliSelection.managedHint", "仅 * 标记的 CLI 支持配置管理相关功能");
 
                 // ── Session 面板 ──
                 m.put("session.empty.selectHint", "选择一个会话查看详情");
@@ -432,6 +433,7 @@ public final class I18n {
                 m.put("providerDialog.border.gemini", "Gemini CLI 配置");
                 m.put("providerDialog.border.opencode", "OpenCode 配置");
                 m.put("providerDialog.validate.nameRequired", "请填写配置名称");
+                m.put("providerDialog.validate.cliTypeRequired", "请选择 CLI 类型");
                 m.put("providerDialog.validate.apiKeyRequired", "请填写 API Key");
                 m.put("providerDialog.validate.baseUrlRequired", "请填写 Base URL");
                 m.put("providerDialog.validate.modelRequired", "请填写主模型");
@@ -588,6 +590,7 @@ public final class I18n {
                 m.put("settings.dialog.cliSelection.title", "CLI Config");
                 m.put("settings.dialog.cliSelection.enabled", "Visible CLIs");
                 m.put("settings.dialog.cliSelection.hidden", "Hidden CLIs");
+                m.put("settings.dialog.cliSelection.managedHint", "Only * marked CLIs support configuration management features");
 
                 // ── Session Panel ──
                 m.put("session.empty.selectHint", "Select a session to view details");
@@ -887,6 +890,7 @@ public final class I18n {
                 m.put("providerDialog.border.gemini", "Gemini CLI Config");
                 m.put("providerDialog.border.opencode", "OpenCode Config");
                 m.put("providerDialog.validate.nameRequired", "Config name is required");
+                m.put("providerDialog.validate.cliTypeRequired", "CLI type is required");
                 m.put("providerDialog.validate.apiKeyRequired", "API Key is required");
                 m.put("providerDialog.validate.baseUrlRequired", "Base URL is required");
                 m.put("providerDialog.validate.modelRequired", "Main model is required");

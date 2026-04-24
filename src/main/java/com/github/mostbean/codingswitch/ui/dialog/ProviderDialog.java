@@ -48,7 +48,7 @@ public class ProviderDialog extends DialogWrapper {
     private final JPanel presetButtonsPanel = new JPanel(new GridLayout(0, 5, 8, 8));
     private final JBLabel presetHintLabel = new JBLabel(" ");
 
-    private final JComboBox<CliType> cliTypeCombo = new JComboBox<>(CliType.values());
+    private final JComboBox<CliType> cliTypeCombo = new JComboBox<>();
     private final JTextField nameField = new JTextField(30);
 
     private final JTextField claudeApiKey = new JTextField(30);
@@ -190,6 +190,7 @@ public class ProviderDialog extends DialogWrapper {
         codexReasoningEffort.setSelectedItem("high");
 
         setTitle(existing != null ? I18n.t("providerDialog.title.edit") : I18n.t("providerDialog.title.add"));
+        initializeCliTypeCombo(existing != null ? existing.getCliType() : defaultCliType);
 
         dynamicPanel.add(buildClaudePanel(), CliType.CLAUDE.name());
         dynamicPanel.add(buildCodexPanel(), CliType.CODEX.name());
@@ -235,6 +236,16 @@ public class ProviderDialog extends DialogWrapper {
         setupInputListeners();
         setupPreviewSyncListeners();
         updatePreview();
+    }
+
+    private void initializeCliTypeCombo(@Nullable CliType requiredCliType) {
+        List<CliType> cliTypes = new ArrayList<>(PluginSettings.getInstance().getVisibleManagedCliTypes());
+        if (requiredCliType != null && !cliTypes.contains(requiredCliType)) {
+            cliTypes.add(requiredCliType);
+        }
+        for (CliType cliType : cliTypes) {
+            cliTypeCombo.addItem(cliType);
+        }
     }
 
     @Override
@@ -1878,7 +1889,7 @@ public class ProviderDialog extends DialogWrapper {
 
         CliType cli = (CliType) cliTypeCombo.getSelectedItem();
         if (cli == null) {
-            return null;
+            return new ValidationInfo(I18n.t("providerDialog.validate.cliTypeRequired"), cliTypeCombo);
         }
         if (getCurrentAuthMode(cli) == AuthMode.OFFICIAL_LOGIN) {
             return null;

@@ -63,13 +63,6 @@ public class SessionPanel extends JPanel {
     private final AtomicBoolean refreshInProgress = new AtomicBoolean(false);
     private volatile long lastRefreshCompletedAt = -1L;
 
-    private static final String[][] PROVIDER_OPTIONS = {
-            { "claude", "Claude Code" },
-            { "codex", "Codex" },
-            { "gemini", "Gemini CLI" },
-            { "opencode", "OpenCode" },
-    };
-
     public SessionPanel(Project project) {
         super(new BorderLayout());
         this.project = project;
@@ -110,20 +103,24 @@ public class SessionPanel extends JPanel {
         filterBar.setBorder(JBUI.Borders.emptyBottom(4));
         filterBar.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JComboBox<String> filterCombo = new JComboBox<>();
-        for (String[] opt : PROVIDER_OPTIONS) {
-            filterCombo.addItem(opt[1]);
+        JComboBox<CliType> filterCombo = new JComboBox<>();
+        List<CliType> visibleCliTypes = PluginSettings.getInstance().getVisibleManagedCliTypes();
+        for (CliType cliType : visibleCliTypes) {
+            filterCombo.addItem(cliType);
         }
         CliType savedCli = PluginSettings.getInstance().getSessionFilterCli();
-        CliType initialCli = savedCli != null ? savedCli : DEFAULT_SESSION_FILTER_CLI;
-        int initialIndex = findProviderIndex(initialCli);
-        filterCombo.setSelectedIndex(initialIndex);
-        selectedProvider = PROVIDER_OPTIONS[initialIndex][0];
+        CliType initialCli = visibleCliTypes.contains(savedCli)
+                ? savedCli
+                : (visibleCliTypes.contains(DEFAULT_SESSION_FILTER_CLI)
+                    ? DEFAULT_SESSION_FILTER_CLI
+                    : (visibleCliTypes.isEmpty() ? null : visibleCliTypes.get(0)));
+        filterCombo.setSelectedItem(initialCli);
+        selectedProvider = initialCli == null ? "" : initialCli.getId();
         filterCombo.addActionListener(e -> {
-            int idx = filterCombo.getSelectedIndex();
-            if (idx >= 0 && idx < PROVIDER_OPTIONS.length) {
-                selectedProvider = PROVIDER_OPTIONS[idx][0];
-                PluginSettings.getInstance().setSessionFilterCli(findCliTypeByProviderId(selectedProvider));
+            CliType selectedCli = (CliType) filterCombo.getSelectedItem();
+            if (selectedCli != null) {
+                selectedProvider = selectedCli.getId();
+                PluginSettings.getInstance().setSessionFilterCli(selectedCli);
                 applyFilter();
             }
         });
@@ -603,29 +600,9 @@ public class SessionPanel extends JPanel {
                 .setContents(new StringSelection(text), null);
     }
 
-    private int findProviderIndex(CliType cliType) {
-        CliType target = cliType != null ? cliType : DEFAULT_SESSION_FILTER_CLI;
-        String providerId = target.getId();
-        for (int i = 0; i < PROVIDER_OPTIONS.length; i++) {
-            if (PROVIDER_OPTIONS[i][0].equals(providerId)) {
-                return i;
-            }
-        }
-        return 0;
-    }
-
-    private CliType findCliTypeByProviderId(String providerId) {
-        return CliType.fromId(providerId);
-    }
-
     private String getCliDisplayName(String providerId) {
-        return switch (providerId) {
-            case "claude" -> "Claude Code";
-            case "codex" -> "Codex";
-            case "gemini" -> "Gemini CLI";
-            case "opencode" -> "OpenCode";
-            default -> providerId;
-        };
+        CliType cliType = CliType.fromId(providerId);
+        return cliType == null ? providerId : cliType.getDisplayName();
     }
 
     private String getRoleLabel(String role) {

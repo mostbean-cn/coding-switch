@@ -15,11 +15,14 @@ import com.intellij.openapi.application.PathManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.ui.ColoredListCellRenderer;
 import com.intellij.ui.JBColor;
+import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.util.ui.FormBuilder;
 import com.intellij.util.ui.JBUI;
+import org.jetbrains.annotations.NotNull;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -757,9 +760,15 @@ public class SettingsPanel extends JPanel {
             hiddenList
         ));
 
+        JPanel outerPanel = new JPanel(new BorderLayout(0, 8));
+        outerPanel.add(dialogPanel, BorderLayout.CENTER);
+        JLabel managedHintLabel = new JLabel(I18n.t("settings.dialog.cliSelection.managedHint"));
+        managedHintLabel.setHorizontalAlignment(SwingConstants.LEFT);
+        outerPanel.add(managedHintLabel, BorderLayout.SOUTH);
+
         int result = JOptionPane.showOptionDialog(
             this,
-            dialogPanel,
+            outerPanel,
             I18n.t("settings.dialog.cliSelection.title"),
             JOptionPane.DEFAULT_OPTION,
             JOptionPane.PLAIN_MESSAGE,
@@ -775,6 +784,7 @@ public class SettingsPanel extends JPanel {
         if (result == 0) {
             PluginSettings.getInstance().setVisibleSettingsCliTypes(SettingsCli.defaultVisibleValues());
             rebuildSettingsContent();
+            refreshToolWindowTabs();
             return;
         }
         if (result != 2) {
@@ -787,6 +797,7 @@ public class SettingsPanel extends JPanel {
         }
         PluginSettings.getInstance().setVisibleSettingsCliTypes(selectedCliTypes);
         rebuildSettingsContent();
+        refreshToolWindowTabs();
     }
 
     private JList<PluginSettings.ToolWindowFeature> createFeatureList(
@@ -818,20 +829,22 @@ public class SettingsPanel extends JPanel {
         JList<SettingsCli> list = new JList<>(model);
         list.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         list.setVisibleRowCount(8);
-        list.setCellRenderer(new DefaultListCellRenderer() {
+        list.setCellRenderer(new ColoredListCellRenderer<SettingsCli>() {
             @Override
-            public Component getListCellRendererComponent(
-                JList<?> list,
-                Object value,
+            protected void customizeCellRenderer(
+                @NotNull JList<? extends SettingsCli> list,
+                SettingsCli cliType,
                 int index,
-                boolean isSelected,
-                boolean cellHasFocus
+                boolean selected,
+                boolean hasFocus
             ) {
-                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                if (value instanceof SettingsCli cliType) {
-                    setText(cliType.getDisplayName());
+                append(cliType.getDisplayName());
+                if (cliType.supportsManagedFeatures()) {
+                    append(" *", new SimpleTextAttributes(
+                        SimpleTextAttributes.STYLE_BOLD,
+                        new Color(245, 158, 11)
+                    ));
                 }
-                return this;
             }
         });
         return list;

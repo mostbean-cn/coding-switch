@@ -3,6 +3,7 @@ package com.github.mostbean.codingswitch.ui.panel;
 import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.Skill;
 import com.github.mostbean.codingswitch.service.I18n;
+import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.SkillService;
 import com.github.mostbean.codingswitch.ui.dialog.SkillDiscoveryDialog;
 import com.google.gson.Gson;
@@ -41,9 +42,8 @@ import java.util.Set;
  */
 public class SkillPanel extends JPanel {
 
-    private static final CliType[] CLI_TYPES = CliType.values();
-
-    private final SkillTableModel tableModel = new SkillTableModel(this::markDirty);
+    private final CliType[] cliTypes = PluginSettings.getInstance().getVisibleManagedCliTypes().toArray(CliType[]::new);
+    private final SkillTableModel tableModel = new SkillTableModel(cliTypes, this::markDirty);
     private final JBTable skillTable = new JBTable(tableModel);
 
     // 保存按钮相关的 state
@@ -97,11 +97,11 @@ public class SkillPanel extends JPanel {
         skillTable.getColumnModel().getColumn(0).setPreferredWidth(140); // 名称
         skillTable.getColumnModel().getColumn(1).setPreferredWidth(60); // 状态
         // CLI CheckBox 列
-        for (int i = 0; i < CLI_TYPES.length; i++) {
+        for (int i = 0; i < cliTypes.length; i++) {
             skillTable.getColumnModel().getColumn(2 + i).setPreferredWidth(70);
             skillTable.getColumnModel().getColumn(2 + i).setMaxWidth(90);
         }
-        int descCol = 2 + CLI_TYPES.length;
+        int descCol = 2 + cliTypes.length;
         skillTable.getColumnModel().getColumn(descCol).setPreferredWidth(250); // 描述
 
         // 状态列居中 + 颜色
@@ -337,7 +337,7 @@ public class SkillPanel extends JPanel {
             if (!hasCliSyncChanged(current, before)) {
                 continue;
             }
-            for (CliType cliType : CLI_TYPES) {
+            for (CliType cliType : cliTypes) {
                 if (isSkillOrChildSyncedTo(current, cliType)) {
                     changedSelectedCliSet.add(cliType);
                 }
@@ -397,7 +397,7 @@ public class SkillPanel extends JPanel {
     }
 
     private static boolean hasCliSyncChanged(Skill current, Skill before) {
-        for (CliType cliType : CLI_TYPES) {
+        for (CliType cliType : PluginSettings.getInstance().getVisibleManagedCliTypes()) {
             if (current.isSyncedTo(cliType) != (before != null && before.isSyncedTo(cliType))) {
                 return true;
             }
@@ -405,7 +405,7 @@ public class SkillPanel extends JPanel {
         if (current.isRepositoryPackage() && current.getChildren() != null) {
             for (Skill.SkillChild child : current.getChildren()) {
                 Skill.SkillChild beforeChild = findChildByName(before, child == null ? null : child.getName());
-                for (CliType cliType : CLI_TYPES) {
+                for (CliType cliType : PluginSettings.getInstance().getVisibleManagedCliTypes()) {
                     boolean now = child != null && child.isSyncedTo(cliType);
                     boolean old = beforeChild != null && beforeChild.isSyncedTo(cliType);
                     if (now != old) {
@@ -529,16 +529,20 @@ public class SkillPanel extends JPanel {
         private static final int COL_NAME = 0;
         private static final int COL_STATUS = 1;
         private static final int COL_CLI_START = 2;
-        private static final int COL_DESC = COL_CLI_START + CLI_TYPES.length;
-        private static final int COLUMN_COUNT = COL_DESC + 1;
+        private final CliType[] cliTypes;
 
         private final Runnable dirtyCallback;
         private List<Skill> data = new ArrayList<>();
         private List<SkillRow> rows = new ArrayList<>();
         private final Set<String> expandedRepositoryIds = new HashSet<>();
 
-        public SkillTableModel(Runnable dirtyCallback) {
+        public SkillTableModel(CliType[] cliTypes, Runnable dirtyCallback) {
+            this.cliTypes = cliTypes;
             this.dirtyCallback = dirtyCallback;
+        }
+
+        private int descColumn() {
+            return COL_CLI_START + cliTypes.length;
         }
 
         public void setSkills(List<Skill> skills) {
@@ -631,7 +635,7 @@ public class SkillPanel extends JPanel {
 
         @Override
         public int getColumnCount() {
-            return COLUMN_COUNT;
+            return descColumn() + 1;
         }
 
         @Override
@@ -640,17 +644,18 @@ public class SkillPanel extends JPanel {
                 return I18n.t("skill.table.col.name");
             if (column == COL_STATUS)
                 return I18n.t("skill.table.col.status");
-            if (column >= COL_CLI_START && column < COL_DESC) {
-                return CLI_TYPES[column - COL_CLI_START].getDisplayName();
+            int descColumn = descColumn();
+            if (column >= COL_CLI_START && column < descColumn) {
+                return cliTypes[column - COL_CLI_START].getDisplayName();
             }
-            if (column == COL_DESC)
+            if (column == descColumn)
                 return I18n.t("skill.table.col.desc");
             return "";
         }
 
         @Override
         public Class<?> getColumnClass(int columnIndex) {
-            if (columnIndex >= COL_CLI_START && columnIndex < COL_DESC) {
+            if (columnIndex >= COL_CLI_START && columnIndex < descColumn()) {
                 return Boolean.class;
             }
             return String.class;
@@ -659,11 +664,11 @@ public class SkillPanel extends JPanel {
         @Override
         public boolean isCellEditable(int rowIndex, int columnIndex) {
             // 所有 CLI 列均可编辑
-            if (columnIndex < COL_CLI_START || columnIndex >= COL_DESC) {
+            if (columnIndex < COL_CLI_START || columnIndex >= descColumn()) {
                 return false;
             }
             SkillRow row = getRowAt(rowIndex);
-            return row != null && row.canEditCli(CLI_TYPES[columnIndex - COL_CLI_START]);
+            return row != null && row.canEditCli(cliTypes[columnIndex - COL_CLI_START]);
         }
 
         @Override
@@ -674,11 +679,12 @@ public class SkillPanel extends JPanel {
                 return row.displayName();
             if (columnIndex == COL_STATUS)
                 return row.isInstalled() ? I18n.t("skill.status.installed") : I18n.t("skill.status.notInstalled");
-            if (columnIndex >= COL_CLI_START && columnIndex < COL_DESC) {
-                CliType cli = CLI_TYPES[columnIndex - COL_CLI_START];
+            int descColumn = descColumn();
+            if (columnIndex >= COL_CLI_START && columnIndex < descColumn) {
+                CliType cli = cliTypes[columnIndex - COL_CLI_START];
                 return row.isSyncedTo(cli);
             }
-            if (columnIndex == COL_DESC) {
+            if (columnIndex == descColumn) {
                 if (row.isRepositoryChild()) {
                     String desc = row.child.getRelativePath();
                     if (desc == null || desc.isBlank()) {
@@ -709,12 +715,12 @@ public class SkillPanel extends JPanel {
 
         @Override
         public void setValueAt(Object aValue, int rowIndex, int columnIndex) {
-            if (columnIndex >= COL_CLI_START && columnIndex < COL_DESC) {
+            if (columnIndex >= COL_CLI_START && columnIndex < descColumn()) {
                 SkillRow row = getRowAt(rowIndex);
                 if (row == null) {
                     return;
                 }
-                CliType cli = CLI_TYPES[columnIndex - COL_CLI_START];
+                CliType cli = cliTypes[columnIndex - COL_CLI_START];
                 boolean enabled = Boolean.TRUE.equals(aValue);
                 if (row.isSyncedTo(cli) != enabled) {
                     row.setSyncedTo(cli, enabled);
