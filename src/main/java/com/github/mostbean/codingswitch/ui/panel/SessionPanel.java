@@ -364,10 +364,14 @@ public class SessionPanel extends JPanel {
         }
 
         try {
+            String terminalTabName = getCliDisplayName(session.getProviderId());
+            if (terminalTabName == null || terminalTabName.isBlank()) {
+                terminalTabName = I18n.t("session.terminal.continueTabName");
+            }
             TerminalSessionService.executeCommand(
                     project,
                     resolveWorkingDirectory(session),
-                    I18n.t("session.terminal.continueTabName"),
+                    terminalTabName,
                     resumeCommand);
         } catch (RuntimeException ex) {
             Messages.showErrorDialog(
