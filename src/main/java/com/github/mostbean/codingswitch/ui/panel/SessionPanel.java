@@ -7,6 +7,7 @@ import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.SessionScannerService;
 import com.github.mostbean.codingswitch.ui.action.TerminalSessionService;
+import com.github.mostbean.codingswitch.ui.dialog.BatchDeleteSessionsDialog;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
@@ -60,6 +61,7 @@ public class SessionPanel extends JPanel {
     private List<SessionMeta> allSessions = new ArrayList<>();
     private String searchQuery = "";
     private String selectedProvider = "claude"; // 默认 Claude Code
+    private CliType selectedCliType = DEFAULT_SESSION_FILTER_CLI;
     private final AtomicBoolean refreshInProgress = new AtomicBoolean(false);
     private volatile long lastRefreshCompletedAt = -1L;
 
@@ -93,12 +95,12 @@ public class SessionPanel extends JPanel {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(JBUI.Borders.emptyRight(4));
 
-        // 顶部区域：过滤下拉框 + 搜索框 + 刷新按钮
+        // 顶部区域：过滤下拉框 + 批量删除按钮 + 搜索框 + 刷新按钮
         JPanel topArea = new JPanel();
         topArea.setLayout(new BoxLayout(topArea, BoxLayout.Y_AXIS));
         topArea.setBorder(JBUI.Borders.emptyBottom(4));
 
-        // 第一行：过滤下拉框 + 刷新按钮
+        // 第一行：过滤下拉框 + 批量删除按钮
         JPanel filterBar = new JPanel(new BorderLayout(4, 0));
         filterBar.setBorder(JBUI.Borders.emptyBottom(4));
         filterBar.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -115,10 +117,12 @@ public class SessionPanel extends JPanel {
                     ? DEFAULT_SESSION_FILTER_CLI
                     : (visibleCliTypes.isEmpty() ? null : visibleCliTypes.get(0)));
         filterCombo.setSelectedItem(initialCli);
+        selectedCliType = initialCli;
         selectedProvider = initialCli == null ? "" : initialCli.getId();
         filterCombo.addActionListener(e -> {
             CliType selectedCli = (CliType) filterCombo.getSelectedItem();
             if (selectedCli != null) {
+                selectedCliType = selectedCli;
                 selectedProvider = selectedCli.getId();
                 PluginSettings.getInstance().setSessionFilterCli(selectedCli);
                 applyFilter();
@@ -126,14 +130,14 @@ public class SessionPanel extends JPanel {
         });
         filterBar.add(filterCombo, BorderLayout.CENTER);
 
-        JButton refreshBtn = new JButton(AllIcons.Actions.Refresh);
-        refreshBtn.setToolTipText(I18n.t("session.tooltip.refresh"));
-        refreshBtn.addActionListener(e -> refreshSessions(true));
-        filterBar.add(refreshBtn, BorderLayout.EAST);
+        JButton batchDeleteBtn = new JButton(I18n.t("session.button.batchDelete"));
+        batchDeleteBtn.setIcon(AllIcons.General.Remove);
+        batchDeleteBtn.addActionListener(e -> onBatchDelete());
+        filterBar.add(batchDeleteBtn, BorderLayout.EAST);
 
         topArea.add(filterBar);
 
-        // 第二行：搜索框
+        // 第二行：搜索框 + 刷新按钮
         SearchTextField searchField = new SearchTextField();
         searchField.addDocumentListener(new DocumentListener() {
             @Override
@@ -151,9 +155,14 @@ public class SessionPanel extends JPanel {
                 onSearchChanged(searchField.getText());
             }
         });
-        JPanel searchRow = new JPanel(new BorderLayout());
+        JPanel searchRow = new JPanel(new BorderLayout(4, 0));
         searchRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         searchRow.add(searchField, BorderLayout.CENTER);
+
+        JButton refreshBtn = new JButton(AllIcons.Actions.Refresh);
+        refreshBtn.setToolTipText(I18n.t("session.tooltip.refresh"));
+        refreshBtn.addActionListener(e -> refreshSessions(true));
+        searchRow.add(refreshBtn, BorderLayout.EAST);
         topArea.add(searchRow);
 
         panel.add(topArea, BorderLayout.NORTH);
@@ -333,6 +342,20 @@ public class SessionPanel extends JPanel {
         panel.add(deleteBtn);
 
         return panel;
+    }
+
+    private void onBatchDelete() {
+        if (selectedCliType == null) {
+            Messages.showWarningDialog(
+                    I18n.t("providerDialog.validate.cliTypeRequired"),
+                    I18n.t("session.button.batchDelete"));
+            return;
+        }
+        BatchDeleteSessionsDialog dialog = new BatchDeleteSessionsDialog(
+                selectedCliType,
+                allSessions,
+                () -> refreshSessions(true));
+        dialog.show();
     }
 
     private void onContinueConversation(SessionMeta session) {
