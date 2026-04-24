@@ -136,10 +136,9 @@ public final class I18n {
                 m.put("session.empty.noMessages", "暂无消息记录");
                 m.put("session.empty.noSessions",
                                 "<html><center>未发现任何会话<br><br><font size='2' color='gray'>请确保已安装并使用过 Claude Code、Codex、<br>Gemini CLI 或 OpenCode 中的至少一个工具。</font></center></html>");
-                m.put("session.button.copyResumeCmd", "复制恢复命令");
-                m.put("session.button.copyProjectDir", "复制项目目录");
+                m.put("session.button.continueConversation", "继续对话");
                 m.put("session.button.delete", "删除会话");
-                m.put("session.button.copied", "已复制 ✓");
+                m.put("session.terminal.continueTabName", "继续对话");
                 m.put("session.tooltip.refresh", "刷新会话列表");
                 m.put("session.tooltip.copy", "复制: {0}");
                 m.put("session.tooltip.delete", "删除当前会话");
@@ -148,6 +147,7 @@ public final class I18n {
                 m.put("session.dialog.deleteConfirm", "确定删除会话 \"{0}\" 吗？此操作不可恢复。");
                 m.put("session.dialog.deleteUnsupported", "当前 CLI 暂不支持删除会话。");
                 m.put("session.dialog.deleteFailed", "删除会话失败: {0}");
+                m.put("session.dialog.continueFailed", "继续对话失败: {0}");
                 m.put("session.content.truncated", "\n... (内容过长已截断)");
                 m.put("session.time.unknown", "未知");
                 m.put("session.time.justNow", "刚刚");
@@ -575,10 +575,9 @@ public final class I18n {
                 m.put("session.empty.noMessages", "No messages");
                 m.put("session.empty.noSessions",
                                 "<html><center>No sessions found<br><br><font size='2' color='gray'>Make sure you have installed and used at least one of<br>Claude Code, Codex, Gemini CLI or OpenCode.</font></center></html>");
-                m.put("session.button.copyResumeCmd", "Copy Resume Command");
-                m.put("session.button.copyProjectDir", "Copy Project Directory");
+                m.put("session.button.continueConversation", "Continue Conversation");
                 m.put("session.button.delete", "Delete Session");
-                m.put("session.button.copied", "Copied ✓");
+                m.put("session.terminal.continueTabName", "Continue Conversation");
                 m.put("session.tooltip.refresh", "Refresh session list");
                 m.put("session.tooltip.copy", "Copy: {0}");
                 m.put("session.tooltip.delete", "Delete current session");
@@ -588,6 +587,7 @@ public final class I18n {
                 m.put("session.dialog.deleteUnsupported",
                                 "Session deletion is not supported for this CLI.");
                 m.put("session.dialog.deleteFailed", "Failed to delete session: {0}");
+                m.put("session.dialog.continueFailed", "Failed to continue conversation: {0}");
                 m.put("session.content.truncated", "\n... (content truncated)");
                 m.put("session.time.unknown", "Unknown");
                 m.put("session.time.justNow", "Just now");

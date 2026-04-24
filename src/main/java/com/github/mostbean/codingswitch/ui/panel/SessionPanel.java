@@ -6,8 +6,10 @@ import com.github.mostbean.codingswitch.model.SessionMeta;
 import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.SessionScannerService;
+import com.github.mostbean.codingswitch.ui.action.TerminalSessionService;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.ui.SearchTextField;
 import com.intellij.ui.components.JBLabel;
@@ -53,6 +55,7 @@ public class SessionPanel extends JPanel {
     };
     private final JPanel messageContainer = new JPanel();
     private final JBLabel emptyLabel = new JBLabel(I18n.t("session.empty.selectHint"), SwingConstants.CENTER);
+    private final Project project;
 
     private List<SessionMeta> allSessions = new ArrayList<>();
     private String searchQuery = "";
@@ -67,8 +70,9 @@ public class SessionPanel extends JPanel {
             { "opencode", "OpenCode" },
     };
 
-    public SessionPanel() {
+    public SessionPanel(Project project) {
         super(new BorderLayout());
+        this.project = project;
 
         JPanel leftPanel = createLeftPanel();
         leftPanel.setMinimumSize(new Dimension(220, 0));
@@ -313,34 +317,11 @@ public class SessionPanel extends JPanel {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
         panel.setBorder(JBUI.Borders.emptyTop(4));
 
-        // 复制恢复命令
         if (session.getResumeCommand() != null && !session.getResumeCommand().isBlank()) {
-            JButton copyCmd = new JButton(I18n.t("session.button.copyResumeCmd"));
-            copyCmd.setIcon(AllIcons.Actions.Copy);
-            copyCmd.setToolTipText(session.getResumeCommand());
-            copyCmd.addActionListener(e -> {
-                copyToClipboard(session.getResumeCommand());
-                copyCmd.setText(I18n.t("session.button.copied"));
-                Timer timer = new Timer(2000, ev -> copyCmd.setText(I18n.t("session.button.copyResumeCmd")));
-                timer.setRepeats(false);
-                timer.start();
-            });
-            panel.add(copyCmd);
-        }
-
-        // 复制项目目录
-        if (session.getProjectDir() != null && !session.getProjectDir().isBlank()) {
-            JButton copyDir = new JButton(I18n.t("session.button.copyProjectDir"));
-            copyDir.setIcon(AllIcons.Actions.Copy);
-            copyDir.setToolTipText(session.getProjectDir());
-            copyDir.addActionListener(e -> {
-                copyToClipboard(session.getProjectDir());
-                copyDir.setText(I18n.t("session.button.copied"));
-                Timer timer = new Timer(2000, ev -> copyDir.setText(I18n.t("session.button.copyProjectDir")));
-                timer.setRepeats(false);
-                timer.start();
-            });
-            panel.add(copyDir);
+            JButton continueBtn = new JButton(I18n.t("session.button.continueConversation"));
+            continueBtn.setToolTipText(session.getResumeCommand());
+            continueBtn.addActionListener(e -> onContinueConversation(session));
+            panel.add(continueBtn);
         }
 
         JButton deleteBtn = new JButton(I18n.t("session.button.delete"));
@@ -353,6 +334,36 @@ public class SessionPanel extends JPanel {
         panel.add(deleteBtn);
 
         return panel;
+    }
+
+    private void onContinueConversation(SessionMeta session) {
+        String resumeCommand = session.getResumeCommand();
+        if (resumeCommand == null || resumeCommand.isBlank()) {
+            return;
+        }
+
+        try {
+            TerminalSessionService.executeCommand(
+                    project,
+                    resolveWorkingDirectory(session),
+                    I18n.t("session.terminal.continueTabName"),
+                    resumeCommand);
+        } catch (RuntimeException ex) {
+            Messages.showErrorDialog(
+                    I18n.t("session.dialog.continueFailed", ex.getMessage()),
+                    I18n.t("provider.dialog.error"));
+        }
+    }
+
+    private String resolveWorkingDirectory(SessionMeta session) {
+        String projectDir = session.getProjectDir();
+        if (projectDir != null && !projectDir.isBlank()) {
+            return projectDir;
+        }
+        String basePath = project.getBasePath();
+        return basePath != null && !basePath.isBlank()
+                ? basePath
+                : System.getProperty("user.home");
     }
 
     private void onDeleteSession(SessionMeta session) {
