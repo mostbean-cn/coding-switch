@@ -319,12 +319,14 @@ public class SessionPanel extends JPanel {
 
         if (session.getResumeCommand() != null && !session.getResumeCommand().isBlank()) {
             JButton continueBtn = new JButton(I18n.t("session.button.continueConversation"));
+            continueBtn.setIcon(AllIcons.Actions.Execute);
             continueBtn.setToolTipText(session.getResumeCommand());
             continueBtn.addActionListener(e -> onContinueConversation(session));
             panel.add(continueBtn);
         }
 
         JButton deleteBtn = new JButton(I18n.t("session.button.delete"));
+        deleteBtn.setIcon(AllIcons.General.Remove);
         boolean deleteSupported = SessionScannerService.getInstance().supportsDelete(session);
         deleteBtn.setEnabled(deleteSupported);
         deleteBtn.setToolTipText(deleteSupported
