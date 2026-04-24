@@ -670,7 +670,7 @@ public class SettingsPanel extends JPanel {
         dialogPanel.add(createFeatureListPanel(
             I18n.t("settings.dialog.featureSelection.enabled"),
             enabledList,
-            I18n.t("settings.dialog.featureSelection.settingsPinned")
+            null
         ));
         dialogPanel.add(Box.createHorizontalStrut(12));
         dialogPanel.add(transferPanel);
@@ -681,9 +681,15 @@ public class SettingsPanel extends JPanel {
             null
         ));
 
+        JPanel outerPanel = new JPanel(new BorderLayout(0, 8));
+        outerPanel.add(dialogPanel, BorderLayout.CENTER);
+        JLabel featureHintLabel = new JLabel(I18n.t("settings.dialog.featureSelection.settingsPinned"));
+        featureHintLabel.setHorizontalAlignment(SwingConstants.LEFT);
+        outerPanel.add(featureHintLabel, BorderLayout.SOUTH);
+
         int result = JOptionPane.showOptionDialog(
             this,
-            dialogPanel,
+            outerPanel,
             I18n.t("settings.dialog.featureSelection.title"),
             JOptionPane.DEFAULT_OPTION,
             JOptionPane.PLAIN_MESSAGE,
