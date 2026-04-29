@@ -1015,6 +1015,8 @@ public class ProviderDialog extends DialogWrapper {
     // =====================================================================
 
     private JPanel buildClaudePanel() {
+        matchPreferredWidth(claudeModel, claudeHaiku);
+
         JPanel thinkingRow = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.anchor = GridBagConstraints.WEST;
@@ -1083,6 +1085,14 @@ public class ProviderDialog extends DialogWrapper {
                 .addComponent(featureRow)
                 .getPanel();
         return wrapWithTitledBorder(form, I18n.t("providerDialog.border.claude"));
+    }
+
+    private static void matchPreferredWidth(JComponent component, JComponent widthSource) {
+        Dimension preferredSize = component.getPreferredSize();
+        int targetWidth = widthSource.getPreferredSize().width;
+        Dimension matchedSize = new Dimension(targetWidth, preferredSize.height);
+        component.setPreferredSize(matchedSize);
+        component.setMinimumSize(matchedSize);
     }
 
     private JPanel buildCodexPanel() {

@@ -39,6 +39,11 @@
     ]]>    </description>
 
     <change-notes><![CDATA[
+    <h3>0.3.1</h3>
+    <ul>
+        <li><b>路径插入体验优化</b> - 编辑器右键菜单在选中代码片段时新增“插入带行号文件路径”，并与“插入文件路径”同时显示；未选中代码时保持原有菜单展示。</li>
+        <li><b>Claude Code 配置布局优化</b> - 主模型下拉框宽度调整为与下方模型输入框对齐，提升表单阅读和编辑体验。</li>
+    </ul>
     <h3>0.3.0</h3>
     <ul>
         <li><b>会话管理增强</b> - 新增“继续对话”动作，可直接在 IDE 终端执行对应 CLI 的 resume 命令。</li>
@@ -247,6 +252,13 @@
                 icon="/icons/codingSwitchMenu.svg">
             <add-to-group group-id="CutCopyPasteGroup"
                           anchor="first"/>
+        </action>
+        <action id="CodingSwitch.InsertFilePathWithLine.Popup"
+                class="com.github.mostbean.codingswitch.ui.action.InsertFilePathWithLineAction"
+                icon="/icons/codingSwitchMenu.svg">
+            <add-to-group group-id="EditorPopupMenu"
+                          relative-to-action="CodingSwitch.InsertFilePath"
+                          anchor="after"/>
         </action>
         <action id="CodingSwitch.InsertFilePathWithLine"
                 class="com.github.mostbean.codingswitch.ui.action.InsertFilePathWithLineAction"
