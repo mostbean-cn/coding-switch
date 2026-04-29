@@ -6,8 +6,11 @@ import com.github.mostbean.codingswitch.model.SessionMeta;
 import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.SessionScannerService;
+import com.github.mostbean.codingswitch.ui.action.TerminalSessionService;
+import com.github.mostbean.codingswitch.ui.dialog.BatchDeleteSessionsDialog;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.ui.SearchTextField;
 import com.intellij.ui.components.JBLabel;
@@ -53,22 +56,18 @@ public class SessionPanel extends JPanel {
     };
     private final JPanel messageContainer = new JPanel();
     private final JBLabel emptyLabel = new JBLabel(I18n.t("session.empty.selectHint"), SwingConstants.CENTER);
+    private final Project project;
 
     private List<SessionMeta> allSessions = new ArrayList<>();
     private String searchQuery = "";
     private String selectedProvider = "claude"; // 默认 Claude Code
+    private CliType selectedCliType = DEFAULT_SESSION_FILTER_CLI;
     private final AtomicBoolean refreshInProgress = new AtomicBoolean(false);
     private volatile long lastRefreshCompletedAt = -1L;
 
-    private static final String[][] PROVIDER_OPTIONS = {
-            { "claude", "Claude Code" },
-            { "codex", "Codex" },
-            { "gemini", "Gemini CLI" },
-            { "opencode", "OpenCode" },
-    };
-
-    public SessionPanel() {
+    public SessionPanel(Project project) {
         super(new BorderLayout());
+        this.project = project;
 
         JPanel leftPanel = createLeftPanel();
         leftPanel.setMinimumSize(new Dimension(220, 0));
@@ -96,43 +95,48 @@ public class SessionPanel extends JPanel {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(JBUI.Borders.emptyRight(4));
 
-        // 顶部区域：过滤下拉框 + 搜索框 + 刷新按钮
+        // 顶部区域：过滤下拉框 + 批量删除按钮 + 搜索框 + 刷新按钮
         JPanel topArea = new JPanel();
         topArea.setLayout(new BoxLayout(topArea, BoxLayout.Y_AXIS));
         topArea.setBorder(JBUI.Borders.emptyBottom(4));
 
-        // 第一行：过滤下拉框 + 刷新按钮
+        // 第一行：过滤下拉框 + 批量删除按钮
         JPanel filterBar = new JPanel(new BorderLayout(4, 0));
         filterBar.setBorder(JBUI.Borders.emptyBottom(4));
         filterBar.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JComboBox<String> filterCombo = new JComboBox<>();
-        for (String[] opt : PROVIDER_OPTIONS) {
-            filterCombo.addItem(opt[1]);
+        JComboBox<CliType> filterCombo = new JComboBox<>();
+        List<CliType> visibleCliTypes = PluginSettings.getInstance().getVisibleManagedCliTypes();
+        for (CliType cliType : visibleCliTypes) {
+            filterCombo.addItem(cliType);
         }
         CliType savedCli = PluginSettings.getInstance().getSessionFilterCli();
-        CliType initialCli = savedCli != null ? savedCli : DEFAULT_SESSION_FILTER_CLI;
-        int initialIndex = findProviderIndex(initialCli);
-        filterCombo.setSelectedIndex(initialIndex);
-        selectedProvider = PROVIDER_OPTIONS[initialIndex][0];
+        CliType initialCli = visibleCliTypes.contains(savedCli)
+                ? savedCli
+                : (visibleCliTypes.contains(DEFAULT_SESSION_FILTER_CLI)
+                    ? DEFAULT_SESSION_FILTER_CLI
+                    : (visibleCliTypes.isEmpty() ? null : visibleCliTypes.get(0)));
+        filterCombo.setSelectedItem(initialCli);
+        selectedCliType = initialCli;
+        selectedProvider = initialCli == null ? "" : initialCli.getId();
         filterCombo.addActionListener(e -> {
-            int idx = filterCombo.getSelectedIndex();
-            if (idx >= 0 && idx < PROVIDER_OPTIONS.length) {
-                selectedProvider = PROVIDER_OPTIONS[idx][0];
-                PluginSettings.getInstance().setSessionFilterCli(findCliTypeByProviderId(selectedProvider));
+            CliType selectedCli = (CliType) filterCombo.getSelectedItem();
+            if (selectedCli != null) {
+                selectedCliType = selectedCli;
+                selectedProvider = selectedCli.getId();
+                PluginSettings.getInstance().setSessionFilterCli(selectedCli);
                 applyFilter();
             }
         });
         filterBar.add(filterCombo, BorderLayout.CENTER);
 
-        JButton refreshBtn = new JButton(AllIcons.Actions.Refresh);
-        refreshBtn.setToolTipText(I18n.t("session.tooltip.refresh"));
-        refreshBtn.addActionListener(e -> refreshSessions(true));
-        filterBar.add(refreshBtn, BorderLayout.EAST);
+        JButton batchDeleteBtn = new JButton(I18n.t("session.button.batchDelete"));
+        batchDeleteBtn.addActionListener(e -> onBatchDelete());
+        filterBar.add(batchDeleteBtn, BorderLayout.EAST);
 
         topArea.add(filterBar);
 
-        // 第二行：搜索框
+        // 第二行：搜索框 + 刷新按钮
         SearchTextField searchField = new SearchTextField();
         searchField.addDocumentListener(new DocumentListener() {
             @Override
@@ -150,9 +154,14 @@ public class SessionPanel extends JPanel {
                 onSearchChanged(searchField.getText());
             }
         });
-        JPanel searchRow = new JPanel(new BorderLayout());
+        JPanel searchRow = new JPanel(new BorderLayout(4, 0));
         searchRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         searchRow.add(searchField, BorderLayout.CENTER);
+
+        JButton refreshBtn = new JButton(AllIcons.Actions.Refresh);
+        refreshBtn.setToolTipText(I18n.t("session.tooltip.refresh"));
+        refreshBtn.addActionListener(e -> refreshSessions(true));
+        searchRow.add(refreshBtn, BorderLayout.EAST);
         topArea.add(searchRow);
 
         panel.add(topArea, BorderLayout.NORTH);
@@ -313,37 +322,16 @@ public class SessionPanel extends JPanel {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
         panel.setBorder(JBUI.Borders.emptyTop(4));
 
-        // 复制恢复命令
         if (session.getResumeCommand() != null && !session.getResumeCommand().isBlank()) {
-            JButton copyCmd = new JButton(I18n.t("session.button.copyResumeCmd"));
-            copyCmd.setIcon(AllIcons.Actions.Copy);
-            copyCmd.setToolTipText(session.getResumeCommand());
-            copyCmd.addActionListener(e -> {
-                copyToClipboard(session.getResumeCommand());
-                copyCmd.setText(I18n.t("session.button.copied"));
-                Timer timer = new Timer(2000, ev -> copyCmd.setText(I18n.t("session.button.copyResumeCmd")));
-                timer.setRepeats(false);
-                timer.start();
-            });
-            panel.add(copyCmd);
-        }
-
-        // 复制项目目录
-        if (session.getProjectDir() != null && !session.getProjectDir().isBlank()) {
-            JButton copyDir = new JButton(I18n.t("session.button.copyProjectDir"));
-            copyDir.setIcon(AllIcons.Actions.Copy);
-            copyDir.setToolTipText(session.getProjectDir());
-            copyDir.addActionListener(e -> {
-                copyToClipboard(session.getProjectDir());
-                copyDir.setText(I18n.t("session.button.copied"));
-                Timer timer = new Timer(2000, ev -> copyDir.setText(I18n.t("session.button.copyProjectDir")));
-                timer.setRepeats(false);
-                timer.start();
-            });
-            panel.add(copyDir);
+            JButton continueBtn = new JButton(I18n.t("session.button.continueConversation"));
+            continueBtn.setIcon(AllIcons.Actions.Execute);
+            continueBtn.setToolTipText(session.getResumeCommand());
+            continueBtn.addActionListener(e -> onContinueConversation(session));
+            panel.add(continueBtn);
         }
 
         JButton deleteBtn = new JButton(I18n.t("session.button.delete"));
+        deleteBtn.setIcon(AllIcons.General.Delete);
         boolean deleteSupported = SessionScannerService.getInstance().supportsDelete(session);
         deleteBtn.setEnabled(deleteSupported);
         deleteBtn.setToolTipText(deleteSupported
@@ -353,6 +341,54 @@ public class SessionPanel extends JPanel {
         panel.add(deleteBtn);
 
         return panel;
+    }
+
+    private void onBatchDelete() {
+        if (selectedCliType == null) {
+            Messages.showWarningDialog(
+                    I18n.t("providerDialog.validate.cliTypeRequired"),
+                    I18n.t("session.button.batchDelete"));
+            return;
+        }
+        BatchDeleteSessionsDialog dialog = new BatchDeleteSessionsDialog(
+                selectedCliType,
+                allSessions,
+                () -> refreshSessions(true));
+        dialog.show();
+    }
+
+    private void onContinueConversation(SessionMeta session) {
+        String resumeCommand = session.getResumeCommand();
+        if (resumeCommand == null || resumeCommand.isBlank()) {
+            return;
+        }
+
+        try {
+            String terminalTabName = getCliDisplayName(session.getProviderId());
+            if (terminalTabName == null || terminalTabName.isBlank()) {
+                terminalTabName = I18n.t("session.terminal.continueTabName");
+            }
+            TerminalSessionService.executeCommand(
+                    project,
+                    resolveWorkingDirectory(session),
+                    terminalTabName,
+                    resumeCommand);
+        } catch (RuntimeException ex) {
+            Messages.showErrorDialog(
+                    I18n.t("session.dialog.continueFailed", ex.getMessage()),
+                    I18n.t("provider.dialog.error"));
+        }
+    }
+
+    private String resolveWorkingDirectory(SessionMeta session) {
+        String projectDir = session.getProjectDir();
+        if (projectDir != null && !projectDir.isBlank()) {
+            return projectDir;
+        }
+        String basePath = project.getBasePath();
+        return basePath != null && !basePath.isBlank()
+                ? basePath
+                : System.getProperty("user.home");
     }
 
     private void onDeleteSession(SessionMeta session) {
@@ -590,29 +626,9 @@ public class SessionPanel extends JPanel {
                 .setContents(new StringSelection(text), null);
     }
 
-    private int findProviderIndex(CliType cliType) {
-        CliType target = cliType != null ? cliType : DEFAULT_SESSION_FILTER_CLI;
-        String providerId = target.getId();
-        for (int i = 0; i < PROVIDER_OPTIONS.length; i++) {
-            if (PROVIDER_OPTIONS[i][0].equals(providerId)) {
-                return i;
-            }
-        }
-        return 0;
-    }
-
-    private CliType findCliTypeByProviderId(String providerId) {
-        return CliType.fromId(providerId);
-    }
-
     private String getCliDisplayName(String providerId) {
-        return switch (providerId) {
-            case "claude" -> "Claude Code";
-            case "codex" -> "Codex";
-            case "gemini" -> "Gemini CLI";
-            case "opencode" -> "OpenCode";
-            default -> providerId;
-        };
+        CliType cliType = CliType.fromId(providerId);
+        return cliType == null ? providerId : cliType.getDisplayName();
     }
 
     private String getRoleLabel(String role) {

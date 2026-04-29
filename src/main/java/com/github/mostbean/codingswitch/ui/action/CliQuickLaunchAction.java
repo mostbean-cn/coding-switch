@@ -8,11 +8,8 @@ import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.Presentation;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
-import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.project.DumbAwareAction;
-import com.intellij.terminal.ui.TerminalWidget;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.plugins.terminal.TerminalToolWindowManager;
 
 /**
  * CLI Quick Launch 主执行 Action：点击图标在终端中执行当前选中的 CLI 命令。
@@ -90,20 +87,12 @@ public class CliQuickLaunchAction extends DumbAwareAction {
         PluginSettings.CliQuickLaunchItem item
     ) {
         try {
-            TerminalToolWindowManager terminalManager = TerminalToolWindowManager.getInstance(project);
-            TerminalWidget terminalWidget = TerminalSessionService.createTerminalSession(
+            TerminalSessionService.executeCommand(
                 project,
                 workingDir,
-                item.name
+                item.name,
+                item.command
             );
-            terminalWidget.sendCommandToExecute(item.command);
-
-            ToolWindow toolWindow = terminalManager.getToolWindow();
-            if (toolWindow != null) {
-                toolWindow.activate(terminalWidget::requestFocus, true, true);
-            } else {
-                terminalWidget.requestFocus();
-            }
         } catch (RuntimeException ex) {
             showExecutionError(ex.getMessage());
         }

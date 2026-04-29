@@ -1,8 +1,10 @@
 package com.github.mostbean.codingswitch.service;
 
+import com.intellij.DynamicBundle;
 import java.text.MessageFormat;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -17,10 +19,29 @@ public final class I18n {
 
         public static PluginSettings.Language currentLanguage() {
                 try {
-                        return PluginSettings.getInstance().getLanguage();
+                        return resolveEffectiveLanguage(PluginSettings.getInstance().getLanguage());
                 } catch (Exception ignored) {
-                        return PluginSettings.Language.ZH;
+                        return PluginSettings.Language.EN;
                 }
+        }
+
+        private static PluginSettings.Language resolveEffectiveLanguage(PluginSettings.Language configuredLanguage) {
+                if (configuredLanguage == PluginSettings.Language.ZH || configuredLanguage == PluginSettings.Language.EN) {
+                        return configuredLanguage;
+                }
+                return resolveIdeLanguage();
+        }
+
+        private static PluginSettings.Language resolveIdeLanguage() {
+                try {
+                        Locale locale = DynamicBundle.getLocale();
+                        if (locale != null && Locale.CHINESE.getLanguage().equalsIgnoreCase(locale.getLanguage())) {
+                                return PluginSettings.Language.ZH;
+                        }
+                } catch (Exception ignored) {
+                        // 未能读取 IDE UI Locale 时，按非中英文 IDE 处理为英文。
+                }
+                return PluginSettings.Language.EN;
         }
 
         public static String t(String key, Object... args) {
@@ -128,6 +149,7 @@ public final class I18n {
                 m.put("settings.dialog.cliSelection.title", "CLI配置");
                 m.put("settings.dialog.cliSelection.enabled", "显示的 CLI");
                 m.put("settings.dialog.cliSelection.hidden", "隐藏的 CLI");
+                m.put("settings.dialog.cliSelection.managedHint", "仅 * 标记的 CLI 支持配置管理相关功能");
 
                 // ── Session 面板 ──
                 m.put("session.empty.selectHint", "选择一个会话查看详情");
@@ -136,10 +158,10 @@ public final class I18n {
                 m.put("session.empty.noMessages", "暂无消息记录");
                 m.put("session.empty.noSessions",
                                 "<html><center>未发现任何会话<br><br><font size='2' color='gray'>请确保已安装并使用过 Claude Code、Codex、<br>Gemini CLI 或 OpenCode 中的至少一个工具。</font></center></html>");
-                m.put("session.button.copyResumeCmd", "复制恢复命令");
-                m.put("session.button.copyProjectDir", "复制项目目录");
+                m.put("session.button.batchDelete", "批量删除");
+                m.put("session.button.continueConversation", "继续对话");
                 m.put("session.button.delete", "删除会话");
-                m.put("session.button.copied", "已复制 ✓");
+                m.put("session.terminal.continueTabName", "继续对话");
                 m.put("session.tooltip.refresh", "刷新会话列表");
                 m.put("session.tooltip.copy", "复制: {0}");
                 m.put("session.tooltip.delete", "删除当前会话");
@@ -148,6 +170,30 @@ public final class I18n {
                 m.put("session.dialog.deleteConfirm", "确定删除会话 \"{0}\" 吗？此操作不可恢复。");
                 m.put("session.dialog.deleteUnsupported", "当前 CLI 暂不支持删除会话。");
                 m.put("session.dialog.deleteFailed", "删除会话失败: {0}");
+                m.put("session.dialog.continueFailed", "继续对话失败: {0}");
+                m.put("session.batchDelete.title", "批量删除 {0} 会话");
+                m.put("session.batchDelete.deleteSelected", "删除选中");
+                m.put("session.batchDelete.before7Days", "删除7天之前");
+                m.put("session.batchDelete.before30Days", "删除30天之前");
+                m.put("session.batchDelete.dateRange", "选择日期范围");
+                m.put("session.batchDelete.allSessions", "全部会话");
+                m.put("session.batchDelete.clearSelection", "清空选择");
+                m.put("session.batchDelete.empty", "暂无匹配会话");
+                m.put("session.batchDelete.preview", "聊天记录");
+                m.put("session.batchDelete.previewHint", "点击左侧会话查看聊天记录");
+                m.put("session.batchDelete.startDate", "开始日期 (yyyy-MM-dd)");
+                m.put("session.batchDelete.endDate", "结束日期 (yyyy-MM-dd)");
+                m.put("session.batchDelete.weekdays", "一,二,三,四,五,六,日");
+                m.put("session.batchDelete.invalidDateRange", "结束日期不能早于开始日期");
+                m.put("session.batchDelete.invalidDateFormat", "日期格式不正确，请使用 yyyy-MM-dd");
+                m.put("session.batchDelete.noSelection", "请先勾选要删除的会话");
+                m.put("session.batchDelete.confirm", "确定删除 {1} 的 {0} 个会话吗？此操作不可恢复。");
+                m.put("session.batchDelete.done", "已删除 {0} 个会话");
+                m.put("session.batchDelete.partialDone", "删除完成，成功 {0} 个，失败 {1} 个。\n\n失败详情：\n{2}");
+                m.put("session.batchDelete.moreFailures", "... 其余 {0} 条未展示");
+                m.put("session.batchDelete.col.session", "会话");
+                m.put("session.batchDelete.col.lastActive", "最后活跃");
+                m.put("session.batchDelete.col.project", "项目/摘要");
                 m.put("session.content.truncated", "\n... (内容过长已截断)");
                 m.put("session.time.unknown", "未知");
                 m.put("session.time.justNow", "刚刚");
@@ -196,6 +242,8 @@ public final class I18n {
                 m.put("provider.status.pendingActivation", "待激活");
                 m.put("provider.action.duplicate", "复制");
                 m.put("provider.action.duplicate.tooltip", "复制选中的配置");
+                m.put("provider.action.refresh", "刷新");
+                m.put("provider.action.refresh.tooltip", "同步其他 IDE 的配置修改");
                 m.put("provider.action.activate", "激活");
                 m.put("provider.action.activate.tooltip", "激活选中的配置并同步到 CLI");
                 m.put("provider.dialog.deleteConfirm", "确定删除配置 \"{0}\" 吗？");
@@ -411,6 +459,7 @@ public final class I18n {
                 m.put("providerDialog.border.gemini", "Gemini CLI 配置");
                 m.put("providerDialog.border.opencode", "OpenCode 配置");
                 m.put("providerDialog.validate.nameRequired", "请填写配置名称");
+                m.put("providerDialog.validate.cliTypeRequired", "请选择 CLI 类型");
                 m.put("providerDialog.validate.apiKeyRequired", "请填写 API Key");
                 m.put("providerDialog.validate.baseUrlRequired", "请填写 Base URL");
                 m.put("providerDialog.validate.modelRequired", "请填写主模型");
@@ -467,10 +516,10 @@ public final class I18n {
                 m.put("cliQuickLaunch.execute", "执行 {0}");
                 m.put("cliQuickLaunch.action.text", "启动 CLI");
                 m.put("cliQuickLaunch.insertFilePath", "插入文件路径");
-                m.put("cliQuickLaunch.insertFilePath.description", "将当前打开文件的相对路径插入到当前激活终端");
+                m.put("cliQuickLaunch.insertFilePath.description", "将当前文件或目录的相对路径插入到当前激活终端");
                 m.put("cliQuickLaunch.insertFilePath.noProject", "当前未打开项目");
-                m.put("cliQuickLaunch.insertFilePath.noActiveFile", "当前没有可插入的活动文件");
-                m.put("cliQuickLaunch.insertFilePath.fileOutOfProject", "当前文件不在项目目录内");
+                m.put("cliQuickLaunch.insertFilePath.noActiveFile", "当前没有可插入的文件或目录");
+                m.put("cliQuickLaunch.insertFilePath.fileOutOfProject", "当前文件或目录不在项目目录内");
                 m.put("cliQuickLaunch.insertFilePath.noActiveTerminal", "当前没有可用的激活终端");
                 m.put("cliQuickLaunch.insertFilePath.failed", "插入文件路径失败");
                 m.put("cliQuickLaunch.insertFilePath.failedWithReason", "插入文件路径失败: {0}");
@@ -567,6 +616,7 @@ public final class I18n {
                 m.put("settings.dialog.cliSelection.title", "CLI Config");
                 m.put("settings.dialog.cliSelection.enabled", "Visible CLIs");
                 m.put("settings.dialog.cliSelection.hidden", "Hidden CLIs");
+                m.put("settings.dialog.cliSelection.managedHint", "Only * marked CLIs support configuration management features");
 
                 // ── Session Panel ──
                 m.put("session.empty.selectHint", "Select a session to view details");
@@ -575,10 +625,10 @@ public final class I18n {
                 m.put("session.empty.noMessages", "No messages");
                 m.put("session.empty.noSessions",
                                 "<html><center>No sessions found<br><br><font size='2' color='gray'>Make sure you have installed and used at least one of<br>Claude Code, Codex, Gemini CLI or OpenCode.</font></center></html>");
-                m.put("session.button.copyResumeCmd", "Copy Resume Command");
-                m.put("session.button.copyProjectDir", "Copy Project Directory");
+                m.put("session.button.batchDelete", "Batch Delete");
+                m.put("session.button.continueConversation", "Continue Conversation");
                 m.put("session.button.delete", "Delete Session");
-                m.put("session.button.copied", "Copied ✓");
+                m.put("session.terminal.continueTabName", "Continue Conversation");
                 m.put("session.tooltip.refresh", "Refresh session list");
                 m.put("session.tooltip.copy", "Copy: {0}");
                 m.put("session.tooltip.delete", "Delete current session");
@@ -588,6 +638,30 @@ public final class I18n {
                 m.put("session.dialog.deleteUnsupported",
                                 "Session deletion is not supported for this CLI.");
                 m.put("session.dialog.deleteFailed", "Failed to delete session: {0}");
+                m.put("session.dialog.continueFailed", "Failed to continue conversation: {0}");
+                m.put("session.batchDelete.title", "Batch Delete {0} Sessions");
+                m.put("session.batchDelete.deleteSelected", "Delete Selected");
+                m.put("session.batchDelete.before7Days", "Delete Before 7 Days");
+                m.put("session.batchDelete.before30Days", "Delete Before 30 Days");
+                m.put("session.batchDelete.dateRange", "Select Date Range");
+                m.put("session.batchDelete.allSessions", "All Sessions");
+                m.put("session.batchDelete.clearSelection", "Clear Selection");
+                m.put("session.batchDelete.empty", "No matching sessions");
+                m.put("session.batchDelete.preview", "Messages");
+                m.put("session.batchDelete.previewHint", "Click a session on the left to preview messages");
+                m.put("session.batchDelete.startDate", "Start Date (yyyy-MM-dd)");
+                m.put("session.batchDelete.endDate", "End Date (yyyy-MM-dd)");
+                m.put("session.batchDelete.weekdays", "Mon,Tue,Wed,Thu,Fri,Sat,Sun");
+                m.put("session.batchDelete.invalidDateRange", "End date cannot be earlier than start date");
+                m.put("session.batchDelete.invalidDateFormat", "Invalid date format. Use yyyy-MM-dd");
+                m.put("session.batchDelete.noSelection", "Select sessions to delete first");
+                m.put("session.batchDelete.confirm", "Delete {0} {1} session(s)? This action cannot be undone.");
+                m.put("session.batchDelete.done", "Deleted {0} session(s)");
+                m.put("session.batchDelete.partialDone", "Delete complete. Success: {0}, failed: {1}.\n\nFailures:\n{2}");
+                m.put("session.batchDelete.moreFailures", "... {0} more not shown");
+                m.put("session.batchDelete.col.session", "Session");
+                m.put("session.batchDelete.col.lastActive", "Last Active");
+                m.put("session.batchDelete.col.project", "Project/Summary");
                 m.put("session.content.truncated", "\n... (content truncated)");
                 m.put("session.time.unknown", "Unknown");
                 m.put("session.time.justNow", "Just now");
@@ -637,6 +711,8 @@ public final class I18n {
                 m.put("provider.status.pendingActivation", "Pending Activation");
                 m.put("provider.action.duplicate", "Duplicate");
                 m.put("provider.action.duplicate.tooltip", "Duplicate selected config");
+                m.put("provider.action.refresh", "Refresh");
+                m.put("provider.action.refresh.tooltip", "Sync config changes from other IDEs");
                 m.put("provider.action.activate", "Activate");
                 m.put("provider.action.activate.tooltip", "Activate selected config and sync to CLI");
                 m.put("provider.dialog.deleteConfirm", "Delete config \"{0}\"?");
@@ -866,6 +942,7 @@ public final class I18n {
                 m.put("providerDialog.border.gemini", "Gemini CLI Config");
                 m.put("providerDialog.border.opencode", "OpenCode Config");
                 m.put("providerDialog.validate.nameRequired", "Config name is required");
+                m.put("providerDialog.validate.cliTypeRequired", "CLI type is required");
                 m.put("providerDialog.validate.apiKeyRequired", "API Key is required");
                 m.put("providerDialog.validate.baseUrlRequired", "Base URL is required");
                 m.put("providerDialog.validate.modelRequired", "Main model is required");
@@ -924,10 +1001,10 @@ public final class I18n {
                 m.put("cliQuickLaunch.execute", "Execute {0}");
                 m.put("cliQuickLaunch.action.text", "Launch CLI");
                 m.put("cliQuickLaunch.insertFilePath", "Insert File Path");
-                m.put("cliQuickLaunch.insertFilePath.description", "Insert the relative path of the current file into the active terminal");
+                m.put("cliQuickLaunch.insertFilePath.description", "Insert the relative path of the current file or directory into the active terminal");
                 m.put("cliQuickLaunch.insertFilePath.noProject", "No project is currently open");
-                m.put("cliQuickLaunch.insertFilePath.noActiveFile", "No active file is available");
-                m.put("cliQuickLaunch.insertFilePath.fileOutOfProject", "The current file is outside the project directory");
+                m.put("cliQuickLaunch.insertFilePath.noActiveFile", "No file or directory is available");
+                m.put("cliQuickLaunch.insertFilePath.fileOutOfProject", "The current file or directory is outside the project directory");
                 m.put("cliQuickLaunch.insertFilePath.noActiveTerminal", "No active terminal is available");
                 m.put("cliQuickLaunch.insertFilePath.failed", "Failed to insert the file path");
                 m.put("cliQuickLaunch.insertFilePath.failedWithReason", "Failed to insert the file path: {0}");

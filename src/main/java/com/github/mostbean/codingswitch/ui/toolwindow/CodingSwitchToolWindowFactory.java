@@ -35,7 +35,7 @@ public class CodingSwitchToolWindowFactory implements ToolWindowFactory, DumbAwa
                 case PROVIDERS -> contentFactory.createContent(
                     new ProviderPanel(), I18n.t("toolwindow.tab.providers"), false);
                 case SESSIONS -> contentFactory.createContent(
-                    new SessionPanel(), I18n.t("toolwindow.tab.sessions"), false);
+                    new SessionPanel(project), I18n.t("toolwindow.tab.sessions"), false);
                 case MCP -> contentFactory.createContent(
                     new McpPanel(project), I18n.t("toolwindow.tab.mcp"), false);
                 case SKILLS -> contentFactory.createContent(

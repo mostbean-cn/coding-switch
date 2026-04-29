@@ -56,7 +56,7 @@ public class ProviderPanel extends JPanel {
         toolbar.add(new JBLabel(I18n.t("provider.filter.label")));
 
         filterCombo.addItem(null); // "All" 选项
-        for (CliType cli : CliType.values()) {
+        for (CliType cli : PluginSettings.getInstance().getVisibleManagedCliTypes()) {
             filterCombo.addItem(cli);
         }
         filterCombo.setRenderer(new DefaultListCellRenderer() {
@@ -68,7 +68,8 @@ public class ProviderPanel extends JPanel {
                 return this;
             }
         });
-        filterCombo.setSelectedItem(PluginSettings.getInstance().getProviderFilterCli());
+        CliType savedCli = PluginSettings.getInstance().getProviderFilterCli();
+        filterCombo.setSelectedItem(isFilterCliAvailable(savedCli) ? savedCli : null);
         filterCombo.addActionListener(e -> {
             PluginSettings.getInstance().setProviderFilterCli((CliType) filterCombo.getSelectedItem());
             refreshTable();
@@ -76,6 +77,18 @@ public class ProviderPanel extends JPanel {
         toolbar.add(filterCombo);
 
         return toolbar;
+    }
+
+    private boolean isFilterCliAvailable(CliType cliType) {
+        if (cliType == null) {
+            return true;
+        }
+        for (int i = 0; i < filterCombo.getItemCount(); i++) {
+            if (filterCombo.getItemAt(i) == cliType) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private JComponent createTablePanel() {
@@ -140,6 +153,13 @@ public class ProviderPanel extends JPanel {
                         e.getPresentation().setEnabled(providerTable.getSelectedRow() != -1);
                     }
                 })
+                .addExtraAction(new AnAction(I18n.t("provider.action.refresh"),
+                        I18n.t("provider.action.refresh.tooltip"), AllIcons.Actions.Refresh) {
+                    @Override
+                    public void actionPerformed(@NotNull AnActionEvent e) {
+                        onRefreshExternalChanges();
+                    }
+                })
                 .addExtraAction(
                         new AnAction(I18n.t("provider.action.activate"), I18n.t("provider.action.activate.tooltip"),
                                 AllIcons.Actions.Execute) {
@@ -198,6 +218,16 @@ public class ProviderPanel extends JPanel {
         ProviderService.getInstance().duplicateProvider(selected.getId());
     }
 
+    private void onRefreshExternalChanges() {
+        String selectedProviderId = null;
+        Provider selected = getSelectedProvider();
+        if (selected != null) {
+            selectedProviderId = selected.getId();
+        }
+        refreshTable();
+        restoreSelection(selectedProviderId);
+    }
+
     private void onActivate() {
         Provider selected = getSelectedProvider();
         if (selected == null)
@@ -226,10 +256,30 @@ public class ProviderPanel extends JPanel {
 
     private void refreshTable() {
         CliType filter = (CliType) filterCombo.getSelectedItem();
-        List<Provider> providers = filter == null
-                ? ProviderService.getInstance().getProviders()
-                : ProviderService.getInstance().getProvidersByType(filter);
+        List<Provider> providers;
+        if (filter == null) {
+            List<CliType> visibleCliTypes = PluginSettings.getInstance().getVisibleManagedCliTypes();
+            providers = ProviderService.getInstance().getProviders().stream()
+                    .filter(provider -> visibleCliTypes.contains(provider.getCliType()))
+                    .toList();
+        } else {
+            providers = ProviderService.getInstance().getProvidersByType(filter);
+        }
         tableModel.setProviders(providers);
+    }
+
+    private void restoreSelection(String providerId) {
+        if (providerId == null || providerId.isBlank()) {
+            return;
+        }
+        for (int row = 0; row < tableModel.getRowCount(); row++) {
+            Provider provider = tableModel.getProviderAt(row);
+            if (providerId.equals(provider.getId())) {
+                providerTable.getSelectionModel().setSelectionInterval(row, row);
+                providerTable.scrollRectToVisible(providerTable.getCellRect(row, 0, true));
+                return;
+            }
+        }
     }
 
     private String buildActivationMessage(Provider provider, CodexActivationResult codexResult,

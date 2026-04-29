@@ -3,6 +3,7 @@ package com.github.mostbean.codingswitch.ui.dialog;
 import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.McpServer;
 import com.github.mostbean.codingswitch.service.I18n;
+import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -39,6 +40,7 @@ public class McpServerDialog extends DialogWrapper {
     private final JTextField argsField = new JTextField(30);
     private final JTextField urlField = new JTextField(30);
     private final Map<CliType, JBCheckBox> syncChecks = new HashMap<>();
+    private final List<CliType> visibleCliTypes = PluginSettings.getInstance().getVisibleManagedCliTypes();
 
     // JSON 导入字段
     private final JTextArea jsonInput = new JTextArea(12, 40);
@@ -58,7 +60,7 @@ public class McpServerDialog extends DialogWrapper {
 
         setTitle(isEdit ? I18n.t("mcpDialog.title.edit") : I18n.t("mcpDialog.title.add"));
 
-        for (CliType cliType : CliType.values()) {
+        for (CliType cliType : visibleCliTypes) {
             JBCheckBox cb = new JBCheckBox(cliType.getDisplayName());
             cb.setSelected(true);
             syncChecks.put(cliType, cb);
@@ -86,7 +88,7 @@ public class McpServerDialog extends DialogWrapper {
             } else {
                 urlField.setText(existing.getUrl());
             }
-            for (CliType cli : CliType.values()) {
+            for (CliType cli : visibleCliTypes) {
                 syncChecks.get(cli).setSelected(existing.isSyncedTo(cli));
             }
             jsonInput.setText(buildServerJsonText(existing));
@@ -127,7 +129,7 @@ public class McpServerDialog extends DialogWrapper {
         // ===== 表单模式 =====
         JPanel syncPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         syncPanel.setBorder(JBUI.Borders.empty());
-        for (CliType cli : CliType.values()) {
+        for (CliType cli : visibleCliTypes) {
             syncPanel.add(syncChecks.get(cli));
         }
 
@@ -294,7 +296,7 @@ public class McpServerDialog extends DialogWrapper {
             server.setArgs(null);
         }
 
-        for (CliType cli : CliType.values()) {
+        for (CliType cli : visibleCliTypes) {
             server.setSyncedTo(cli, syncChecks.get(cli).isSelected());
         }
         return server;

@@ -39,6 +39,19 @@
     ]]>    </description>
 
     <change-notes><![CDATA[
+    <h3>0.3.1</h3>
+    <ul>
+        <li><b>路径插入体验优化</b> - 编辑器右键菜单在选中代码片段时新增“插入带行号文件路径”，并与“插入文件路径”同时显示；未选中代码时保持原有菜单展示。</li>
+        <li><b>Claude Code 配置布局优化</b> - 主模型下拉框宽度调整为与下方模型输入框对齐，提升表单阅读和编辑体验。</li>
+    </ul>
+    <h3>0.3.0</h3>
+    <ul>
+        <li><b>会话管理增强</b> - 新增“继续对话”动作，可直接在 IDE 终端执行对应 CLI 的 resume 命令。</li>
+        <li><b>会话批量删除</b> - 会话管理页新增批量删除入口，支持按 7 天前、30 天前、日期范围和名称搜索过滤会话，支持勾选、全选当前结果、预览聊天记录后批量删除。</li>
+        <li><b>路径插入增强</b> - “插入文件路径”同时支持编辑器右键菜单、项目目录和目录中文件的右键菜单，目录场景也可快速插入路径到 CLI。</li>
+        <li><b>语言设置优化</b> - 设置页新增“跟随 IDE”语言选项并作为默认值，非中文 IDE 自动使用英文，显式选择中文或英文时以用户配置为准。</li>
+        <li><b>CLI 可见性联动</b> - CLI 配置页标记支持配置管理的 CLI，并同步影响配置管理、会话管理、提示词、MCP 服务和 Skills 页面的可选 CLI 范围。</li>
+    </ul>
     <h3>0.2.14</h3>
     <ul>
         <li><b>Skills 仓库包安装</b> - 发现窗口改为按仓库整体安装，支持将包含多个 Skills 的 GitHub 仓库作为一个仓库包统一管理。</li>
@@ -233,6 +246,19 @@
                 icon="/icons/codingSwitchMenu.svg">
             <add-to-group group-id="EditorPopupMenu"
                           anchor="first"/>
+        </action>
+        <action id="CodingSwitch.InsertFilePath.ProjectView"
+                class="com.github.mostbean.codingswitch.ui.action.InsertFilePathPopupAction"
+                icon="/icons/codingSwitchMenu.svg">
+            <add-to-group group-id="CutCopyPasteGroup"
+                          anchor="first"/>
+        </action>
+        <action id="CodingSwitch.InsertFilePathWithLine.Popup"
+                class="com.github.mostbean.codingswitch.ui.action.InsertFilePathWithLineAction"
+                icon="/icons/codingSwitchMenu.svg">
+            <add-to-group group-id="EditorPopupMenu"
+                          relative-to-action="CodingSwitch.InsertFilePath"
+                          anchor="after"/>
         </action>
         <action id="CodingSwitch.InsertFilePathWithLine"
                 class="com.github.mostbean.codingswitch.ui.action.InsertFilePathWithLineAction"

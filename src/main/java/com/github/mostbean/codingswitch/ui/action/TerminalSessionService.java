@@ -2,6 +2,7 @@ package com.github.mostbean.codingswitch.ui.action;
 
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.terminal.ui.TerminalWidget;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -31,6 +32,24 @@ public final class TerminalSessionService {
             throw new IllegalStateException("无法访问 IDE 终端创建接口", error);
         } catch (InvocationTargetException error) {
             throw rethrowInvocationTarget(error);
+        }
+    }
+
+    public static void executeCommand(
+        @NotNull Project project,
+        @NotNull String workingDirectory,
+        @NotNull String tabName,
+        @NotNull String command
+    ) {
+        TerminalToolWindowManager terminalManager = TerminalToolWindowManager.getInstance(project);
+        TerminalWidget terminalWidget = createTerminalSession(project, workingDirectory, tabName);
+        terminalWidget.sendCommandToExecute(command);
+
+        ToolWindow toolWindow = terminalManager.getToolWindow();
+        if (toolWindow != null) {
+            toolWindow.activate(terminalWidget::requestFocus, true, true);
+        } else {
+            terminalWidget.requestFocus();
         }
     }
 
