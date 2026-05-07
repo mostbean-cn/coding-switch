@@ -37,10 +37,11 @@ public final class ProviderPresets {
 
                 // ===== Claude Code 国产供应商预设 =====
                 presets.add(claudePreset("DeepSeek",
-                                "https://api.deepseek.com/anthropic", "DeepSeek-V3.2"));
+                                "https://api.deepseek.com/anthropic", "Opus[1m]",
+                                null, null, "deepseek-v4-pro"));
                 presets.add(claudePreset("智谱 GLM",
-                                "https://open.bigmodel.cn/api/anthropic", "glm-5",
-                                "glm-4.5-air", "glm-4.7", "glm-5"));
+                                "https://open.bigmodel.cn/api/anthropic", "glm-5.1",
+                                "glm-4.5-air", "glm-4.7", "glm-5.1"));
                 presets.add(claudePreset("MiniMax",
                                 "https://api.minimaxi.com/anthropic", "MiniMax-M2.5"));
                 presets.add(claudePreset("Kimi",
@@ -48,29 +49,36 @@ public final class ProviderPresets {
                 presets.add(claudePreset("百度千帆",
                                 "https://qianfan.baidubce.com/anthropic/coding", "qianfan-code-latest"));
                 presets.add(claudePreset("阿里 Plan",
-                                "https://coding.dashscope.aliyuncs.com/apps/anthropic", "qwen3.5-plus"));
+                                "https://coding.dashscope.aliyuncs.com/apps/anthropic", "qwen3.6-plus"));
+                presets.add(claudePreset("MiMo Plan",
+                                "https://token-plan-cn.xiaomimimo.com/anthropic", "Opus[1m]",
+                                null, null, "mimo-v2.5-pro"));
 
                 // ===== Codex 国产供应商预设 =====
                 presets.add(codexPreset("DeepSeek",
-                                "https://api.deepseek.com/v1", "DeepSeek-V3.2"));
+                                "https://api.deepseek.com/v1", "deepseek-v4-pro"));
                 presets.add(codexPreset("智谱 GLM",
-                                "https://open.bigmodel.cn/api/coding/paas/v4", "glm-5"));
+                                "https://open.bigmodel.cn/api/coding/paas/v4", "glm-5.1"));
                 presets.add(codexPreset("Kimi",
                                 "https://api.moonshot.cn/v1", "kimi-for-coding"));
                 presets.add(codexPreset("阿里 Plan",
-                                "https://coding.dashscope.aliyuncs.com/v1", "qwen3.5-plus"));
+                                "https://coding.dashscope.aliyuncs.com/v1", "qwen3.6-plus"));
+                presets.add(codexPreset("MiMo Plan",
+                                "https://token-plan-cn.xiaomimimo.com/v1", "mimo-v2.5-pro"));
 
                 // ===== OpenCode 国产供应商预设 =====
                 presets.add(opencodePreset("DeepSeek",
-                                "https://api.deepseek.com/v1", "DeepSeek-V3.2"));
+                                "https://api.deepseek.com/v1", "deepseek-v4-pro"));
                 presets.add(opencodePreset("智谱 GLM",
-                                "https://open.bigmodel.cn/api/coding/paas/v4", "glm-5"));
+                                "https://open.bigmodel.cn/api/coding/paas/v4", "glm-5.1"));
                 presets.add(opencodePreset("MiniMax",
                                 "https://api.minimaxi.com/v1", "MiniMax-M2.5"));
                 presets.add(opencodePreset("Kimi",
                                 "https://api.moonshot.cn/v1", "kimi-for-coding"));
                 presets.add(opencodePreset("阿里 Plan",
-                                "https://coding.dashscope.aliyuncs.com/v1", "qwen3.5-plus"));
+                                "https://coding.dashscope.aliyuncs.com/v1", "qwen3.6-plus"));
+                presets.add(opencodePreset("MiMo Plan",
+                                "https://token-plan-cn.xiaomimimo.com/v1", "mimo-v2.5-pro"));
 
                 return presets;
         }
