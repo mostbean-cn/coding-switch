@@ -28,6 +28,9 @@ import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
+import java.awt.datatransfer.StringSelection;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
@@ -136,6 +139,7 @@ public class ProviderDialog extends DialogWrapper {
     private final JButton testConnectionButton = new JButton(I18n.t("providerDialog.button.testConnection"));
     private final JBLabel testConnectionHintLabel = new JBLabel(I18n.t("providerDialog.test.hint"));
     private final JBLabel testStatusLabel = new JBLabel(" ");
+    private String testFailureDetails;
     private final Provider provider;
     private final Map<CliType, JsonObject> rawSettingsByCli = new EnumMap<>(CliType.class);
     private final Map<CliType, AuthMode> authModeByCli = new EnumMap<>(CliType.class);
@@ -220,6 +224,7 @@ public class ProviderDialog extends DialogWrapper {
         }
 
         testConnectionButton.addActionListener(e -> onTestConnection());
+        setupTestStatusDetailsAction();
         togglePreviewButton.addActionListener(e -> togglePreview());
         openDirButton.addActionListener(e -> openConfigDir());
 
@@ -615,6 +620,7 @@ public class ProviderDialog extends DialogWrapper {
             }
 
             testStatusLabel.setText(" ");
+            setTestFailureDetails(null);
             scheduleValidation();
         } catch (Exception e) {
             if (showErrorDialog) {
@@ -842,6 +848,7 @@ public class ProviderDialog extends DialogWrapper {
             setAuthMode(cliType, AuthMode.API_KEY);
             presetHintLabel.setText(" ");
             testStatusLabel.setText(" ");
+            setTestFailureDetails(null);
             updatePreview();
             scheduleValidation();
             return;
@@ -859,6 +866,7 @@ public class ProviderDialog extends DialogWrapper {
                     presetHintLabel.setText(I18n.t("providerDialog.preset.fillHint"));
                 }
                 testStatusLabel.setText(" ");
+                setTestFailureDetails(null);
                 updatePreview();
                 scheduleValidation();
                 return;
@@ -2009,6 +2017,7 @@ public class ProviderDialog extends DialogWrapper {
         testConnectionButton.setEnabled(false);
         testStatusLabel.setText(I18n.t("providerDialog.test.testing"));
         testStatusLabel.setToolTipText(null);
+        setTestFailureDetails(null);
         testStatusLabel.setForeground(JBColor.GRAY);
 
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
@@ -2019,11 +2028,13 @@ public class ProviderDialog extends DialogWrapper {
                     String successMessage = I18n.t("providerDialog.test.success", result.durationMs());
                     testStatusLabel.setText(successMessage);
                     testStatusLabel.setToolTipText(null);
+                    setTestFailureDetails(null);
                     testStatusLabel.setForeground(new JBColor(new Color(66, 160, 83), new Color(66, 160, 83)));
                 } else {
                     String failureMessage = I18n.t("providerDialog.test.failed", result.message());
                     testStatusLabel.setText(abbreviateTestStatus(failureMessage));
                     testStatusLabel.setToolTipText(failureMessage);
+                    setTestFailureDetails(failureMessage);
                     testStatusLabel.setForeground(JBColor.RED);
                 }
             }, ModalityState.any());
@@ -2086,5 +2097,55 @@ public class ProviderDialog extends DialogWrapper {
             // Linux: 尝试使用 dbus 打开目录（无法选中文件）
             java.awt.Desktop.getDesktop().open(file.getParent().toFile());
         }
+    }
+
+    private void setupTestStatusDetailsAction() {
+        testStatusLabel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (testFailureDetails != null && !testFailureDetails.isBlank()) {
+                    showTestFailureDetailsDialog();
+                }
+            }
+        });
+    }
+
+    private void setTestFailureDetails(@Nullable String details) {
+        testFailureDetails = details;
+        boolean clickable = details != null && !details.isBlank();
+        testStatusLabel.setCursor(clickable
+                ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                : Cursor.getDefaultCursor());
+    }
+
+    private void showTestFailureDetailsDialog() {
+        String details = testFailureDetails;
+        JTextArea textArea = createPreviewTextArea(false);
+        textArea.setText(details);
+        textArea.setLineWrap(true);
+        textArea.setWrapStyleWord(true);
+        textArea.setCaretPosition(0);
+
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        scrollPane.setPreferredSize(new Dimension(JBUI.scale(720), JBUI.scale(320)));
+
+        JButton copyButton = new JButton(I18n.t("providerDialog.test.copyError"));
+        copyButton.addActionListener(e -> Toolkit.getDefaultToolkit()
+                .getSystemClipboard()
+                .setContents(new StringSelection(details), null));
+
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        buttonPanel.add(copyButton);
+
+        JPanel panel = new JPanel(new BorderLayout(0, JBUI.scale(8)));
+        panel.add(scrollPane, BorderLayout.CENTER);
+        panel.add(buttonPanel, BorderLayout.SOUTH);
+
+        JOptionPane.showMessageDialog(
+                SwingUtilities.getWindowAncestor(testStatusLabel),
+                panel,
+                I18n.t("providerDialog.test.errorDetailsTitle"),
+                JOptionPane.ERROR_MESSAGE,
+                Messages.getErrorIcon());
     }
 }

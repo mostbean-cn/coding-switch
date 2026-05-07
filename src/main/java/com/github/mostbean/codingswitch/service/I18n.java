@@ -464,11 +464,13 @@ public final class I18n {
                 m.put("providerDialog.validate.baseUrlRequired", "请填写 Base URL");
                 m.put("providerDialog.validate.modelRequired", "请填写主模型");
                 m.put("providerDialog.button.testConnection", "测试连接");
-                m.put("providerDialog.test.hint", "提示：少数供应商可能测试失败，但实际仍可正常使用。");
+                m.put("providerDialog.test.hint", "提示：测试连接会发送一次最小真实请求，可能产生极低调用费用。");
                 m.put("providerDialog.test.validationTitle", "请先完成必填项");
                 m.put("providerDialog.test.testing", "测试中...");
                 m.put("providerDialog.test.success", "连接成功（{0}ms）");
                 m.put("providerDialog.test.failed", "连接失败: {0}");
+                m.put("providerDialog.test.errorDetailsTitle", "连接失败详情");
+                m.put("providerDialog.test.copyError", "复制错误信息");
                 m.put("providerDialog.test.skipOfficialLogin", "官方登录模式无需测试连接，激活后首次运行 CLI 会自动拉起登录流程。");
                 m.put("providerDialog.test.skipOfficialLoginTitle", "无需测试连接");
 
@@ -952,11 +954,13 @@ public final class I18n {
                 m.put("providerDialog.validate.modelRequired", "Main model is required");
                 m.put("providerDialog.button.testConnection", "Test Connection");
                 m.put("providerDialog.test.hint",
-                                "Note: Some providers may fail connection tests but still work in actual use.");
+                                "Note: connection tests send one minimal real request and may incur a tiny API charge.");
                 m.put("providerDialog.test.validationTitle", "Missing Required Fields");
                 m.put("providerDialog.test.testing", "Testing...");
                 m.put("providerDialog.test.success", "Connection successful ({0}ms)");
                 m.put("providerDialog.test.failed", "Connection failed: {0}");
+                m.put("providerDialog.test.errorDetailsTitle", "Connection Failure Details");
+                m.put("providerDialog.test.copyError", "Copy Error");
                 m.put("providerDialog.test.skipOfficialLogin",
                                 "Official login mode does not require a connection test. The CLI will start its login flow on first run after activation.");
                 m.put("providerDialog.test.skipOfficialLoginTitle", "Connection Test Not Needed");
