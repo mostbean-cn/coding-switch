@@ -464,6 +464,7 @@ public final class I18n {
                 m.put("providerDialog.validate.baseUrlRequired", "请填写 Base URL");
                 m.put("providerDialog.validate.modelRequired", "请填写主模型");
                 m.put("providerDialog.button.testConnection", "测试连接");
+                m.put("providerDialog.button.fetchModels", "获取模型");
                 m.put("providerDialog.test.hint", "提示：测试连接会发送一次最小真实请求，可能产生极低调用费用。");
                 m.put("providerDialog.test.validationTitle", "请先完成必填项");
                 m.put("providerDialog.test.testing", "测试中...");
@@ -471,6 +472,14 @@ public final class I18n {
                 m.put("providerDialog.test.failed", "连接失败: {0}");
                 m.put("providerDialog.test.errorDetailsTitle", "连接失败详情");
                 m.put("providerDialog.test.copyError", "复制错误信息");
+                m.put("providerDialog.models.fetching", "获取模型中...");
+                m.put("providerDialog.models.success", "已获取 {0} 个模型（{1}ms）");
+                m.put("providerDialog.models.failed", "获取模型失败: {0}");
+                m.put("providerDialog.models.title", "模型列表（{0}）");
+                m.put("providerDialog.models.copyHint", "点击模型名称复制到剪贴板。");
+                m.put("providerDialog.models.copied", "已复制: {0}");
+                m.put("providerDialog.models.skipOfficialLogin", "插件无法直接读取订阅可用模型列表，激活后由CLI 管理模型。");
+                m.put("providerDialog.models.skipOfficialLoginTitle", "无法获取模型");
                 m.put("providerDialog.test.skipOfficialLogin", "官方登录模式无需测试连接，激活后首次运行 CLI 会自动拉起登录流程。");
                 m.put("providerDialog.test.skipOfficialLoginTitle", "无需测试连接");
 
@@ -953,6 +962,7 @@ public final class I18n {
                 m.put("providerDialog.validate.baseUrlRequired", "Base URL is required");
                 m.put("providerDialog.validate.modelRequired", "Main model is required");
                 m.put("providerDialog.button.testConnection", "Test Connection");
+                m.put("providerDialog.button.fetchModels", "Fetch Models");
                 m.put("providerDialog.test.hint",
                                 "Note: connection tests send one minimal real request and may incur a tiny API charge.");
                 m.put("providerDialog.test.validationTitle", "Missing Required Fields");
@@ -961,6 +971,15 @@ public final class I18n {
                 m.put("providerDialog.test.failed", "Connection failed: {0}");
                 m.put("providerDialog.test.errorDetailsTitle", "Connection Failure Details");
                 m.put("providerDialog.test.copyError", "Copy Error");
+                m.put("providerDialog.models.fetching", "Fetching models...");
+                m.put("providerDialog.models.success", "Fetched {0} models ({1}ms)");
+                m.put("providerDialog.models.failed", "Failed to fetch models: {0}");
+                m.put("providerDialog.models.title", "Models ({0})");
+                m.put("providerDialog.models.copyHint", "Click a model name to copy it to the clipboard.");
+                m.put("providerDialog.models.copied", "Copied: {0}");
+                m.put("providerDialog.models.skipOfficialLogin",
+                                "The plugin cannot directly read the subscription model list. After activation, the CLI manages models.");
+                m.put("providerDialog.models.skipOfficialLoginTitle", "Models Cannot Be Fetched");
                 m.put("providerDialog.test.skipOfficialLogin",
                                 "Official login mode does not require a connection test. The CLI will start its login flow on first run after activation.");
                 m.put("providerDialog.test.skipOfficialLoginTitle", "Connection Test Not Needed");

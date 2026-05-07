@@ -137,6 +137,7 @@ public class ProviderDialog extends DialogWrapper {
 
     private final JPanel dynamicPanel = new JPanel(new CardLayout());
     private final JButton testConnectionButton = new JButton(I18n.t("providerDialog.button.testConnection"));
+    private final JButton fetchModelsButton = new JButton(I18n.t("providerDialog.button.fetchModels"));
     private final JBLabel testConnectionHintLabel = new JBLabel(I18n.t("providerDialog.test.hint"));
     private final JBLabel testStatusLabel = new JBLabel(" ");
     private String testFailureDetails;
@@ -224,6 +225,7 @@ public class ProviderDialog extends DialogWrapper {
         }
 
         testConnectionButton.addActionListener(e -> onTestConnection());
+        fetchModelsButton.addActionListener(e -> onFetchModels());
         setupTestStatusDetailsAction();
         togglePreviewButton.addActionListener(e -> togglePreview());
         openDirButton.addActionListener(e -> openConfigDir());
@@ -263,6 +265,8 @@ public class ProviderDialog extends DialogWrapper {
 
         JPanel testButtonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         testButtonsPanel.add(testConnectionButton);
+        testButtonsPanel.add(Box.createHorizontalStrut(8));
+        testButtonsPanel.add(fetchModelsButton);
         testButtonsPanel.add(Box.createHorizontalStrut(8));
         testButtonsPanel.add(openDirButton);
         testButtonsPanel.add(Box.createHorizontalStrut(8));
@@ -2041,6 +2045,98 @@ public class ProviderDialog extends DialogWrapper {
         });
     }
 
+    private void onFetchModels() {
+        CliType cliType = (CliType) cliTypeCombo.getSelectedItem();
+        if (cliType == null) {
+            return;
+        }
+        if (getCurrentAuthMode(cliType) == AuthMode.OFFICIAL_LOGIN) {
+            Messages.showInfoMessage(
+                    I18n.t("providerDialog.models.skipOfficialLogin"),
+                    I18n.t("providerDialog.models.skipOfficialLoginTitle"));
+            return;
+        }
+
+        ValidationInfo info = validateModelListFields(cliType);
+        if (info != null) {
+            Messages.showWarningDialog(info.message, I18n.t("providerDialog.test.validationTitle"));
+            return;
+        }
+
+        JsonObject config = buildSettingsConfig(cliType);
+        fetchModelsButton.setEnabled(false);
+        testStatusLabel.setText(I18n.t("providerDialog.models.fetching"));
+        testStatusLabel.setToolTipText(null);
+        setTestFailureDetails(null);
+        testStatusLabel.setForeground(JBColor.GRAY);
+
+        ApplicationManager.getApplication().executeOnPooledThread(() -> {
+            ProviderConnectionTestService.ModelListResult result =
+                    ProviderConnectionTestService.getInstance().listModels(cliType, config);
+            ApplicationManager.getApplication().invokeLater(() -> {
+                fetchModelsButton.setEnabled(true);
+                if (result.success()) {
+                    String successMessage = I18n.t(
+                            "providerDialog.models.success",
+                            result.models().size(),
+                            result.durationMs());
+                    testStatusLabel.setText(successMessage);
+                    testStatusLabel.setToolTipText(null);
+                    setTestFailureDetails(null);
+                    testStatusLabel.setForeground(new JBColor(new Color(66, 160, 83), new Color(66, 160, 83)));
+                    showModelListDialog(result.models());
+                } else {
+                    String failureMessage = I18n.t("providerDialog.models.failed", result.message());
+                    testStatusLabel.setText(abbreviateTestStatus(failureMessage));
+                    testStatusLabel.setToolTipText(failureMessage);
+                    setTestFailureDetails(failureMessage);
+                    testStatusLabel.setForeground(JBColor.RED);
+                }
+            }, ModalityState.any());
+        });
+    }
+
+    private ValidationInfo validateModelListFields(CliType cliType) {
+        return switch (cliType) {
+            case CLAUDE -> {
+                if (claudeApiKey.getText().isBlank()) {
+                    yield new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), claudeApiKey);
+                }
+                if (claudeBaseUrl.getText().isBlank()) {
+                    yield new ValidationInfo(I18n.t("providerDialog.validate.baseUrlRequired"), claudeBaseUrl);
+                }
+                yield null;
+            }
+            case CODEX -> {
+                if (codexApiKey.getText().isBlank()) {
+                    yield new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), codexApiKey);
+                }
+                if (codexBaseUrl.getText().isBlank()) {
+                    yield new ValidationInfo(I18n.t("providerDialog.validate.baseUrlRequired"), codexBaseUrl);
+                }
+                yield null;
+            }
+            case GEMINI -> {
+                if (geminiApiKey.getText().isBlank()) {
+                    yield new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), geminiApiKey);
+                }
+                if (geminiBaseUrl.getText().isBlank()) {
+                    yield new ValidationInfo(I18n.t("providerDialog.validate.baseUrlRequired"), geminiBaseUrl);
+                }
+                yield null;
+            }
+            case OPENCODE -> {
+                if (opencodeApiKey.getText().isBlank()) {
+                    yield new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), opencodeApiKey);
+                }
+                if (opencodeBaseUrl.getText().isBlank()) {
+                    yield new ValidationInfo(I18n.t("providerDialog.validate.baseUrlRequired"), opencodeBaseUrl);
+                }
+                yield null;
+            }
+        };
+    }
+
     private void openConfigDir() {
         CliType cliType = (CliType) cliTypeCombo.getSelectedItem();
         if (cliType == null) {
@@ -2118,6 +2214,52 @@ public class ProviderDialog extends DialogWrapper {
                 : Cursor.getDefaultCursor());
     }
 
+    private void showModelListDialog(List<String> models) {
+        DefaultListModel<String> listModel = new DefaultListModel<>();
+        models.forEach(listModel::addElement);
+
+        JList<String> modelList = new JList<>(listModel);
+        modelList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        modelList.setVisibleRowCount(Math.min(14, Math.max(6, models.size())));
+        modelList.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+
+        JBLabel hintLabel = new JBLabel(I18n.t("providerDialog.models.copyHint"));
+        hintLabel.setForeground(JBUI.CurrentTheme.ContextHelp.FOREGROUND);
+
+        JBLabel copyStatusLabel = new JBLabel(" ");
+        copyStatusLabel.setForeground(new JBColor(new Color(66, 160, 83), new Color(66, 160, 83)));
+
+        modelList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                int index = modelList.locationToIndex(e.getPoint());
+                if (index < 0 || !modelList.getCellBounds(index, index).contains(e.getPoint())) {
+                    return;
+                }
+                String selected = listModel.get(index);
+                if (selected == null || selected.isBlank()) {
+                    return;
+                }
+                copyToClipboard(selected);
+                copyStatusLabel.setText(I18n.t("providerDialog.models.copied", selected));
+            }
+        });
+
+        JScrollPane scrollPane = new JScrollPane(modelList);
+        scrollPane.setPreferredSize(new Dimension(JBUI.scale(520), JBUI.scale(360)));
+
+        JPanel panel = new JPanel(new BorderLayout(0, JBUI.scale(8)));
+        panel.add(hintLabel, BorderLayout.NORTH);
+        panel.add(scrollPane, BorderLayout.CENTER);
+        panel.add(copyStatusLabel, BorderLayout.SOUTH);
+
+        JOptionPane.showMessageDialog(
+                SwingUtilities.getWindowAncestor(fetchModelsButton),
+                panel,
+                I18n.t("providerDialog.models.title", models.size()),
+                JOptionPane.INFORMATION_MESSAGE);
+    }
+
     private void showTestFailureDetailsDialog() {
         String details = testFailureDetails;
         JTextArea textArea = createPreviewTextArea(false);
@@ -2130,9 +2272,7 @@ public class ProviderDialog extends DialogWrapper {
         scrollPane.setPreferredSize(new Dimension(JBUI.scale(720), JBUI.scale(320)));
 
         JButton copyButton = new JButton(I18n.t("providerDialog.test.copyError"));
-        copyButton.addActionListener(e -> Toolkit.getDefaultToolkit()
-                .getSystemClipboard()
-                .setContents(new StringSelection(details), null));
+        copyButton.addActionListener(e -> copyToClipboard(details));
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         buttonPanel.add(copyButton);
@@ -2147,5 +2287,11 @@ public class ProviderDialog extends DialogWrapper {
                 I18n.t("providerDialog.test.errorDetailsTitle"),
                 JOptionPane.ERROR_MESSAGE,
                 Messages.getErrorIcon());
+    }
+
+    private void copyToClipboard(String text) {
+        Toolkit.getDefaultToolkit()
+                .getSystemClipboard()
+                .setContents(new StringSelection(text), null);
     }
 }

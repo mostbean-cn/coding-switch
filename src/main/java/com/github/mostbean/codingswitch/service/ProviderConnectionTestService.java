@@ -3,7 +3,9 @@ package com.github.mostbean.codingswitch.service;
 import com.github.mostbean.codingswitch.model.CliType;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.Service;
 
@@ -30,6 +32,9 @@ public final class ProviderConnectionTestService {
             .build();
 
     public record TestResult(boolean success, int statusCode, String message, long durationMs) {
+    }
+
+    public record ModelListResult(boolean success, int statusCode, String message, long durationMs, List<String> models) {
     }
 
     private record ProbeRequest(String method, String url, List<Header> headers, String body, String label) {
@@ -66,6 +71,35 @@ public final class ProviderConnectionTestService {
             return new TestResult(false, -1, e.getMessage(), cost(start));
         } catch (Exception e) {
             return new TestResult(false, -1, e.getMessage(), cost(start));
+        }
+    }
+
+    public ModelListResult listModels(CliType cliType, JsonObject settingsConfig) {
+        long start = System.currentTimeMillis();
+        try {
+            List<ProbeRequest> probes = buildModelListRequests(cliType, settingsConfig);
+            if (probes.isEmpty()) {
+                return new ModelListResult(false, -1, "No model list endpoint available", cost(start), List.of());
+            }
+
+            TestResult lastFail = null;
+            for (ProbeRequest probe : probes) {
+                ModelListResult result = doModelListRequest(probe, start);
+                if (result.success()) {
+                    return result;
+                }
+                lastFail = chooseBetterFailure(
+                        lastFail,
+                        new TestResult(false, result.statusCode(), result.message(), 0));
+            }
+            if (lastFail != null) {
+                return new ModelListResult(false, lastFail.statusCode(), lastFail.message(), cost(start), List.of());
+            }
+            return new ModelListResult(false, -1, "Unknown model list failure", cost(start), List.of());
+        } catch (IllegalArgumentException e) {
+            return new ModelListResult(false, -1, e.getMessage(), cost(start), List.of());
+        } catch (Exception e) {
+            return new ModelListResult(false, -1, e.getMessage(), cost(start), List.of());
         }
     }
 
@@ -108,6 +142,43 @@ public final class ProviderConnectionTestService {
         }
     }
 
+    private ModelListResult doModelListRequest(ProbeRequest probe, long start) {
+        try {
+            HttpRequest.Builder builder = HttpRequest.newBuilder()
+                    .uri(URI.create(probe.url()))
+                    .timeout(REQUEST_TIMEOUT)
+                    .GET();
+            for (Header header : probe.headers()) {
+                if (header.value() != null && !header.value().isBlank()) {
+                    builder.header(header.key(), header.value());
+                }
+            }
+
+            HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+            int code = response.statusCode();
+            if (code >= 200 && code < 300) {
+                List<String> models = parseModelIds(response.body());
+                if (models.isEmpty()) {
+                    return new ModelListResult(false, code, probe.label() + " returned no models", cost(start), List.of());
+                }
+                return new ModelListResult(true, code, probe.label() + " OK", cost(start), models);
+            }
+            String body = response.body() == null ? "" : response.body();
+            body = body.length() > 180 ? body.substring(0, 180) + "..." : body;
+            return new ModelListResult(false, code,
+                    probe.label() + " HTTP " + code + (body.isBlank() ? "" : " - " + body),
+                    cost(start),
+                    List.of());
+        } catch (IOException e) {
+            return new ModelListResult(false, -1, probe.label() + " I/O error: " + e.getMessage(), cost(start), List.of());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return new ModelListResult(false, -1, probe.label() + " Interrupted", cost(start), List.of());
+        } catch (Exception e) {
+            return new ModelListResult(false, -1, probe.label() + " " + e.getMessage(), cost(start), List.of());
+        }
+    }
+
     private List<ProbeRequest> buildProbeRequests(CliType cliType, JsonObject config) {
         return switch (cliType) {
             case CLAUDE -> buildClaudeProbes(config);
@@ -115,6 +186,121 @@ public final class ProviderConnectionTestService {
             case GEMINI -> buildGeminiProbes(config);
             case OPENCODE -> buildOpenCodeProbes(config);
         };
+    }
+
+    private List<ProbeRequest> buildModelListRequests(CliType cliType, JsonObject config) {
+        return switch (cliType) {
+            case CLAUDE -> buildClaudeModelListRequests(config);
+            case CODEX -> buildCodexModelListRequests(config);
+            case GEMINI -> buildGeminiModelListRequests(config);
+            case OPENCODE -> buildOpenCodeModelListRequests(config);
+        };
+    }
+
+    private List<ProbeRequest> buildClaudeModelListRequests(JsonObject config) {
+        JsonObject env = config != null && config.has("env") && config.get("env").isJsonObject()
+                ? config.getAsJsonObject("env")
+                : new JsonObject();
+        String baseUrl = trimTrailingSlash(getString(env, "ANTHROPIC_BASE_URL"));
+        String token = firstNotBlank(getString(env, "ANTHROPIC_AUTH_TOKEN"), getString(env, "ANTHROPIC_API_KEY"));
+        if (token == null) {
+            throw new IllegalArgumentException("Missing Claude API key/token");
+        }
+        if (baseUrl == null) {
+            baseUrl = "https://api.anthropic.com";
+        }
+
+        return List.of(
+                get(
+                        ensurePath(baseUrl, "/v1/models"),
+                        List.of(
+                                new Header("x-api-key", token),
+                                new Header("anthropic-version", "2023-06-01")),
+                        "Claude Models"),
+                get(
+                        ensurePath(baseUrl, "/models"),
+                        List.of(new Header("Authorization", "Bearer " + token)),
+                        "Claude Models"));
+    }
+
+    private List<ProbeRequest> buildCodexModelListRequests(JsonObject config) {
+        JsonObject auth = config != null && config.has("auth") && config.get("auth").isJsonObject()
+                ? config.getAsJsonObject("auth")
+                : new JsonObject();
+        String apiKey = getString(auth, "OPENAI_API_KEY");
+        if (apiKey == null) {
+            throw new IllegalArgumentException("Missing Codex API key");
+        }
+
+        String toml = config != null ? getString(config, "config") : null;
+        String baseUrl = parseTomlValue(toml, "base_url");
+        if (baseUrl == null) {
+            baseUrl = "https://api.openai.com/v1";
+        }
+
+        return List.of(get(
+                ensurePath(baseUrl, "/models"),
+                bearerHeaders(apiKey),
+                "Codex Models"));
+    }
+
+    private List<ProbeRequest> buildGeminiModelListRequests(JsonObject config) {
+        JsonObject env = config != null && config.has("env") && config.get("env").isJsonObject()
+                ? config.getAsJsonObject("env")
+                : new JsonObject();
+        String apiKey = getString(env, "GEMINI_API_KEY");
+        if (apiKey == null) {
+            throw new IllegalArgumentException("Missing Gemini API key");
+        }
+
+        String baseUrl = trimTrailingSlash(getString(env, "GOOGLE_GEMINI_BASE_URL"));
+        if (baseUrl == null) {
+            baseUrl = "https://generativelanguage.googleapis.com/v1beta";
+        }
+
+        String modelsUrl = ensurePath(baseUrl, "/models")
+                + "?key=" + URLEncoder.encode(apiKey, StandardCharsets.UTF_8);
+        return List.of(get(modelsUrl, List.of(), "Gemini Models"));
+    }
+
+    private List<ProbeRequest> buildOpenCodeModelListRequests(JsonObject config) {
+        JsonObject options = config != null && config.has("options") && config.get("options").isJsonObject()
+                ? config.getAsJsonObject("options")
+                : new JsonObject();
+        String apiKey = getString(options, "apiKey");
+        if (apiKey == null) {
+            throw new IllegalArgumentException("Missing OpenCode API key");
+        }
+
+        String baseUrl = trimTrailingSlash(getString(options, "baseURL"));
+        if (baseUrl == null) {
+            throw new IllegalArgumentException("Missing OpenCode baseURL");
+        }
+
+        String npm = getString(config, "npm");
+        if ("@ai-sdk/anthropic".equals(npm)) {
+            return List.of(
+                    get(
+                            ensurePath(baseUrl, "/v1/models"),
+                            List.of(
+                                    new Header("x-api-key", apiKey),
+                                    new Header("anthropic-version", "2023-06-01")),
+                            "OpenCode Anthropic Models"),
+                    get(
+                            ensurePath(baseUrl, "/models"),
+                            List.of(new Header("Authorization", "Bearer " + apiKey)),
+                            "OpenCode Anthropic Models"));
+        }
+        if ("@ai-sdk/google".equals(npm) || "@ai-sdk/google-vertex".equals(npm)) {
+            String modelsUrl = ensurePath(baseUrl, "/models")
+                    + "?key=" + URLEncoder.encode(apiKey, StandardCharsets.UTF_8);
+            return List.of(get(modelsUrl, List.of(), "OpenCode Gemini Models"));
+        }
+
+        return List.of(get(
+                ensurePath(baseUrl, "/models"),
+                bearerHeaders(apiKey),
+                "OpenCode Models"));
     }
 
     private List<ProbeRequest> buildClaudeProbes(JsonObject config) {
@@ -336,6 +522,10 @@ public final class ProviderConnectionTestService {
         return new ProbeRequest("POST", url, allHeaders, body, label);
     }
 
+    private static ProbeRequest get(String url, List<Header> headers, String label) {
+        return new ProbeRequest("GET", url, headers, null, label);
+    }
+
     private static List<Header> bearerHeaders(String apiKey) {
         return List.of(new Header("Authorization", "Bearer " + apiKey));
     }
@@ -475,6 +665,60 @@ public final class ProviderConnectionTestService {
             }
         }
         return value.trim();
+    }
+
+    private static List<String> parseModelIds(String body) {
+        if (body == null || body.isBlank()) {
+            return List.of();
+        }
+        JsonElement root = JsonParser.parseString(body);
+        List<String> models = new ArrayList<>();
+        collectModelIds(root, models);
+        return models.stream()
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .distinct()
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .toList();
+    }
+
+    private static void collectModelIds(JsonElement element, List<String> out) {
+        if (element == null || element.isJsonNull()) {
+            return;
+        }
+        if (element.isJsonArray()) {
+            for (JsonElement item : element.getAsJsonArray()) {
+                collectModelIds(item, out);
+            }
+            return;
+        }
+        if (!element.isJsonObject()) {
+            return;
+        }
+
+        JsonObject object = element.getAsJsonObject();
+        addModelId(object, out);
+        collectNamedArray(object, "data", out);
+        collectNamedArray(object, "models", out);
+    }
+
+    private static void collectNamedArray(JsonObject object, String key, List<String> out) {
+        if (object.has(key) && object.get(key).isJsonArray()) {
+            collectModelIds(object.get(key), out);
+        }
+    }
+
+    private static void addModelId(JsonObject object, List<String> out) {
+        String value = firstNotBlank(
+                getString(object, "id"),
+                firstNotBlank(getString(object, "name"), getString(object, "model")));
+        if (value == null) {
+            return;
+        }
+        if (value.startsWith("models/")) {
+            value = value.substring("models/".length());
+        }
+        out.add(value);
     }
 
     private static TestResult chooseBetterFailure(TestResult previous, TestResult current) {
