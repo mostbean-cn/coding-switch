@@ -22,7 +22,7 @@ import java.util.List;
 public final class ProviderConnectionTestService {
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(8);
-    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(12);
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(20);
     private static final Gson GSON = new Gson();
 
     private final HttpClient httpClient = HttpClient.newBuilder()
