@@ -62,7 +62,6 @@ import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
-import javax.swing.JToggleButton;
 import javax.swing.ListSelectionModel;
 import javax.swing.Scrollable;
 import javax.swing.SwingConstants;
@@ -87,7 +86,7 @@ public class SettingsPanel extends JPanel {
     private DefaultTableModel cliCommandTableModel;
     private JScrollPane cliCommandTableScrollPane;
     private JPanel cliCommandTableContainer;
-    private JToggleButton cliCommandTableToggle;
+    private JButton configCliCommandBtn;
     private JButton featureSelectionButton;
     private JButton cliSelectionButton;
 
@@ -412,21 +411,16 @@ public class SettingsPanel extends JPanel {
             ActivityTracker.getInstance().inc();
         });
         cliQuickLaunchRow.add(cliQuickLaunchEnabledCombo);
+
+        configCliCommandBtn = new JButton(I18n.t("settings.button.configCliCommand"));
+        configCliCommandBtn.addActionListener(e -> toggleCliCommandTableArea());
+        cliQuickLaunchRow.add(configCliCommandBtn);
+
         content.add(cliQuickLaunchRow);
 
         // 命令列表区域
         JPanel tableArea = new JPanel(new BorderLayout(0, 4));
         tableArea.setBorder(JBUI.Borders.empty(4, 20, 0, 0));
-
-        JPanel tableHeader = new JPanel(new BorderLayout(8, 0));
-        JLabel tableTitle = new JLabel(I18n.t("settings.label.cliLaunchCommands"));
-        tableTitle.setFont(tableTitle.getFont().deriveFont(Font.BOLD));
-        tableHeader.add(tableTitle, BorderLayout.WEST);
-
-        cliCommandTableToggle = new JToggleButton(I18n.t("settings.button.show"));
-        cliCommandTableToggle.addActionListener(e -> updateCliCommandTableCollapsedState());
-        tableHeader.add(cliCommandTableToggle, BorderLayout.EAST);
-        tableArea.add(tableHeader, BorderLayout.NORTH);
 
         // 表格：名称 | 命令
         String[] columns = {
@@ -456,9 +450,8 @@ public class SettingsPanel extends JPanel {
         addButton.addActionListener(e -> showAddOrEditDialog(-1));
         btnRow.add(addButton);
 
-        JButton editButton = new JButton(AllIcons.Actions.Edit);
-        editButton.setToolTipText("Edit");
-        editButton.setPreferredSize(new Dimension(JBUI.scale(28), JBUI.scale(24)));
+        JButton editButton = new JButton(I18n.t("settings.button.editCliCommand"));
+        editButton.setIcon(AllIcons.Actions.Edit);
         editButton.addActionListener(e -> {
             int row = cliCommandTable.getSelectedRow();
             if (row >= 0) showAddOrEditDialog(row);
@@ -488,6 +481,7 @@ public class SettingsPanel extends JPanel {
         tableArea.add(cliCommandTableContainer, BorderLayout.CENTER);
 
         content.add(tableArea);
+        cliCommandTableContainer.setVisible(false);
         updateCliCommandTableCollapsedState();
 
         section.add(content, BorderLayout.NORTH);
@@ -565,11 +559,43 @@ public class SettingsPanel extends JPanel {
         }
     }
 
-    private void saveCliQuickLaunchConfig() {
-        boolean enabled = I18n.t("settings.option.enabled").equals(
-            cliQuickLaunchEnabledCombo.getSelectedItem()
-        );
 
+    private void updateCliCommandTableViewportHeight() {
+        if (cliCommandTable == null || cliCommandTableScrollPane == null) {
+            return;
+        }
+
+        int visibleRows = Math.max(1, Math.min(cliCommandTable.getRowCount(), 4));
+        int headerHeight = cliCommandTable.getTableHeader() == null
+            ? 0
+            : cliCommandTable.getTableHeader().getPreferredSize().height;
+        int height = headerHeight + cliCommandTable.getRowHeight() * visibleRows + JBUI.scale(2);
+
+        cliCommandTableScrollPane.setPreferredSize(new Dimension(0, height));
+        cliCommandTableScrollPane.revalidate();
+    }
+
+    private void toggleCliCommandTableArea() {
+        if (cliCommandTableContainer == null) {
+            return;
+        }
+        cliCommandTableContainer.setVisible(!cliCommandTableContainer.isVisible());
+        updateCliCommandTableCollapsedState();
+    }
+
+    private void updateCliCommandTableCollapsedState() {
+        if (cliCommandTableContainer == null || configCliCommandBtn == null) {
+            return;
+        }
+        boolean expanded = cliCommandTableContainer.isVisible();
+        configCliCommandBtn.setText(
+            I18n.t(expanded ? "settings.button.closeCliCommandConfig" : "settings.button.configCliCommand")
+        );
+        revalidate();
+        repaint();
+    }
+
+    private void saveCliQuickLaunchConfig() {
         java.util.List<PluginSettings.CliQuickLaunchItem> items = new java.util.ArrayList<>();
         for (int i = 0; i < cliCommandTableModel.getRowCount(); i++) {
             String name = String.valueOf(cliCommandTableModel.getValueAt(i, 0)).trim();
@@ -580,10 +606,8 @@ public class SettingsPanel extends JPanel {
         }
 
         PluginSettings settings = PluginSettings.getInstance();
-        settings.setCliQuickLaunchEnabled(enabled);
         settings.setCliQuickLaunchItems(items);
 
-        // 当前选择为空或已经失效时，自动回退到第一项；列表为空则清空选择。
         String selectedCmd = settings.getCliQuickLaunchSelectedCommand();
         boolean selectedExists = false;
         for (PluginSettings.CliQuickLaunchItem item : items) {
@@ -602,35 +626,6 @@ public class SettingsPanel extends JPanel {
             I18n.t("cliQuickLaunch.saved"),
             I18n.t("cliQuickLaunch.savedTitle")
         );
-    }
-
-    private void updateCliCommandTableViewportHeight() {
-        if (cliCommandTable == null || cliCommandTableScrollPane == null) {
-            return;
-        }
-
-        int visibleRows = Math.max(1, Math.min(cliCommandTable.getRowCount(), 4));
-        int headerHeight = cliCommandTable.getTableHeader() == null
-            ? 0
-            : cliCommandTable.getTableHeader().getPreferredSize().height;
-        int height = headerHeight + cliCommandTable.getRowHeight() * visibleRows + JBUI.scale(2);
-
-        cliCommandTableScrollPane.setPreferredSize(new Dimension(0, height));
-        cliCommandTableScrollPane.revalidate();
-    }
-
-    private void updateCliCommandTableCollapsedState() {
-        if (cliCommandTableContainer == null || cliCommandTableToggle == null) {
-            return;
-        }
-
-        boolean expanded = cliCommandTableToggle.isSelected();
-        cliCommandTableContainer.setVisible(expanded);
-        cliCommandTableToggle.setText(
-            I18n.t(expanded ? "settings.button.hide" : "settings.button.show")
-        );
-        revalidate();
-        repaint();
     }
 
     private void showFeatureSelectionDialog() {

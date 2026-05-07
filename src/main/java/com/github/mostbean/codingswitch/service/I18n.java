@@ -501,9 +501,13 @@ public final class I18n {
                 m.put("settings.option.enabled", "开启");
                 m.put("settings.option.disabled", "关闭");
                 m.put("settings.label.cliLaunchCommands", "启动命令列表");
+                m.put("settings.button.configCliCommand", "配置命令");
+                m.put("settings.button.closeCliCommandConfig", "收起配置");
                 m.put("settings.button.addCliCommand", "添加");
+                m.put("settings.button.editCliCommand", "编辑");
                 m.put("settings.button.removeCliCommand", "移除");
                 m.put("settings.button.saveCliQuickLaunch", "保存");
+                m.put("settings.dialog.cliCommand.configTitle", "配置启动命令");
                 m.put("settings.dialog.cliCommand.addTitle", "添加 CLI 命令");
                 m.put("settings.dialog.cliCommand.editTitle", "编辑 CLI 命令");
                 m.put("settings.dialog.cliCommand.name", "名称:");
@@ -986,9 +990,13 @@ public final class I18n {
                 m.put("settings.option.enabled", "Enabled");
                 m.put("settings.option.disabled", "Disabled");
                 m.put("settings.label.cliLaunchCommands", "Launch Commands");
+                m.put("settings.button.configCliCommand", "Configure Commands");
+                m.put("settings.button.closeCliCommandConfig", "Close Config");
                 m.put("settings.button.addCliCommand", "Add");
+                m.put("settings.button.editCliCommand", "Edit");
                 m.put("settings.button.removeCliCommand", "Remove");
                 m.put("settings.button.saveCliQuickLaunch", "Save");
+                m.put("settings.dialog.cliCommand.configTitle", "Configure Launch Commands");
                 m.put("settings.dialog.cliCommand.addTitle", "Add CLI Command");
                 m.put("settings.dialog.cliCommand.editTitle", "Edit CLI Command");
                 m.put("settings.dialog.cliCommand.name", "Name:");
