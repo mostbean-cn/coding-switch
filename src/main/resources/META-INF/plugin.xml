@@ -244,10 +244,6 @@
         <notificationGroup id="Coding Switch" displayType="BALLOON" toolWindowId="Coding Switch"/>
     </extensions>
 
-    <extensions defaultExtensionNs="org.jetbrains.plugins.terminal">
-        <localTerminalCustomizer implementation="com.github.mostbean.codingswitch.ui.action.TemporaryTerminalEnvironmentCustomizer"/>
-    </extensions>
-
     <actions>
         <action id="CodingSwitch.CliQuickLaunch"
                 class="com.github.mostbean.codingswitch.ui.action.CliQuickLaunchToolbarAction"

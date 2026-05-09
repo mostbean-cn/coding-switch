@@ -10,6 +10,7 @@ import com.intellij.openapi.util.SystemInfo;
 import com.intellij.util.concurrency.AppExecutorUtil;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.LinkOption;
 import java.nio.file.Files;
@@ -17,10 +18,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
-import java.util.Collections;
 import java.util.EnumSet;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -72,44 +70,12 @@ public final class ClaudeTemporaryLaunchService {
         }
 
         JsonObject config = provider.getSettingsConfig();
-        Map<String, String> env = new LinkedHashMap<>();
-        clearManagedEnvironment(env);
-        copyEnvConfig(config, env);
-        copySupportedSettings(config, env);
         String settingsJson = GSON.toJson(buildCommandLineSettings(config));
         Path settingsPath = createTemporarySettingsFile(settingsJson);
         boolean dangerous = isTrue(config, "dangerouslySkipPermissions");
         String command = buildCommand(settingsPath, dangerous);
 
-        return new LaunchRequest(command, Collections.unmodifiableMap(env), settingsPath);
-    }
-
-    private static void clearManagedEnvironment(Map<String, String> env) {
-        for (String key : MANAGED_ENV_KEYS) {
-            env.put(key, "");
-        }
-    }
-
-    private static void copyEnvConfig(JsonObject config, Map<String, String> env) {
-        if (config == null || !config.has("env") || !config.get("env").isJsonObject()) {
-            return;
-        }
-
-        JsonObject configuredEnv = config.getAsJsonObject("env");
-        for (String key : configuredEnv.keySet()) {
-            JsonElement value = configuredEnv.get(key);
-            if (key == null || key.isBlank() || value == null || value.isJsonNull()) {
-                continue;
-            }
-
-            String text = value.isJsonPrimitive()
-                ? value.getAsString()
-                : value.toString();
-            text = sanitizeSettingsString(text);
-            if (!text.isBlank()) {
-                env.put(key, text);
-            }
-        }
+        return new LaunchRequest(command, settingsPath);
     }
 
     private static JsonObject buildCommandLineSettings(JsonObject config) {
@@ -279,7 +245,7 @@ public final class ClaudeTemporaryLaunchService {
 
     private static ShellKind resolveShellKind() {
         try {
-            String shellPath = TerminalOptionsProvider.getInstance().getShellPath();
+            String shellPath = getConfiguredShellPath();
             String lower = shellPath == null ? "" : shellPath.toLowerCase();
             if (lower.contains("fish")) {
                 return ShellKind.FISH;
@@ -305,36 +271,23 @@ public final class ClaudeTemporaryLaunchService {
         return ShellKind.POWERSHELL;
     }
 
+    private static String getConfiguredShellPath() {
+        try {
+            Object provider = TerminalOptionsProvider.getInstance();
+            Method method = provider.getClass().getMethod("getShellPath");
+            Object value = method.invoke(provider);
+            return value instanceof String text ? text : "";
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+            return "";
+        }
+    }
+
     private enum ShellKind {
         POWERSHELL,
         CMD,
         POSIX,
         FISH,
         WSL
-    }
-
-    private static void copySupportedSettings(JsonObject config, Map<String, String> env) {
-        if (config == null) {
-            return;
-        }
-
-        String effortLevel = getString(config, "effortLevel");
-        if (!effortLevel.isBlank()) {
-            env.put("CLAUDE_CODE_EFFORT_LEVEL", sanitizeSettingsString(effortLevel));
-        }
-
-        if (config.has("alwaysThinkingEnabled")
-            && !config.get("alwaysThinkingEnabled").isJsonNull()
-            && !config.get("alwaysThinkingEnabled").getAsBoolean()) {
-            env.put("CLAUDE_CODE_DISABLE_THINKING", "1");
-        }
-    }
-
-    private static String getString(JsonObject config, String key) {
-        if (!config.has(key) || config.get(key).isJsonNull()) {
-            return "";
-        }
-        return sanitizeSettingsString(config.get(key).getAsString()).trim();
     }
 
     private static boolean isTrue(JsonObject config, String key) {
@@ -362,7 +315,7 @@ public final class ClaudeTemporaryLaunchService {
         return sanitizeSettingsString(text);
     }
 
-    public record LaunchRequest(String command, Map<String, String> environment, Path temporarySettingsPath) {
+    public record LaunchRequest(String command, Path temporarySettingsPath) {
         public void scheduleTemporarySettingsFileDeletion() {
             AppExecutorUtil.getAppScheduledExecutorService().schedule(
                 this::deleteTemporarySettingsFile,

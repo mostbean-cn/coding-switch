@@ -302,8 +302,7 @@ public class ProviderPanel extends JPanel {
                         project,
                         workingDir,
                         "Claude: " + selected.getName(),
-                        launchRequest.command(),
-                        launchRequest.environment());
+                        launchRequest.command());
                 launchRequest.scheduleTemporarySettingsFileDeletion();
             } catch (RuntimeException ex) {
                 launchRequest.deleteTemporarySettingsFile();

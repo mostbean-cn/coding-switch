@@ -31,13 +31,12 @@ public class ClaudeTemporaryLaunchServiceTest {
         try {
             assertCommandUsesInjectedSettings(request);
             org.junit.Assert.assertTrue(request.command().contains("--dangerously-skip-permissions"));
-            assertEquals("secret-token", request.environment().get("ANTHROPIC_AUTH_TOKEN"));
-            assertEquals("https://example.com/anthropic", request.environment().get("ANTHROPIC_BASE_URL"));
-            assertEquals("claude-sonnet-4-5", request.environment().get("ANTHROPIC_MODEL"));
-            assertEquals("high", request.environment().get("CLAUDE_CODE_EFFORT_LEVEL"));
             JsonObject settings = readTemporarySettings(request);
             assertEquals("secret-token", settings.getAsJsonObject("env").get("ANTHROPIC_AUTH_TOKEN").getAsString());
+            assertEquals("https://example.com/anthropic", settings.getAsJsonObject("env").get("ANTHROPIC_BASE_URL").getAsString());
+            assertEquals("claude-sonnet-4-5", settings.getAsJsonObject("env").get("ANTHROPIC_MODEL").getAsString());
             assertEquals("", settings.getAsJsonObject("env").get("ANTHROPIC_API_KEY").getAsString());
+            assertEquals("high", settings.get("effortLevel").getAsString());
             assertFalse(request.command().contains("secret-token"));
             assertFalse(request.command().contains("CODING_SWITCH_CLAUDE_SETTINGS"));
         } finally {
@@ -59,8 +58,9 @@ public class ClaudeTemporaryLaunchServiceTest {
             ClaudeTemporaryLaunchService.buildLaunchRequest(provider);
 
         try {
-            assertEquals("", request.environment().get("ANTHROPIC_AUTH_TOKEN"));
-            assertEquals("claude-sonnet-4-5", request.environment().get("ANTHROPIC_MODEL"));
+            JsonObject settings = readTemporarySettings(request);
+            assertEquals("", settings.getAsJsonObject("env").get("ANTHROPIC_AUTH_TOKEN").getAsString());
+            assertEquals("claude-sonnet-4-5", settings.getAsJsonObject("env").get("ANTHROPIC_MODEL").getAsString());
             assertCommandUsesInjectedSettings(request);
         } finally {
             request.deleteTemporarySettingsFile();
