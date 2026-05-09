@@ -11,6 +11,7 @@ import com.intellij.util.concurrency.AppExecutorUtil;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.LinkOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;
@@ -34,12 +35,17 @@ public final class ClaudeTemporaryLaunchService {
     private static final Gson GSON = new GsonBuilder().create();
     private static final String CLAUDE_COMMAND = "claude";
     private static final String TEMP_DIRECTORY_NAME = "coding-switch";
-    private static final int SETTINGS_FILE_CLEANUP_DELAY_SECONDS = 10;
+    private static final int SETTINGS_FILE_CLEANUP_DELAY_SECONDS = 30;
     private static final Pattern ANSI_ESCAPE_PATTERN = Pattern.compile("\\u001B\\[[;?0-9]*[ -/]*[@-~]");
     private static final Pattern CONTROL_CHAR_PATTERN = Pattern.compile("[\\p{Cntrl}&&[^\r\n\t]]");
     private static final Set<PosixFilePermission> OWNER_READ_WRITE = EnumSet.of(
         PosixFilePermission.OWNER_READ,
         PosixFilePermission.OWNER_WRITE
+    );
+    private static final Set<PosixFilePermission> OWNER_DIRECTORY_ACCESS = EnumSet.of(
+        PosixFilePermission.OWNER_READ,
+        PosixFilePermission.OWNER_WRITE,
+        PosixFilePermission.OWNER_EXECUTE
     );
     private static final String[] MANAGED_ENV_KEYS = {
         "ANTHROPIC_AUTH_TOKEN",
@@ -211,13 +217,24 @@ public final class ClaudeTemporaryLaunchService {
     private static Path ensureTemporaryDirectory() throws IOException {
         Path directory = Path.of(System.getProperty("java.io.tmpdir"), TEMP_DIRECTORY_NAME);
         Files.createDirectories(directory);
-        restrictOwnerAccess(directory);
+        if (Files.isSymbolicLink(directory) || !Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IOException("Temporary path is not a safe directory: " + directory);
+        }
+        restrictOwnerDirectoryAccess(directory);
         return directory;
     }
 
     private static void restrictOwnerAccess(Path path) throws IOException {
         try {
             Files.setPosixFilePermissions(path, OWNER_READ_WRITE);
+        } catch (UnsupportedOperationException ignored) {
+            // Windows 没有 POSIX 权限；系统临时目录默认使用当前用户 ACL。
+        }
+    }
+
+    private static void restrictOwnerDirectoryAccess(Path path) throws IOException {
+        try {
+            Files.setPosixFilePermissions(path, OWNER_DIRECTORY_ACCESS);
         } catch (UnsupportedOperationException ignored) {
             // Windows 没有 POSIX 权限；系统临时目录默认使用当前用户 ACL。
         }
