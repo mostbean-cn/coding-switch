@@ -297,12 +297,18 @@ public class ProviderPanel extends JPanel {
             String workingDir = project.getBasePath() != null
                     ? project.getBasePath()
                     : System.getProperty("user.home");
-            TerminalSessionService.executeCommand(
-                    project,
-                    workingDir,
-                    "Claude: " + selected.getName(),
-                    launchRequest.command(),
-                    launchRequest.environment());
+            try {
+                TerminalSessionService.executeCommand(
+                        project,
+                        workingDir,
+                        "Claude: " + selected.getName(),
+                        launchRequest.command(),
+                        launchRequest.environment());
+                launchRequest.scheduleTemporarySettingsFileDeletion();
+            } catch (RuntimeException ex) {
+                launchRequest.deleteTemporarySettingsFile();
+                throw ex;
+            }
         } catch (RuntimeException ex) {
             Messages.showErrorDialog(
                     I18n.t("provider.dialog.tempLaunch.failed", safeMessage(ex)),

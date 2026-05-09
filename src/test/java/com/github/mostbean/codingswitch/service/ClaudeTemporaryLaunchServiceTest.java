@@ -7,12 +7,13 @@ import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.Provider;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import java.nio.file.Files;
 import org.junit.Test;
 
 public class ClaudeTemporaryLaunchServiceTest {
 
     @Test
-    public void buildsLaunchRequestWithoutPuttingSecretsInCommand() {
+    public void buildsLaunchRequestWithoutPuttingSecretsInCommand() throws Exception {
         Provider provider = new Provider(CliType.CLAUDE, "Claude API");
         JsonObject config = new JsonObject();
         JsonObject env = new JsonObject();
@@ -27,23 +28,25 @@ public class ClaudeTemporaryLaunchServiceTest {
         ClaudeTemporaryLaunchService.LaunchRequest request =
             ClaudeTemporaryLaunchService.buildLaunchRequest(provider);
 
-        assertCommandUsesInjectedSettings(request.command());
-        org.junit.Assert.assertTrue(request.command().contains("--dangerously-skip-permissions"));
-        assertEquals("secret-token", request.environment().get("ANTHROPIC_AUTH_TOKEN"));
-        assertEquals("https://example.com/anthropic", request.environment().get("ANTHROPIC_BASE_URL"));
-        assertEquals("claude-sonnet-4-5", request.environment().get("ANTHROPIC_MODEL"));
-        assertEquals("high", request.environment().get("CLAUDE_CODE_EFFORT_LEVEL"));
-        org.junit.Assert.assertTrue(request.environment().containsKey("CODING_SWITCH_CLAUDE_SETTINGS"));
-        JsonObject settings = JsonParser.parseString(
-            request.environment().get("CODING_SWITCH_CLAUDE_SETTINGS")
-        ).getAsJsonObject();
-        assertEquals("secret-token", settings.getAsJsonObject("env").get("ANTHROPIC_AUTH_TOKEN").getAsString());
-        assertEquals("", settings.getAsJsonObject("env").get("ANTHROPIC_API_KEY").getAsString());
-        assertFalse(request.command().contains("secret-token"));
+        try {
+            assertCommandUsesInjectedSettings(request);
+            org.junit.Assert.assertTrue(request.command().contains("--dangerously-skip-permissions"));
+            assertEquals("secret-token", request.environment().get("ANTHROPIC_AUTH_TOKEN"));
+            assertEquals("https://example.com/anthropic", request.environment().get("ANTHROPIC_BASE_URL"));
+            assertEquals("claude-sonnet-4-5", request.environment().get("ANTHROPIC_MODEL"));
+            assertEquals("high", request.environment().get("CLAUDE_CODE_EFFORT_LEVEL"));
+            JsonObject settings = readTemporarySettings(request);
+            assertEquals("secret-token", settings.getAsJsonObject("env").get("ANTHROPIC_AUTH_TOKEN").getAsString());
+            assertEquals("", settings.getAsJsonObject("env").get("ANTHROPIC_API_KEY").getAsString());
+            assertFalse(request.command().contains("secret-token"));
+            assertFalse(request.command().contains("CODING_SWITCH_CLAUDE_SETTINGS"));
+        } finally {
+            request.deleteTemporarySettingsFile();
+        }
     }
 
     @Test
-    public void skipsBlankEnvironmentValues() {
+    public void clearsBlankEnvironmentValues() throws Exception {
         Provider provider = new Provider(CliType.CLAUDE, "Claude API");
         JsonObject config = new JsonObject();
         JsonObject env = new JsonObject();
@@ -55,9 +58,13 @@ public class ClaudeTemporaryLaunchServiceTest {
         ClaudeTemporaryLaunchService.LaunchRequest request =
             ClaudeTemporaryLaunchService.buildLaunchRequest(provider);
 
-        assertFalse(request.environment().containsKey("ANTHROPIC_AUTH_TOKEN"));
-        assertEquals("claude-sonnet-4-5", request.environment().get("ANTHROPIC_MODEL"));
-        assertCommandUsesInjectedSettings(request.command());
+        try {
+            assertEquals("", request.environment().get("ANTHROPIC_AUTH_TOKEN"));
+            assertEquals("claude-sonnet-4-5", request.environment().get("ANTHROPIC_MODEL"));
+            assertCommandUsesInjectedSettings(request);
+        } finally {
+            request.deleteTemporarySettingsFile();
+        }
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -67,8 +74,14 @@ public class ClaudeTemporaryLaunchServiceTest {
         ClaudeTemporaryLaunchService.buildLaunchRequest(provider);
     }
 
-    private static void assertCommandUsesInjectedSettings(String command) {
-        org.junit.Assert.assertTrue(command.startsWith("claude --settings "));
-        org.junit.Assert.assertTrue(command.contains("CODING_SWITCH_CLAUDE_SETTINGS"));
+    private static JsonObject readTemporarySettings(ClaudeTemporaryLaunchService.LaunchRequest request)
+        throws Exception {
+        return JsonParser.parseString(Files.readString(request.temporarySettingsPath())).getAsJsonObject();
+    }
+
+    private static void assertCommandUsesInjectedSettings(ClaudeTemporaryLaunchService.LaunchRequest request) {
+        org.junit.Assert.assertTrue(Files.exists(request.temporarySettingsPath()));
+        org.junit.Assert.assertTrue(request.command().contains("--settings"));
+        org.junit.Assert.assertTrue(request.command().contains(request.temporarySettingsPath().getFileName().toString()));
     }
 }
