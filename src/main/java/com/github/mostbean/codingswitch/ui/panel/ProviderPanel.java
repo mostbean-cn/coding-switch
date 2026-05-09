@@ -3,15 +3,18 @@ package com.github.mostbean.codingswitch.ui.panel;
 import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.Provider;
 import com.github.mostbean.codingswitch.service.CodexActivationResult;
+import com.github.mostbean.codingswitch.service.ClaudeTemporaryLaunchService;
 import com.github.mostbean.codingswitch.service.GeminiActivationResult;
 import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.ProviderService;
+import com.github.mostbean.codingswitch.ui.action.TerminalSessionService;
 import com.github.mostbean.codingswitch.ui.dialog.ProviderDialog;
 import com.google.gson.JsonObject;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
+import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.ui.ToolbarDecorator;
 import com.intellij.ui.components.JBLabel;
@@ -35,11 +38,13 @@ import java.util.List;
  */
 public class ProviderPanel extends JPanel {
 
+    private final Project project;
     private final ProviderTableModel tableModel = new ProviderTableModel();
     private final JBTable providerTable = new JBTable(tableModel);
     private final JComboBox<CliType> filterCombo = new JComboBox<>();
 
-    public ProviderPanel() {
+    public ProviderPanel(Project project) {
+        this.project = project;
         setLayout(new BorderLayout());
         setBorder(JBUI.Borders.empty(8));
 
@@ -172,6 +177,28 @@ public class ProviderPanel extends JPanel {
                             public void update(@NotNull AnActionEvent e) {
                                 e.getPresentation().setEnabled(providerTable.getSelectedRow() != -1);
                             }
+                        })
+                .addExtraAction(
+                        new AnAction(I18n.t("provider.action.tempLaunch"),
+                                I18n.t("provider.action.tempLaunch.tooltip"),
+                                AllIcons.Actions.Lightning) {
+                            @Override
+                            public void actionPerformed(@NotNull AnActionEvent e) {
+                                onTemporaryLaunch();
+                            }
+
+                            @Override
+                            public void update(@NotNull AnActionEvent e) {
+                                CliType filter = (CliType) filterCombo.getSelectedItem();
+                                boolean visible = filter == null || filter == CliType.CLAUDE;
+                                Provider selected = getSelectedProvider();
+                                boolean enabled = visible && selected != null && selected.getCliType() == CliType.CLAUDE;
+                                e.getPresentation().setVisible(visible);
+                                e.getPresentation().setEnabled(enabled);
+                                e.getPresentation().setDescription(enabled
+                                        ? I18n.t("provider.action.tempLaunch.tooltip")
+                                        : I18n.t("provider.action.tempLaunch.disabledTooltip"));
+                            }
                         });
 
         return decorator.createPanel();
@@ -244,6 +271,50 @@ public class ProviderPanel extends JPanel {
             Messages.showErrorDialog(I18n.t("provider.dialog.activateFailed", ex.getMessage()),
                     I18n.t("provider.dialog.error"));
         }
+    }
+
+    private void onTemporaryLaunch() {
+        Provider selected = getSelectedProvider();
+        if (selected == null) {
+            return;
+        }
+        if (selected.getCliType() != CliType.CLAUDE) {
+            Messages.showInfoMessage(
+                    I18n.t("provider.dialog.tempLaunch.onlyClaude"),
+                    I18n.t("provider.dialog.tempLaunch.title"));
+            return;
+        }
+        if (project == null || project.isDisposed()) {
+            Messages.showErrorDialog(
+                    I18n.t("provider.dialog.tempLaunch.noProject"),
+                    I18n.t("provider.dialog.error"));
+            return;
+        }
+
+        try {
+            ClaudeTemporaryLaunchService.LaunchRequest launchRequest =
+                    ClaudeTemporaryLaunchService.buildLaunchRequest(selected);
+            String workingDir = project.getBasePath() != null
+                    ? project.getBasePath()
+                    : System.getProperty("user.home");
+            TerminalSessionService.executeCommand(
+                    project,
+                    workingDir,
+                    "Claude: " + selected.getName(),
+                    launchRequest.command(),
+                    launchRequest.environment());
+        } catch (RuntimeException ex) {
+            Messages.showErrorDialog(
+                    I18n.t("provider.dialog.tempLaunch.failed", safeMessage(ex)),
+                    I18n.t("provider.dialog.error"));
+        }
+    }
+
+    private String safeMessage(RuntimeException ex) {
+        String message = ex.getMessage();
+        return message == null || message.isBlank()
+                ? ex.getClass().getSimpleName()
+                : message;
     }
 
     private Provider getSelectedProvider() {

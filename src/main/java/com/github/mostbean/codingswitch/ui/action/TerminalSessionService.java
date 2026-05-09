@@ -1,11 +1,13 @@
 package com.github.mostbean.codingswitch.ui.action;
 
+import com.github.mostbean.codingswitch.service.TemporaryTerminalEnvironmentService;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.terminal.ui.TerminalWidget;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager;
 
@@ -35,6 +37,22 @@ public final class TerminalSessionService {
         }
     }
 
+    public static @NotNull TerminalWidget createTerminalSession(
+        @NotNull Project project,
+        @NotNull String workingDirectory,
+        @NotNull String tabName,
+        @NotNull Map<String, String> environment
+    ) {
+        TemporaryTerminalEnvironmentService.getInstance().prepare(project, workingDirectory, environment);
+        try {
+            TerminalToolWindowManager terminalManager = TerminalToolWindowManager.getInstance(project);
+            return invokeLegacyCreateShellWidget(terminalManager, workingDirectory, tabName);
+        } catch (RuntimeException error) {
+            TemporaryTerminalEnvironmentService.getInstance().clear(project, workingDirectory);
+            throw error;
+        }
+    }
+
     public static void executeCommand(
         @NotNull Project project,
         @NotNull String workingDirectory,
@@ -43,6 +61,25 @@ public final class TerminalSessionService {
     ) {
         TerminalToolWindowManager terminalManager = TerminalToolWindowManager.getInstance(project);
         TerminalWidget terminalWidget = createTerminalSession(project, workingDirectory, tabName);
+        terminalWidget.sendCommandToExecute(command);
+
+        ToolWindow toolWindow = terminalManager.getToolWindow();
+        if (toolWindow != null) {
+            toolWindow.activate(terminalWidget::requestFocus, true, true);
+        } else {
+            terminalWidget.requestFocus();
+        }
+    }
+
+    public static void executeCommand(
+        @NotNull Project project,
+        @NotNull String workingDirectory,
+        @NotNull String tabName,
+        @NotNull String command,
+        @NotNull Map<String, String> environment
+    ) {
+        TerminalToolWindowManager terminalManager = TerminalToolWindowManager.getInstance(project);
+        TerminalWidget terminalWidget = createTerminalSession(project, workingDirectory, tabName, environment);
         terminalWidget.sendCommandToExecute(command);
 
         ToolWindow toolWindow = terminalManager.getToolWindow();

@@ -234,9 +234,14 @@
         <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.SkillService"/>
         <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.PromptService"/>
         <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.PluginSettings"/>
+        <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.TemporaryTerminalEnvironmentService"/>
 
         <!-- Notification Group -->
         <notificationGroup id="Coding Switch" displayType="BALLOON" toolWindowId="Coding Switch"/>
+    </extensions>
+
+    <extensions defaultExtensionNs="org.jetbrains.plugins.terminal">
+        <localTerminalCustomizer implementation="com.github.mostbean.codingswitch.ui.action.TemporaryTerminalEnvironmentCustomizer"/>
     </extensions>
 
     <actions>

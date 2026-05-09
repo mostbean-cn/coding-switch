@@ -33,7 +33,7 @@ public class CodingSwitchToolWindowFactory implements ToolWindowFactory, DumbAwa
             : com.github.mostbean.codingswitch.service.PluginSettings.getInstance().getEnabledToolWindowFeatures()) {
             Content content = switch (feature) {
                 case PROVIDERS -> contentFactory.createContent(
-                    new ProviderPanel(), I18n.t("toolwindow.tab.providers"), false);
+                    new ProviderPanel(project), I18n.t("toolwindow.tab.providers"), false);
                 case SESSIONS -> contentFactory.createContent(
                     new SessionPanel(project), I18n.t("toolwindow.tab.sessions"), false);
                 case MCP -> contentFactory.createContent(
