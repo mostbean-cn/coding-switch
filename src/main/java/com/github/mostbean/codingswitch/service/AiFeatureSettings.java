@@ -60,23 +60,23 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
     }
 
     public State snapshot() {
-        return copyState(state);
+        return copyState(getActiveState());
     }
 
     public void update(State next) {
-        this.state = normalize(copyState(next));
+        saveActiveState(copyState(next));
     }
 
     public boolean isCodeCompletionEnabled() {
-        return state.codeCompletionEnabled;
+        return getActiveState().codeCompletionEnabled;
     }
 
     public boolean isAutoCompletionEnabled() {
-        return state.autoCompletionEnabled;
+        return getActiveState().autoCompletionEnabled;
     }
 
     public boolean isGitCommitMessageEnabled() {
-        return state.gitCommitMessageEnabled;
+        return getActiveState().gitCommitMessageEnabled;
     }
 
     public int getCompletionMaxTokens(AiCompletionTriggerMode mode) {
@@ -85,18 +85,19 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
 
     public AiCompletionLengthLevel getCompletionLengthLevel(AiCompletionTriggerMode mode) {
         return mode == AiCompletionTriggerMode.MANUAL
-            ? parseLengthLevel(state.manualCompletionLengthLevel, AiCompletionLengthLevel.MEDIUM)
-            : parseLengthLevel(state.autoCompletionLengthLevel, AiCompletionLengthLevel.SINGLE_LINE);
+            ? parseLengthLevel(getActiveState().manualCompletionLengthLevel, AiCompletionLengthLevel.MEDIUM)
+            : parseLengthLevel(getActiveState().autoCompletionLengthLevel, AiCompletionLengthLevel.SINGLE_LINE);
     }
 
     public AiModelProfile getActiveCompletionProfile() {
-        String activeId = state.activeCompletionProfileId == null ? "" : state.activeCompletionProfileId;
-        for (AiModelProfile profile : state.profiles) {
+        State active = getActiveState();
+        String activeId = active.activeCompletionProfileId == null ? "" : active.activeCompletionProfileId;
+        for (AiModelProfile profile : active.profiles) {
             if (Objects.equals(activeId, profile.getId())) {
                 return profile.copy();
             }
         }
-        return state.profiles.isEmpty() ? null : state.profiles.get(0).copy();
+        return active.profiles.isEmpty() ? null : active.profiles.get(0).copy();
     }
 
     public String getApiKey(String profileId) {
@@ -128,6 +129,54 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
         return new CredentialAttributes(
             CredentialAttributesKt.generateServiceName(CREDENTIAL_SERVICE_NAME, profileId)
         );
+    }
+
+    public State snapshotCurrentState() {
+        return copyState(getActiveState());
+    }
+
+    public State snapshotLocalState() {
+        return copyState(state);
+    }
+
+    public State snapshotSharedState() {
+        return readSharedState(new State());
+    }
+
+    public void overwriteLocalState(State next) {
+        this.state = normalize(copyState(next));
+    }
+
+    public void writeSharedState(State next) {
+        PluginDataStorage.writeJson(PluginDataStorage.getSharedAiFeaturesPath(), normalize(copyState(next)));
+    }
+
+    public void notifyStateChanged() {
+        // 当前 IDE 设置页按需读取快照，无需额外通知。
+    }
+
+    private State getActiveState() {
+        if (PluginSettings.getInstance().getStorageMode() == PluginSettings.DataStorageMode.USER_SHARED) {
+            return readSharedState(normalize(copyState(state)));
+        }
+        return state;
+    }
+
+    private void saveActiveState(State next) {
+        State normalized = normalize(copyState(next));
+        if (PluginSettings.getInstance().getStorageMode() == PluginSettings.DataStorageMode.USER_SHARED) {
+            writeSharedState(normalized);
+        } else {
+            state = normalized;
+        }
+    }
+
+    private State readSharedState(State defaultState) {
+        return normalize(PluginDataStorage.readJson(
+            PluginDataStorage.getSharedAiFeaturesPath(),
+            State.class,
+            normalize(copyState(defaultState))
+        ));
     }
 
     public static State copyState(State source) {

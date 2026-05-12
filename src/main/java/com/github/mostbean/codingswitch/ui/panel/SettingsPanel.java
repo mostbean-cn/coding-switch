@@ -9,6 +9,7 @@ import com.github.mostbean.codingswitch.service.PluginStorageModeService;
 import com.intellij.icons.AllIcons;
 import com.intellij.ide.ActivityTracker;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowManager;
 import com.intellij.openapi.application.PathManager;
@@ -1069,7 +1070,10 @@ public class SettingsPanel extends JPanel {
         );
 
         if (result == Messages.YES) {
-            ApplicationManager.getApplication().restart();
+            ApplicationManager.getApplication().invokeLater(
+                () -> ApplicationManager.getApplication().restart(),
+                ModalityState.NON_MODAL
+            );
         }
     }
 
@@ -1201,7 +1205,8 @@ public class SettingsPanel extends JPanel {
                 inspection.localSummary().providerCount(),
                 inspection.localSummary().promptCount(),
                 inspection.localSummary().skillCount(),
-                inspection.localSummary().mcpCount()
+                inspection.localSummary().mcpCount(),
+                inspection.localSummary().aiFeatureCount()
             );
             case SHARED_TO_LOCAL -> I18n.t(
                 "settings.dialog.storageMode.confirmSharedToLocal",
@@ -1209,7 +1214,8 @@ public class SettingsPanel extends JPanel {
                 inspection.sharedSummary().providerCount(),
                 inspection.sharedSummary().promptCount(),
                 inspection.sharedSummary().skillCount(),
-                inspection.sharedSummary().mcpCount()
+                inspection.sharedSummary().mcpCount(),
+                inspection.sharedSummary().aiFeatureCount()
             );
         };
     }
@@ -1368,7 +1374,9 @@ public class SettingsPanel extends JPanel {
                     inspection.sharedSummary().providerCount(),
                     inspection.sharedSummary().promptCount(),
                     inspection.sharedSummary().skillCount(),
-                    inspection.sharedSummary().mcpCount()
+                    inspection.sharedSummary().mcpCount(),
+                    inspection.localSummary().aiFeatureCount(),
+                    inspection.sharedSummary().aiFeatureCount()
                 )
             );
             textArea.setEditable(false);

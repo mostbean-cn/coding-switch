@@ -80,6 +80,11 @@ public final class I18n {
                 m.put("toolwindow.tab.settings", "设置");
                 m.put("common.button.ok", "确定");
                 m.put("common.button.cancel", "取消");
+                m.put("common.button.add", "新增");
+                m.put("common.button.edit", "修改");
+                m.put("common.button.delete", "删除");
+                m.put("common.button.reset", "重置");
+                m.put("common.button.details", "详情");
 
                 // ── Settings 面板 ──
                 m.put("settings.section.versionStatus", "CLI 版本状态");
@@ -134,11 +139,11 @@ public final class I18n {
                 m.put("settings.dialog.storageMode.option.localToShared", "本地覆盖用户级");
                 m.put("settings.dialog.storageMode.option.sharedToLocal", "用户级覆盖本地");
                 m.put("settings.dialog.storageMode.conflict",
-                                "检测到已有用户级配置。\n\n本地总计: {0} 条\n本地明细: Provider {2} / Prompt {3} / Skill {4} / MCP {5}\n\n用户级总计: {1} 条\n用户级明细: Provider {6} / Prompt {7} / Skill {8} / MCP {9}\n\n请选择要保留的数据来源：");
+                                "检测到已有用户级配置。\n\n本地总计: {0} 条\n本地明细: Provider {2} / Prompt {3} / Skill {4} / MCP {5} / AI 设置 {10}\n\n用户级总计: {1} 条\n用户级明细: Provider {6} / Prompt {7} / Skill {8} / MCP {9} / AI 设置 {11}\n\n请选择要保留的数据来源：");
                 m.put("settings.dialog.storageMode.confirmLocalToShared",
-                                "你将使用当前 IDE 的本地数据覆盖用户级数据。\n\n覆盖后写入用户级的总计: {0} 条\n明细: Provider {1} / Prompt {2} / Skill {3} / MCP {4}\n\n当前 IDE 随后会切换到“用户级共享”。\n是否确认继续？");
+                                "你将使用当前 IDE 的本地数据覆盖用户级数据。\n\n覆盖后写入用户级的总计: {0} 条\n明细: Provider {1} / Prompt {2} / Skill {3} / MCP {4} / AI 设置 {5}\n\n当前 IDE 随后会切换到“用户级共享”。\n是否确认继续？");
                 m.put("settings.dialog.storageMode.confirmSharedToLocal",
-                                "你将使用现有用户级数据覆盖当前 IDE 的本地数据。\n\n将写回当前 IDE 本地的总计: {0} 条\n明细: Provider {1} / Prompt {2} / Skill {3} / MCP {4}\n\n当前 IDE 随后会切换到“用户级共享”。\n是否确认继续？");
+                                "你将使用现有用户级数据覆盖当前 IDE 的本地数据。\n\n将写回当前 IDE 本地的总计: {0} 条\n明细: Provider {1} / Prompt {2} / Skill {3} / MCP {4} / AI 设置 {5}\n\n当前 IDE 随后会切换到“用户级共享”。\n是否确认继续？");
                 m.put("settings.dialog.storageMode.failed", "数据存储切换失败，请稍后重试。");
                 m.put("settings.dialog.storageMode.applied", "已切换到 {0}，配置数据已立即生效。");
                 m.put("settings.dialog.storageDirectory.openFailed", "打开数据目录失败: {0}");
@@ -150,6 +155,53 @@ public final class I18n {
                 m.put("settings.dialog.cliSelection.enabled", "显示的 CLI");
                 m.put("settings.dialog.cliSelection.hidden", "隐藏的 CLI");
                 m.put("settings.dialog.cliSelection.managedHint", "仅 * 标记的 CLI 支持配置管理相关功能");
+
+                // ── IDE AI 设置页 ──
+                m.put("aiSettings.section.features", "功能开关");
+                m.put("aiSettings.checkbox.codeCompletion", "启用代码补全功能");
+                m.put("aiSettings.checkbox.gitCommitMessage", "启用 Git 提交信息生成功能");
+                m.put("aiSettings.hint.globalPreferences", "这些偏好设置为全局配置，会同时影响侧边栏配置管理、会话、提示词、技能、MCP 等功能。");
+                m.put("aiSettings.section.completion", "代码补全");
+                m.put("aiSettings.checkbox.autoCompletion", "启用自动触发补全");
+                m.put("aiSettings.label.completionProfile", "补全模型:");
+                m.put("aiSettings.option.noProfile", "未配置模型");
+                m.put("aiSettings.label.autoLength", "自动补全长度:");
+                m.put("aiSettings.label.manualLength", "手动补全长度:");
+                m.put("aiSettings.label.manualShortcut", "手动触发快捷键:");
+                m.put("aiSettings.hint.shortcut", "仅支持一个修饰键 + 一个普通键");
+                m.put("aiSettings.section.modelConfig", "模型配置");
+                m.put("aiSettings.button.modelConfig", "模型配置...");
+                m.put("aiSettings.placeholder.pressShortcut", "请按快捷键...");
+                m.put("aiSettings.length.singleLine", "单行");
+                m.put("aiSettings.length.short", "较短");
+                m.put("aiSettings.length.medium", "中等");
+                m.put("aiSettings.length.long", "较长");
+                m.put("aiSettings.validation.shortcut", "手动补全快捷键必须是一个修饰键 + 一个普通键，例如 Ctrl + Space");
+                m.put("aiSettings.validation.storageCancelled", "已取消存储位置切换");
+                m.put("aiSettings.table.name", "名称");
+                m.put("aiSettings.table.format", "格式");
+                m.put("aiSettings.table.model", "模型");
+                m.put("aiSettings.button.setCompletionProfile", "设为补全模型");
+                m.put("aiSettings.dialog.addProfile", "新增模型配置");
+                m.put("aiSettings.dialog.editProfile", "编辑模型配置");
+                m.put("aiSettings.label.profileName", "名称:");
+                m.put("aiSettings.label.protocolFormat", "协议格式:");
+                m.put("aiSettings.label.model", "模型:");
+                m.put("aiSettings.label.timeoutSeconds", "超时秒数:");
+                m.put("aiSettings.label.customHeaders", "自定义 Headers JSON:");
+                m.put("aiSettings.button.testConfig", "测试配置");
+                m.put("aiSettings.button.detectModels", "检测模型");
+                m.put("aiSettings.validation.modelRequired", "请填写模型名称");
+                m.put("aiSettings.validation.baseUrlRequired", "请填写 Base URL");
+                m.put("aiSettings.validation.headersObject", "Headers 必须是 JSON 对象");
+                m.put("aiSettings.validation.headersInvalid", "Headers JSON 格式不正确: {0}");
+                m.put("aiSettings.status.invalidConfig", "配置格式错误: {0}");
+                m.put("aiSettings.status.testing", "正在测试配置...");
+                m.put("aiSettings.status.detectingModels", "正在检测模型...");
+                m.put("aiSettings.status.modelsDetected", "检测到 {0} 个模型 ({1} ms)");
+                m.put("aiSettings.status.failedClickDetails", "失败，点击详情查看");
+                m.put("aiSettings.dialog.modelCheckFailed", "模型配置检测失败");
+                m.put("aiSettings.dialog.detectedModels", "检测到的模型");
 
                 // ── Session 面板 ──
                 m.put("session.empty.selectHint", "选择一个会话查看详情");
@@ -568,6 +620,11 @@ public final class I18n {
                 m.put("toolwindow.tab.settings", "Settings");
                 m.put("common.button.ok", "OK");
                 m.put("common.button.cancel", "Cancel");
+                m.put("common.button.add", "Add");
+                m.put("common.button.edit", "Edit");
+                m.put("common.button.delete", "Delete");
+                m.put("common.button.reset", "Reset");
+                m.put("common.button.details", "Details");
 
                 // ── Settings Panel ──
                 m.put("settings.section.versionStatus", "CLI Version Status");
@@ -623,11 +680,11 @@ public final class I18n {
                 m.put("settings.dialog.storageMode.option.localToShared", "Local overwrites shared");
                 m.put("settings.dialog.storageMode.option.sharedToLocal", "Shared overwrites local");
                 m.put("settings.dialog.storageMode.conflict",
-                                "Existing user-shared data was detected.\n\nLocal total: {0}\nLocal breakdown: Provider {2} / Prompt {3} / Skill {4} / MCP {5}\n\nShared total: {1}\nShared breakdown: Provider {6} / Prompt {7} / Skill {8} / MCP {9}\n\nChoose which source to keep:");
+                                "Existing user-shared data was detected.\n\nLocal total: {0}\nLocal breakdown: Provider {2} / Prompt {3} / Skill {4} / MCP {5} / AI Settings {10}\n\nShared total: {1}\nShared breakdown: Provider {6} / Prompt {7} / Skill {8} / MCP {9} / AI Settings {11}\n\nChoose which source to keep:");
                 m.put("settings.dialog.storageMode.confirmLocalToShared",
-                                "You are about to overwrite user-shared data with this IDE's local data.\n\nShared data after overwrite: {0} item(s)\nBreakdown: Provider {1} / Prompt {2} / Skill {3} / MCP {4}\n\nThis IDE will then switch to User Shared mode.\nContinue?");
+                                "You are about to overwrite user-shared data with this IDE's local data.\n\nShared data after overwrite: {0} item(s)\nBreakdown: Provider {1} / Prompt {2} / Skill {3} / MCP {4} / AI Settings {5}\n\nThis IDE will then switch to User Shared mode.\nContinue?");
                 m.put("settings.dialog.storageMode.confirmSharedToLocal",
-                                "You are about to overwrite this IDE's local data with the existing user-shared data.\n\nLocal data after overwrite: {0} item(s)\nBreakdown: Provider {1} / Prompt {2} / Skill {3} / MCP {4}\n\nThis IDE will then switch to User Shared mode.\nContinue?");
+                                "You are about to overwrite this IDE's local data with the existing user-shared data.\n\nLocal data after overwrite: {0} item(s)\nBreakdown: Provider {1} / Prompt {2} / Skill {3} / MCP {4} / AI Settings {5}\n\nThis IDE will then switch to User Shared mode.\nContinue?");
                 m.put("settings.dialog.storageMode.failed", "Failed to switch data storage. Please try again.");
                 m.put("settings.dialog.storageMode.applied", "Switched to {0}. Configuration data is now active immediately.");
                 m.put("settings.dialog.storageDirectory.openFailed", "Failed to open data directory: {0}");
@@ -639,6 +696,53 @@ public final class I18n {
                 m.put("settings.dialog.cliSelection.enabled", "Visible CLIs");
                 m.put("settings.dialog.cliSelection.hidden", "Hidden CLIs");
                 m.put("settings.dialog.cliSelection.managedHint", "Only * marked CLIs support configuration management features");
+
+                // ── IDE AI Settings Page ──
+                m.put("aiSettings.section.features", "Feature Switches");
+                m.put("aiSettings.checkbox.codeCompletion", "Enable code completion");
+                m.put("aiSettings.checkbox.gitCommitMessage", "Enable Git commit message generation");
+                m.put("aiSettings.hint.globalPreferences", "These preferences are global and also affect sidebar configuration management, sessions, prompts, skills, MCP, and related features.");
+                m.put("aiSettings.section.completion", "Code Completion");
+                m.put("aiSettings.checkbox.autoCompletion", "Enable automatic completion");
+                m.put("aiSettings.label.completionProfile", "Completion model:");
+                m.put("aiSettings.option.noProfile", "No model configured");
+                m.put("aiSettings.label.autoLength", "Auto completion length:");
+                m.put("aiSettings.label.manualLength", "Manual completion length:");
+                m.put("aiSettings.label.manualShortcut", "Manual trigger shortcut:");
+                m.put("aiSettings.hint.shortcut", "Only one modifier key + one normal key is supported");
+                m.put("aiSettings.section.modelConfig", "Model Configuration");
+                m.put("aiSettings.button.modelConfig", "Model Configuration...");
+                m.put("aiSettings.placeholder.pressShortcut", "Press shortcut...");
+                m.put("aiSettings.length.singleLine", "Single line");
+                m.put("aiSettings.length.short", "Short");
+                m.put("aiSettings.length.medium", "Medium");
+                m.put("aiSettings.length.long", "Long");
+                m.put("aiSettings.validation.shortcut", "Manual completion shortcut must be one modifier key + one normal key, for example Ctrl + Space");
+                m.put("aiSettings.validation.storageCancelled", "Storage location switch cancelled");
+                m.put("aiSettings.table.name", "Name");
+                m.put("aiSettings.table.format", "Format");
+                m.put("aiSettings.table.model", "Model");
+                m.put("aiSettings.button.setCompletionProfile", "Use for Completion");
+                m.put("aiSettings.dialog.addProfile", "Add Model Configuration");
+                m.put("aiSettings.dialog.editProfile", "Edit Model Configuration");
+                m.put("aiSettings.label.profileName", "Name:");
+                m.put("aiSettings.label.protocolFormat", "Protocol format:");
+                m.put("aiSettings.label.model", "Model:");
+                m.put("aiSettings.label.timeoutSeconds", "Timeout seconds:");
+                m.put("aiSettings.label.customHeaders", "Custom Headers JSON:");
+                m.put("aiSettings.button.testConfig", "Test Configuration");
+                m.put("aiSettings.button.detectModels", "Detect Models");
+                m.put("aiSettings.validation.modelRequired", "Model name is required");
+                m.put("aiSettings.validation.baseUrlRequired", "Base URL is required");
+                m.put("aiSettings.validation.headersObject", "Headers must be a JSON object");
+                m.put("aiSettings.validation.headersInvalid", "Invalid Headers JSON: {0}");
+                m.put("aiSettings.status.invalidConfig", "Invalid configuration: {0}");
+                m.put("aiSettings.status.testing", "Testing configuration...");
+                m.put("aiSettings.status.detectingModels", "Detecting models...");
+                m.put("aiSettings.status.modelsDetected", "Detected {0} model(s) ({1} ms)");
+                m.put("aiSettings.status.failedClickDetails", "Failed, click Details");
+                m.put("aiSettings.dialog.modelCheckFailed", "Model Configuration Check Failed");
+                m.put("aiSettings.dialog.detectedModels", "Detected Models");
 
                 // ── Session Panel ──
                 m.put("session.empty.selectHint", "Select a session to view details");

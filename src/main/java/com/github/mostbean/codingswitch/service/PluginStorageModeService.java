@@ -23,9 +23,9 @@ public final class PluginStorageModeService {
         SHARED_TO_LOCAL
     }
 
-    public record DataSummary(int providerCount, int promptCount, int skillCount, int mcpCount) {
+    public record DataSummary(int providerCount, int promptCount, int skillCount, int mcpCount, int aiFeatureCount) {
         public int totalCount() {
-            return providerCount + promptCount + skillCount + mcpCount;
+            return providerCount + promptCount + skillCount + mcpCount + aiFeatureCount;
         }
 
         public boolean hasAnyData() {
@@ -48,18 +48,21 @@ public final class PluginStorageModeService {
         PromptService promptService = PromptService.getInstance();
         SkillService skillService = SkillService.getInstance();
         McpService mcpService = McpService.getInstance();
+        AiFeatureSettings aiFeatureSettings = AiFeatureSettings.getInstance();
 
         DataSummary localSummary = new DataSummary(
                 countProviders(providerService.snapshotLocalState()),
                 countPrompts(promptService.snapshotLocalState()),
                 countSkills(skillService.snapshotLocalState()),
-                countMcpServers(mcpService.snapshotLocalState()));
+                countMcpServers(mcpService.snapshotLocalState()),
+                countAiFeatures(aiFeatureSettings.snapshotLocalState()));
 
         DataSummary sharedSummary = new DataSummary(
                 countProviders(providerService.snapshotSharedState()),
                 countPrompts(promptService.snapshotSharedState()),
                 countSkills(skillService.snapshotSharedState()),
-                countMcpServers(mcpService.snapshotSharedState()));
+                countMcpServers(mcpService.snapshotSharedState()),
+                countAiFeatures(aiFeatureSettings.snapshotSharedState()));
 
         return new UserSharedInspection(sharedSummary.hasAnyData(), localSummary, sharedSummary);
     }
@@ -79,6 +82,7 @@ public final class PluginStorageModeService {
         PromptService promptService = PromptService.getInstance();
         SkillService skillService = SkillService.getInstance();
         McpService mcpService = McpService.getInstance();
+        AiFeatureSettings aiFeatureSettings = AiFeatureSettings.getInstance();
 
         if (targetMode == PluginSettings.DataStorageMode.USER_SHARED) {
             UserSharedInspection inspection = inspectUserSharedState();
@@ -97,6 +101,7 @@ public final class PluginStorageModeService {
                 promptService.writeSharedState(promptService.snapshotLocalState());
                 skillService.writeSharedState(skillService.snapshotLocalState());
                 mcpService.writeSharedState(mcpService.snapshotLocalState());
+                aiFeatureSettings.writeSharedState(aiFeatureSettings.snapshotLocalState());
             } else {
                 PluginSettings.State sharedSettings = settings.snapshotSharedState();
                 sharedSettings.storageMode = PluginSettings.DataStorageMode.IDE_LOCAL.name();
@@ -105,6 +110,7 @@ public final class PluginStorageModeService {
                 promptService.overwriteLocalState(promptService.snapshotSharedState());
                 skillService.overwriteLocalState(skillService.snapshotSharedState());
                 mcpService.overwriteLocalState(mcpService.snapshotSharedState());
+                aiFeatureSettings.overwriteLocalState(aiFeatureSettings.snapshotSharedState());
             }
         } else {
             PluginSettings.State settingsSnapshot = settings.snapshotCurrentState();
@@ -114,6 +120,7 @@ public final class PluginStorageModeService {
             promptService.overwriteLocalState(promptService.snapshotCurrentState());
             skillService.overwriteLocalState(skillService.snapshotCurrentState());
             mcpService.overwriteLocalState(mcpService.snapshotCurrentState());
+            aiFeatureSettings.overwriteLocalState(aiFeatureSettings.snapshotCurrentState());
         }
 
         settings.setLocalStorageMode(targetMode);
@@ -121,6 +128,7 @@ public final class PluginStorageModeService {
         promptService.notifyStateChanged();
         skillService.notifyStateChanged();
         mcpService.notifyStateChanged();
+        aiFeatureSettings.notifyStateChanged();
 
         return new SwitchResult(true, false, targetMode.name());
     }
@@ -143,6 +151,22 @@ public final class PluginStorageModeService {
     private static int countMcpServers(McpService.StateData state) {
         return parseListSize(state != null ? state.serversJson : "[]", new TypeToken<List<McpServer>>() {
         }.getType());
+    }
+
+    private static int countAiFeatures(AiFeatureSettings.State state) {
+        AiFeatureSettings.State normalized = AiFeatureSettings.normalize(AiFeatureSettings.copyState(state));
+        AiFeatureSettings.State empty = AiFeatureSettings.normalize(new AiFeatureSettings.State());
+        boolean configured = normalized.codeCompletionEnabled != empty.codeCompletionEnabled
+                || normalized.gitCommitMessageEnabled != empty.gitCommitMessageEnabled
+                || normalized.autoCompletionEnabled != empty.autoCompletionEnabled
+                || normalized.autoCompletionMaxTokens != empty.autoCompletionMaxTokens
+                || normalized.manualCompletionMaxTokens != empty.manualCompletionMaxTokens
+                || !java.util.Objects.equals(normalized.autoCompletionLengthLevel, empty.autoCompletionLengthLevel)
+                || !java.util.Objects.equals(normalized.manualCompletionLengthLevel, empty.manualCompletionLengthLevel)
+                || !java.util.Objects.equals(normalized.activeCompletionProfileId, empty.activeCompletionProfileId)
+                || !java.util.Objects.equals(normalized.manualCompletionShortcut, empty.manualCompletionShortcut)
+                || !java.util.Objects.equals(normalized.profiles, empty.profiles);
+        return configured ? 1 : 0;
     }
 
     private static int parseListSize(String rawJson, java.lang.reflect.Type type) {

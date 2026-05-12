@@ -62,6 +62,10 @@ public final class PluginDataStorage {
         return getUserSharedRootDir().resolve("mcp.json");
     }
 
+    public static Path getSharedAiFeaturesPath() {
+        return getUserSharedRootDir().resolve("ai-features.json");
+    }
+
     public static String readJsonText(Path path, String defaultValue) {
         try {
             if (!Files.exists(path)) {

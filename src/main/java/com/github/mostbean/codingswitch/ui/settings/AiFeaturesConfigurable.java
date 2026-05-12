@@ -5,16 +5,22 @@ import com.github.mostbean.codingswitch.model.AiModelProfile;
 import com.github.mostbean.codingswitch.model.AiCompletionLengthLevel;
 import com.github.mostbean.codingswitch.service.AiFeatureSettings;
 import com.github.mostbean.codingswitch.service.AiModelConnectionTestService;
+import com.github.mostbean.codingswitch.service.I18n;
+import com.github.mostbean.codingswitch.service.PluginDataStorage;
+import com.github.mostbean.codingswitch.service.PluginSettings;
+import com.github.mostbean.codingswitch.service.PluginStorageModeService;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.actionSystem.KeyboardShortcut;
 import com.intellij.openapi.actionSystem.Shortcut;
 import com.intellij.openapi.keymap.Keymap;
 import com.intellij.openapi.keymap.KeymapManager;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.options.SearchableConfigurable;
+import com.intellij.openapi.application.PathManager;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.ValidationInfo;
@@ -26,6 +32,7 @@ import com.intellij.util.ui.FormBuilder;
 import com.intellij.util.ui.JBUI;
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Rectangle;
@@ -33,6 +40,9 @@ import java.awt.Toolkit;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -43,7 +53,9 @@ import java.util.Set;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.Action;
 import javax.swing.DefaultComboBoxModel;
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
@@ -73,6 +85,8 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
     private JCheckBox codeCompletionEnabled;
     private JCheckBox gitCommitMessageEnabled;
+    private JComboBox<PluginSettings.Language> uiLanguageCombo;
+    private JComboBox<PluginSettings.DataStorageMode> storageModeCombo;
     private JCheckBox autoCompletionEnabled;
     private JComboBox<AiCompletionLengthLevel> autoCompletionLengthLevel;
     private JComboBox<AiCompletionLengthLevel> manualCompletionLengthLevel;
@@ -119,32 +133,88 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         content.add(buildProfileSection());
         content.add(Box.createVerticalStrut(12));
         content.add(buildCompletionSection());
+        content.add(Box.createVerticalStrut(12));
+        content.add(buildPreferenceSection());
         content.add(Box.createVerticalGlue());
         return content;
     }
 
     private JPanel buildFeatureSection() {
-        JPanel section = createSection("功能开关");
-        codeCompletionEnabled = new JCheckBox("启用代码补全功能");
-        gitCommitMessageEnabled = new JCheckBox("启用 Git 提交信息生成功能");
+        JPanel section = createSection(I18n.t("aiSettings.section.features"));
+        codeCompletionEnabled = new JCheckBox(I18n.t("aiSettings.checkbox.codeCompletion"));
+        gitCommitMessageEnabled = new JCheckBox(I18n.t("aiSettings.checkbox.gitCommitMessage"));
         section.add(checkBoxRow(codeCompletionEnabled));
         section.add(checkBoxRow(gitCommitMessageEnabled));
         return section;
     }
 
-    private JPanel buildCompletionSection() {
-        JPanel section = createSection("代码补全");
+    private JPanel buildPreferenceSection() {
+        JPanel section = createSection(I18n.t("settings.section.preferences"));
 
-        autoCompletionEnabled = new JCheckBox("启用自动触发补全");
+        JPanel languageRow = rowPanel();
+        languageRow.add(new JBLabel(I18n.t("settings.label.uiLanguage")));
+        uiLanguageCombo = new JComboBox<>(PluginSettings.Language.values());
+        uiLanguageCombo.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(
+                JList<?> list,
+                Object value,
+                int index,
+                boolean isSelected,
+                boolean cellHasFocus
+            ) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                if (value instanceof PluginSettings.Language language) {
+                    setText(language.getDisplayName(I18n.currentLanguage()));
+                }
+                return this;
+            }
+        });
+        languageRow.add(uiLanguageCombo);
+        section.add(languageRow);
+
+        JPanel storageRow = rowPanel();
+        storageRow.add(new JBLabel(I18n.t("settings.label.dataStorageMode")));
+        storageModeCombo = new JComboBox<>(PluginSettings.DataStorageMode.values());
+        storageModeCombo.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(
+                JList<?> list,
+                Object value,
+                int index,
+                boolean isSelected,
+                boolean cellHasFocus
+            ) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                if (value instanceof PluginSettings.DataStorageMode mode) {
+                    setText(mode.getDisplayName(I18n.currentLanguage()));
+                }
+                return this;
+            }
+        });
+        storageRow.add(storageModeCombo);
+        JButton openStorageDirButton = new JButton(I18n.t("settings.button.openStorageDirectory"));
+        openStorageDirButton.addActionListener(e ->
+            openStorageDirectory((PluginSettings.DataStorageMode) storageModeCombo.getSelectedItem())
+        );
+        storageRow.add(openStorageDirButton);
+        section.add(storageRow);
+        return section;
+    }
+
+    private JPanel buildCompletionSection() {
+        JPanel section = createSection(I18n.t("aiSettings.section.completion"));
+
+        autoCompletionEnabled = new JCheckBox(I18n.t("aiSettings.checkbox.autoCompletion"));
         section.add(checkBoxRow(autoCompletionEnabled));
 
         JPanel activeRow = rowPanel();
-        activeRow.add(new JBLabel("补全模型:"));
+        activeRow.add(new JBLabel(I18n.t("aiSettings.label.completionProfile")));
         activeProfileModel = new DefaultComboBoxModel<>();
         activeProfileCombo = new JComboBox<>(activeProfileModel);
         activeProfileCombo.setRenderer((JList<? extends AiModelProfile> list, AiModelProfile value, int index,
             boolean isSelected, boolean cellHasFocus) -> {
-            JLabel label = new JLabel(value == null ? "未配置模型" : activeProfileDisplayName(value));
+            JLabel label = new JLabel(value == null ? I18n.t("aiSettings.option.noProfile") : activeProfileDisplayName(value));
             label.setOpaque(true);
             label.setBackground(isSelected ? list.getSelectionBackground() : list.getBackground());
             label.setForeground(isSelected ? list.getSelectionForeground() : list.getForeground());
@@ -156,27 +226,29 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         section.add(activeRow);
 
         JPanel lengthRow = rowPanel();
-        lengthRow.add(new JBLabel("自动补全长度:"));
+        lengthRow.add(new JBLabel(I18n.t("aiSettings.label.autoLength")));
         autoCompletionLengthLevel = new JComboBox<>(AiCompletionLengthLevel.values());
+        configureLengthLevelCombo(autoCompletionLengthLevel);
         lengthRow.add(autoCompletionLengthLevel);
-        lengthRow.add(new JBLabel("手动补全长度:"));
+        lengthRow.add(new JBLabel(I18n.t("aiSettings.label.manualLength")));
         manualCompletionLengthLevel = new JComboBox<>(AiCompletionLengthLevel.values());
+        configureLengthLevelCombo(manualCompletionLengthLevel);
         lengthRow.add(manualCompletionLengthLevel);
         section.add(lengthRow);
 
         JPanel shortcutRow = rowPanel();
-        shortcutRow.add(new JBLabel("手动触发快捷键:"));
+        shortcutRow.add(new JBLabel(I18n.t("aiSettings.label.manualShortcut")));
         manualShortcutField = new JBTextField(displayShortcutText(AiFeatureSettings.DEFAULT_MANUAL_SHORTCUT), 18);
         manualShortcutField.setEditable(false);
         setShortcutPlaceholder("");
         shortcutRow.add(manualShortcutField);
-        JButton editShortcutButton = new JButton("修改");
+        JButton editShortcutButton = new JButton(I18n.t("common.button.edit"));
         editShortcutButton.addActionListener(e -> startShortcutCapture());
         shortcutRow.add(editShortcutButton);
-        JButton resetShortcutButton = new JButton("重置");
+        JButton resetShortcutButton = new JButton(I18n.t("common.button.reset"));
         resetShortcutButton.addActionListener(e -> resetManualShortcut());
         shortcutRow.add(resetShortcutButton);
-        JBLabel hint = new JBLabel("仅支持一个修饰键 + 一个普通键");
+        JBLabel hint = new JBLabel(I18n.t("aiSettings.hint.shortcut"));
         hint.setForeground(JBColor.GRAY);
         shortcutRow.add(hint);
         section.add(shortcutRow);
@@ -190,11 +262,39 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         return model.isBlank() ? name : name + " / " + model;
     }
 
+    private void configureLengthLevelCombo(JComboBox<AiCompletionLengthLevel> comboBox) {
+        comboBox.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(
+                JList<?> list,
+                Object value,
+                int index,
+                boolean isSelected,
+                boolean cellHasFocus
+            ) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                if (value instanceof AiCompletionLengthLevel level) {
+                    setText(lengthLevelDisplayName(level));
+                }
+                return this;
+            }
+        });
+    }
+
+    private String lengthLevelDisplayName(AiCompletionLengthLevel level) {
+        return switch (level) {
+            case SINGLE_LINE -> I18n.t("aiSettings.length.singleLine");
+            case SHORT -> I18n.t("aiSettings.length.short");
+            case MEDIUM -> I18n.t("aiSettings.length.medium");
+            case LONG -> I18n.t("aiSettings.length.long");
+        };
+    }
+
     private JPanel buildProfileSection() {
-        JPanel section = createSection("模型配置");
+        JPanel section = createSection(I18n.t("aiSettings.section.modelConfig"));
 
         JPanel row = rowPanel();
-        JButton configureButton = new JButton("模型配置...", AllIcons.Actions.Edit);
+        JButton configureButton = new JButton(I18n.t("aiSettings.button.modelConfig"), AllIcons.Actions.Edit);
         configureButton.addActionListener(e -> showProfileManagerDialog());
         row.add(configureButton);
         section.add(row);
@@ -209,7 +309,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         capturingShortcut = true;
         manualShortcutField.setText("");
         manualShortcutField.setForeground(UIManager.getColor("TextField.foreground"));
-        setShortcutPlaceholder("请按快捷键...");
+        setShortcutPlaceholder(I18n.t("aiSettings.placeholder.pressShortcut"));
         manualShortcutField.requestFocusInWindow();
         shortcutCaptureListener = new KeyAdapter() {
             @Override
@@ -469,7 +569,12 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     public boolean isModified() {
         AiFeatureSettings.State current = AiFeatureSettings.getInstance().snapshot();
         AiFeatureSettings.State next = collectState();
-        return !statesEqual(current, next) || !editedApiKeys.isEmpty() || !removedProfileIds.isEmpty();
+        PluginSettings settings = PluginSettings.getInstance();
+        return !statesEqual(current, next)
+            || selectedLanguage() != settings.getLanguage()
+            || selectedStorageMode() != settings.getStorageMode()
+            || !editedApiKeys.isEmpty()
+            || !removedProfileIds.isEmpty();
     }
 
     @Override
@@ -480,8 +585,9 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         }
         showShortcutValue(shortcut);
         if (!isTwoKeyShortcut(shortcut)) {
-            throw new ConfigurationException("手动补全快捷键必须是一个修饰键 + 一个普通键，例如 Ctrl + Space");
+            throw new ConfigurationException(I18n.t("aiSettings.validation.shortcut"));
         }
+        applyGlobalPreferences();
         AiFeatureSettings.State next = collectState();
         AiFeatureSettings.getInstance().update(next);
         for (String profileId : removedProfileIds) {
@@ -497,6 +603,10 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
     @Override
     public void reset() {
+        PluginSettings settings = PluginSettings.getInstance();
+        uiLanguageCombo.setSelectedItem(settings.getLanguage());
+        storageModeCombo.setSelectedItem(settings.getStorageMode());
+
         AiFeatureSettings.State state = AiFeatureSettings.getInstance().snapshot();
         codeCompletionEnabled.setSelected(state.codeCompletionEnabled);
         gitCommitMessageEnabled.setSelected(state.gitCommitMessageEnabled);
@@ -528,6 +638,177 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         } catch (Exception ignored) {
             return fallback;
         }
+    }
+
+    private void applyGlobalPreferences() throws ConfigurationException {
+        PluginSettings.DataStorageMode currentStorageMode = PluginSettings.getInstance().getStorageMode();
+        PluginSettings.DataStorageMode targetStorageMode = selectedStorageMode();
+        if (targetStorageMode != currentStorageMode) {
+            switchStorageMode(currentStorageMode, targetStorageMode);
+        }
+
+        PluginSettings.Language currentLanguage = PluginSettings.getInstance().getLanguage();
+        PluginSettings.Language targetLanguage = selectedLanguage();
+        if (targetLanguage != currentLanguage) {
+            PluginSettings.getInstance().setLanguage(targetLanguage);
+            int result = Messages.showYesNoDialog(
+                I18n.t(
+                    "settings.dialog.languageChanged.message",
+                    targetLanguage.getDisplayName(I18n.currentLanguage())
+                ),
+                I18n.t("settings.dialog.languageChanged.title"),
+                I18n.t("settings.dialog.languageChanged.restartNow"),
+                I18n.t("settings.dialog.languageChanged.restartLater"),
+                Messages.getQuestionIcon()
+            );
+            if (result == Messages.YES) {
+                restartIdeAfterDialogs();
+            }
+        }
+    }
+
+    private void restartIdeAfterDialogs() {
+        ApplicationManager.getApplication().invokeLater(
+            () -> ApplicationManager.getApplication().restart(),
+            ModalityState.NON_MODAL
+        );
+    }
+
+    private void switchStorageMode(
+        PluginSettings.DataStorageMode current,
+        PluginSettings.DataStorageMode selected
+    ) throws ConfigurationException {
+        PluginStorageModeService.SharedDataStrategy strategy = null;
+        if (selected == PluginSettings.DataStorageMode.USER_SHARED) {
+            PluginStorageModeService.UserSharedInspection inspection =
+                PluginStorageModeService.getInstance().inspectUserSharedState();
+            if (inspection.hasSharedData()) {
+                StorageConflictDialog dialog = new StorageConflictDialog(inspection);
+                dialog.show();
+                strategy = dialog.getSelectedStrategy();
+                if (strategy == null) {
+                    storageModeCombo.setSelectedItem(current);
+                    throw new ConfigurationException(I18n.t("aiSettings.validation.storageCancelled"));
+                }
+
+                int detailedConfirm = Messages.showYesNoDialog(
+                    buildStorageOverwriteConfirmMessage(strategy, inspection),
+                    I18n.t("settings.dialog.storageMode.confirmTitle"),
+                    I18n.t("settings.dialog.storageMode.confirmProceed"),
+                    I18n.t("settings.dialog.storageMode.confirmNo"),
+                    Messages.getQuestionIcon()
+                );
+                if (detailedConfirm != Messages.YES) {
+                    storageModeCombo.setSelectedItem(current);
+                    throw new ConfigurationException(I18n.t("aiSettings.validation.storageCancelled"));
+                }
+            } else {
+                int confirm = Messages.showYesNoDialog(
+                    I18n.t(
+                        "settings.dialog.storageMode.confirm",
+                        selected.getDisplayName(I18n.currentLanguage())
+                    ),
+                    I18n.t("settings.dialog.storageMode.confirmTitle"),
+                    I18n.t("settings.dialog.storageMode.confirmYes"),
+                    I18n.t("settings.dialog.storageMode.confirmNo"),
+                    Messages.getQuestionIcon()
+                );
+                if (confirm != Messages.YES) {
+                    storageModeCombo.setSelectedItem(current);
+                    throw new ConfigurationException(I18n.t("aiSettings.validation.storageCancelled"));
+                }
+            }
+        } else {
+            int confirm = Messages.showYesNoDialog(
+                I18n.t(
+                    "settings.dialog.storageMode.confirmBackToLocal",
+                    selected.getDisplayName(I18n.currentLanguage())
+                ),
+                I18n.t("settings.dialog.storageMode.confirmTitle"),
+                I18n.t("settings.dialog.storageMode.confirmYes"),
+                I18n.t("settings.dialog.storageMode.confirmNo"),
+                Messages.getQuestionIcon()
+            );
+            if (confirm != Messages.YES) {
+                storageModeCombo.setSelectedItem(current);
+                throw new ConfigurationException(I18n.t("aiSettings.validation.storageCancelled"));
+            }
+        }
+
+        PluginStorageModeService.SwitchResult result =
+            PluginStorageModeService.getInstance().switchMode(selected, strategy);
+        if (!result.success()) {
+            storageModeCombo.setSelectedItem(current);
+            throw new ConfigurationException(I18n.t("settings.dialog.storageMode.failed"));
+        }
+        Messages.showInfoMessage(
+            I18n.t(
+                "settings.dialog.storageMode.applied",
+                selected.getDisplayName(I18n.currentLanguage())
+            ),
+            I18n.t("settings.dialog.storageMode.appliedTitle")
+        );
+    }
+
+    private PluginSettings.Language selectedLanguage() {
+        Object selected = uiLanguageCombo == null ? null : uiLanguageCombo.getSelectedItem();
+        return selected instanceof PluginSettings.Language language
+            ? language
+            : PluginSettings.getInstance().getLanguage();
+    }
+
+    private PluginSettings.DataStorageMode selectedStorageMode() {
+        Object selected = storageModeCombo == null ? null : storageModeCombo.getSelectedItem();
+        return selected instanceof PluginSettings.DataStorageMode mode
+            ? mode
+            : PluginSettings.getInstance().getStorageMode();
+    }
+
+    private void openStorageDirectory(PluginSettings.DataStorageMode mode) {
+        PluginSettings.DataStorageMode targetMode =
+            mode != null ? mode : PluginSettings.getInstance().getStorageMode();
+        Path directory = targetMode == PluginSettings.DataStorageMode.USER_SHARED
+            ? PluginDataStorage.getUserSharedRootDir()
+            : Path.of(PathManager.getOptionsPath());
+
+        try {
+            Files.createDirectories(directory);
+            if (!Desktop.isDesktopSupported()) {
+                throw new IOException("desktop-not-supported");
+            }
+            Desktop.getDesktop().open(directory.toFile());
+        } catch (Exception ex) {
+            Messages.showErrorDialog(
+                I18n.t("settings.dialog.storageDirectory.openFailed", directory.toString()),
+                I18n.t("settings.section.storageLocation")
+            );
+        }
+    }
+
+    private String buildStorageOverwriteConfirmMessage(
+        PluginStorageModeService.SharedDataStrategy strategy,
+        PluginStorageModeService.UserSharedInspection inspection
+    ) {
+        return switch (strategy) {
+            case LOCAL_TO_SHARED -> I18n.t(
+                "settings.dialog.storageMode.confirmLocalToShared",
+                inspection.localSummary().totalCount(),
+                inspection.localSummary().providerCount(),
+                inspection.localSummary().promptCount(),
+                inspection.localSummary().skillCount(),
+                inspection.localSummary().mcpCount(),
+                inspection.localSummary().aiFeatureCount()
+            );
+            case SHARED_TO_LOCAL -> I18n.t(
+                "settings.dialog.storageMode.confirmSharedToLocal",
+                inspection.sharedSummary().totalCount(),
+                inspection.sharedSummary().providerCount(),
+                inspection.sharedSummary().promptCount(),
+                inspection.sharedSummary().skillCount(),
+                inspection.sharedSummary().mcpCount(),
+                inspection.sharedSummary().aiFeatureCount()
+            );
+        };
     }
 
     @Override
@@ -753,7 +1034,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
         private ProfileManagerDialog() {
             super(true);
-            setTitle("模型配置");
+            setTitle(I18n.t("aiSettings.section.modelConfig"));
             init();
         }
 
@@ -762,7 +1043,12 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             JPanel panel = new JPanel(new BorderLayout(0, 8));
             panel.setBorder(JBUI.Borders.empty(8));
 
-            String[] columns = {"名称", "格式", "Base URL", "模型"};
+            String[] columns = {
+                I18n.t("aiSettings.table.name"),
+                I18n.t("aiSettings.table.format"),
+                "Base URL",
+                I18n.t("aiSettings.table.model")
+            };
             profileTableModel = new DefaultTableModel(columns, 0) {
                 @Override
                 public boolean isCellEditable(int row, int column) {
@@ -782,19 +1068,19 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             panel.add(tablePane, BorderLayout.CENTER);
 
             JPanel buttonRow = rowPanel();
-            JButton addButton = new JButton("新增", AllIcons.General.Add);
+            JButton addButton = new JButton(I18n.t("common.button.add"), AllIcons.General.Add);
             addButton.addActionListener(e -> addProfile());
             buttonRow.add(addButton);
 
-            JButton editButton = new JButton("编辑", AllIcons.Actions.Edit);
+            JButton editButton = new JButton(I18n.t("common.button.edit"), AllIcons.Actions.Edit);
             editButton.addActionListener(e -> editSelectedProfile());
             buttonRow.add(editButton);
 
-            JButton removeButton = new JButton("删除", AllIcons.General.Remove);
+            JButton removeButton = new JButton(I18n.t("common.button.delete"), AllIcons.General.Remove);
             removeButton.addActionListener(e -> removeSelectedProfile());
             buttonRow.add(removeButton);
 
-            JButton setActiveButton = new JButton("设为补全模型");
+            JButton setActiveButton = new JButton(I18n.t("aiSettings.button.setCompletionProfile"));
             setActiveButton.addActionListener(e -> setSelectedProfileActive());
             buttonRow.add(setActiveButton);
             panel.add(buttonRow, BorderLayout.SOUTH);
@@ -853,7 +1139,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             super(true);
             this.original = profile == null ? new AiModelProfile() : profile.copy();
             this.existingApiKey = existingApiKey == null ? "" : existingApiKey;
-            setTitle(profile == null ? "新增模型配置" : "编辑模型配置");
+            setTitle(profile == null ? I18n.t("aiSettings.dialog.addProfile") : I18n.t("aiSettings.dialog.editProfile"));
             init();
         }
 
@@ -885,20 +1171,20 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             });
 
             FormBuilder form = FormBuilder.createFormBuilder()
-                .addLabeledComponent("名称:", nameField)
-                .addLabeledComponent("协议格式:", formatCombo)
+                .addLabeledComponent(I18n.t("aiSettings.label.profileName"), nameField)
+                .addLabeledComponent(I18n.t("aiSettings.label.protocolFormat"), formatCombo)
                 .addLabeledComponent("Base URL:", baseUrlField)
-                .addLabeledComponent("模型:", modelField)
+                .addLabeledComponent(I18n.t("aiSettings.label.model"), modelField)
                 .addLabeledComponent("API Key:", apiKeyField)
-                .addLabeledComponent("超时秒数:", timeoutSpinner)
-                .addLabeledComponent("自定义 Headers JSON:", new JBScrollPane(headersArea));
+                .addLabeledComponent(I18n.t("aiSettings.label.timeoutSeconds"), timeoutSpinner)
+                .addLabeledComponent(I18n.t("aiSettings.label.customHeaders"), new JBScrollPane(headersArea));
 
             JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-            testButton = new JButton("测试配置");
+            testButton = new JButton(I18n.t("aiSettings.button.testConfig"));
             testButton.addActionListener(e -> runConnectionTest());
             buttonRow.add(testButton);
 
-            detectModelsButton = new JButton("检测模型");
+            detectModelsButton = new JButton(I18n.t("aiSettings.button.detectModels"));
             detectModelsButton.addActionListener(e -> detectModels());
             buttonRow.add(detectModelsButton);
 
@@ -907,7 +1193,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             testStatusLabel.setPreferredSize(new Dimension(JBUI.scale(220), testStatusLabel.getPreferredSize().height));
             buttonRow.add(testStatusLabel);
 
-            testDetailButton = new JButton("详情");
+            testDetailButton = new JButton(I18n.t("common.button.details"));
             testDetailButton.setVisible(false);
             testDetailButton.addActionListener(e -> showTestDetail());
             buttonRow.add(testDetailButton);
@@ -923,19 +1209,19 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         @Override
         protected @Nullable ValidationInfo doValidate() {
             if (modelField.getText().trim().isBlank()) {
-                return new ValidationInfo("请填写模型名称", modelField);
+                return new ValidationInfo(I18n.t("aiSettings.validation.modelRequired"), modelField);
             }
             if (baseUrlField.getText().trim().isBlank()) {
-                return new ValidationInfo("请填写 Base URL", baseUrlField);
+                return new ValidationInfo(I18n.t("aiSettings.validation.baseUrlRequired"), baseUrlField);
             }
             String headers = headersArea.getText().trim();
             if (!headers.isBlank()) {
                 try {
                     if (!JsonParser.parseString(headers).isJsonObject()) {
-                        return new ValidationInfo("Headers 必须是 JSON 对象", headersArea);
+                        return new ValidationInfo(I18n.t("aiSettings.validation.headersObject"), headersArea);
                     }
                 } catch (Exception ex) {
-                    return new ValidationInfo("Headers JSON 格式不正确: " + ex.getMessage(), headersArea);
+                    return new ValidationInfo(I18n.t("aiSettings.validation.headersInvalid", ex.getMessage()), headersArea);
                 }
             }
             return null;
@@ -970,12 +1256,12 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             try {
                 profile = getProfile();
             } catch (Exception ex) {
-                setTestStatus("配置格式错误: " + ex.getMessage(), false);
+                setTestStatus(I18n.t("aiSettings.status.invalidConfig", ex.getMessage()), false);
                 return;
             }
             String apiKey = getApiKey();
             setTestingButtonsEnabled(false);
-            setTestStatus("正在测试配置...", true);
+            setTestStatus(I18n.t("aiSettings.status.testing"), true);
 
             ApplicationManager.getApplication().executeOnPooledThread(() -> {
                 AiModelConnectionTestService.TestResult result =
@@ -992,12 +1278,12 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             try {
                 profile = getProfile();
             } catch (Exception ex) {
-                setTestStatus("配置格式错误: " + ex.getMessage(), false);
+                setTestStatus(I18n.t("aiSettings.status.invalidConfig", ex.getMessage()), false);
                 return;
             }
             String apiKey = getApiKey();
             setTestingButtonsEnabled(false);
-            setTestStatus("正在检测模型...", true);
+            setTestStatus(I18n.t("aiSettings.status.detectingModels"), true);
 
             ApplicationManager.getApplication().executeOnPooledThread(() -> {
                 AiModelConnectionTestService.ModelListResult result =
@@ -1008,7 +1294,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
                         setTestStatus(result.message() + " (" + result.durationMs() + " ms)", false);
                         return;
                     }
-                    setTestStatus("检测到 " + result.models().size() + " 个模型 (" + result.durationMs() + " ms)", true);
+                    setTestStatus(I18n.t("aiSettings.status.modelsDetected", result.models().size(), result.durationMs()), true);
                     ModelSelectionDialog dialog = new ModelSelectionDialog(result.models());
                     if (dialog.showAndGet()) {
                         modelField.setText(dialog.getSelectedModel());
@@ -1038,7 +1324,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             if (success) {
                 return truncateStatus(message);
             }
-            return "失败，点击详情查看";
+            return I18n.t("aiSettings.status.failedClickDetails");
         }
 
         private String truncateStatus(String message) {
@@ -1050,7 +1336,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             if (latestTestDetail == null || latestTestDetail.isBlank()) {
                 return;
             }
-            Messages.showErrorDialog(latestTestDetail, "模型配置检测失败");
+            Messages.showErrorDialog(latestTestDetail, I18n.t("aiSettings.dialog.modelCheckFailed"));
         }
     }
 
@@ -1062,7 +1348,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         private ModelSelectionDialog(List<String> models) {
             super(true);
             this.models = models;
-            setTitle("检测到的模型");
+            setTitle(I18n.t("aiSettings.dialog.detectedModels"));
             init();
         }
 
@@ -1081,6 +1367,102 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         private String getSelectedModel() {
             String selected = modelList.getSelectedValue();
             return selected == null ? "" : selected;
+        }
+    }
+
+    private static final class StorageConflictDialog extends DialogWrapper {
+
+        private final PluginStorageModeService.UserSharedInspection inspection;
+        private PluginStorageModeService.SharedDataStrategy selectedStrategy;
+        private JComponent preferredFocus;
+
+        private StorageConflictDialog(PluginStorageModeService.UserSharedInspection inspection) {
+            super(true);
+            this.inspection = inspection;
+            setTitle(I18n.t("settings.dialog.storageMode.detectTitle"));
+            setResizable(false);
+            init();
+        }
+
+        @Override
+        protected @Nullable JComponent createCenterPanel() {
+            JPanel panel = new JPanel(new BorderLayout(0, 12));
+            panel.setBorder(JBUI.Borders.empty(8, 4));
+
+            JTextArea textArea = new JTextArea(
+                I18n.t(
+                    "settings.dialog.storageMode.conflict",
+                    inspection.localSummary().totalCount(),
+                    inspection.sharedSummary().totalCount(),
+                    inspection.localSummary().providerCount(),
+                    inspection.localSummary().promptCount(),
+                    inspection.localSummary().skillCount(),
+                    inspection.localSummary().mcpCount(),
+                    inspection.sharedSummary().providerCount(),
+                    inspection.sharedSummary().promptCount(),
+                    inspection.sharedSummary().skillCount(),
+                    inspection.sharedSummary().mcpCount(),
+                    inspection.localSummary().aiFeatureCount(),
+                    inspection.sharedSummary().aiFeatureCount()
+                )
+            );
+            textArea.setEditable(false);
+            textArea.setLineWrap(true);
+            textArea.setWrapStyleWord(true);
+            textArea.setOpaque(false);
+            textArea.setBorder(JBUI.Borders.empty());
+            textArea.setFocusable(false);
+
+            JBScrollPane scrollPane = new JBScrollPane(textArea);
+            scrollPane.setBorder(JBUI.Borders.empty());
+            scrollPane.setPreferredSize(new Dimension(JBUI.scale(420), JBUI.scale(170)));
+            preferredFocus = scrollPane;
+            panel.add(scrollPane, BorderLayout.CENTER);
+            return panel;
+        }
+
+        @Override
+        protected @Nullable JComponent createSouthPanel() {
+            JPanel panel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+            panel.setBorder(JBUI.Borders.empty(8, 0, 0, 0));
+            panel.add(createChoiceButton(
+                I18n.t("settings.dialog.storageMode.option.localToShared"),
+                PluginStorageModeService.SharedDataStrategy.LOCAL_TO_SHARED
+            ));
+            panel.add(createChoiceButton(
+                I18n.t("settings.dialog.storageMode.option.sharedToLocal"),
+                PluginStorageModeService.SharedDataStrategy.SHARED_TO_LOCAL
+            ));
+
+            JButton cancelButton = new JButton(I18n.t("settings.dialog.storageMode.confirmNo"));
+            cancelButton.setDefaultCapable(false);
+            cancelButton.addActionListener(e -> doCancelAction());
+            panel.add(cancelButton);
+            return panel;
+        }
+
+        private JButton createChoiceButton(String text, PluginStorageModeService.SharedDataStrategy strategy) {
+            JButton button = new JButton(text);
+            button.setDefaultCapable(false);
+            button.addActionListener(e -> {
+                selectedStrategy = strategy;
+                close(OK_EXIT_CODE);
+            });
+            return button;
+        }
+
+        @Override
+        public @Nullable JComponent getPreferredFocusedComponent() {
+            return preferredFocus;
+        }
+
+        @Override
+        protected Action[] createActions() {
+            return new Action[0];
+        }
+
+        private PluginStorageModeService.SharedDataStrategy getSelectedStrategy() {
+            return selectedStrategy;
         }
     }
 }
