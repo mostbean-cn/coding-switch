@@ -596,6 +596,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         for (Map.Entry<String, String> entry : editedApiKeys.entrySet()) {
             AiFeatureSettings.getInstance().setApiKey(entry.getKey(), entry.getValue());
         }
+        AiFeatureSettings.getInstance().backfillInlineApiKeysFromLegacyPasswordSafe(next);
         applyShortcut(shortcut);
         removedProfileIds.clear();
         editedApiKeys.clear();
@@ -1233,6 +1234,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             profile.setFormat((AiModelFormat) formatCombo.getSelectedItem());
             profile.setBaseUrl(baseUrlField.getText());
             profile.setModel(modelField.getText());
+            profile.setApiKey(getApiKey());
             profile.setTimeoutSeconds((Integer) timeoutSpinner.getValue());
             profile.setHeadersJson(normalizeHeaders(headersArea.getText()));
             return profile;

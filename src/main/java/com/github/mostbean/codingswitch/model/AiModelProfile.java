@@ -13,6 +13,7 @@ public class AiModelProfile {
     private AiModelFormat format;
     private String baseUrl;
     private String model;
+    private String apiKey;
     private int timeoutSeconds;
     private String headersJson;
 
@@ -22,6 +23,7 @@ public class AiModelProfile {
         this.format = AiModelFormat.OPENAI_RESPONSES;
         this.baseUrl = this.format.getDefaultBaseUrl();
         this.model = "";
+        this.apiKey = "";
         this.timeoutSeconds = 30;
         this.headersJson = "";
     }
@@ -33,6 +35,7 @@ public class AiModelProfile {
         copy.format = this.format;
         copy.baseUrl = this.baseUrl;
         copy.model = this.model;
+        copy.apiKey = this.apiKey;
         copy.timeoutSeconds = this.timeoutSeconds;
         copy.headersJson = this.headersJson;
         return copy;
@@ -79,6 +82,18 @@ public class AiModelProfile {
         this.model = model == null ? "" : model.trim();
     }
 
+    public String getApiKey() {
+        return apiKey == null ? "" : apiKey.trim();
+    }
+
+    public boolean hasApiKeySetting() {
+        return apiKey != null;
+    }
+
+    public void setApiKey(String apiKey) {
+        this.apiKey = apiKey == null ? "" : apiKey.trim();
+    }
+
     public int getTimeoutSeconds() {
         return timeoutSeconds <= 0 ? 30 : timeoutSeconds;
     }
@@ -114,6 +129,7 @@ public class AiModelProfile {
             && getFormat() == that.getFormat()
             && Objects.equals(getBaseUrl(), that.getBaseUrl())
             && Objects.equals(getModel(), that.getModel())
+            && Objects.equals(getApiKey(), that.getApiKey())
             && Objects.equals(getHeadersJson(), that.getHeadersJson());
     }
 
@@ -125,6 +141,7 @@ public class AiModelProfile {
             getFormat(),
             getBaseUrl(),
             getModel(),
+            getApiKey(),
             getTimeoutSeconds(),
             getHeadersJson()
         );

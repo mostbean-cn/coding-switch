@@ -6,7 +6,6 @@ import com.github.mostbean.codingswitch.model.AiModelFormat;
 import com.github.mostbean.codingswitch.model.AiModelProfile;
 import com.intellij.credentialStore.CredentialAttributes;
 import com.intellij.credentialStore.CredentialAttributesKt;
-import com.intellij.credentialStore.Credentials;
 import com.intellij.ide.passwordSafe.PasswordSafe;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.PersistentStateComponent;
@@ -104,25 +103,41 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
         if (profileId == null || profileId.isBlank()) {
             return "";
         }
-        String value = PasswordSafe.getInstance().getPassword(createCredentialAttributes(profileId));
-        return value == null ? "" : value;
+        for (AiModelProfile profile : getActiveState().profiles) {
+            if (Objects.equals(profileId, profile.getId())) {
+                if (profile.hasApiKeySetting()) {
+                    return profile.getApiKey();
+                }
+                String legacyApiKey = getPasswordSafeApiKey(profileId);
+                return legacyApiKey == null ? "" : legacyApiKey.trim();
+            }
+        }
+        String legacyApiKey = getPasswordSafeApiKey(profileId);
+        return legacyApiKey == null ? "" : legacyApiKey.trim();
     }
 
     public void setApiKey(String profileId, String apiKey) {
         if (profileId == null || profileId.isBlank() || apiKey == null) {
             return;
         }
-        PasswordSafe.getInstance().set(
-            createCredentialAttributes(profileId),
-            apiKey.isBlank() ? null : new Credentials("api-key", apiKey)
-        );
+        updateProfileApiKey(profileId, apiKey);
+        clearPasswordSafeApiKey(profileId);
+    }
+
+    private String getPasswordSafeApiKey(String profileId) {
+        return PasswordSafe.getInstance().getPassword(createCredentialAttributes(profileId));
+    }
+
+    private void clearPasswordSafeApiKey(String profileId) {
+        PasswordSafe.getInstance().set(createCredentialAttributes(profileId), null);
     }
 
     public void clearApiKey(String profileId) {
         if (profileId == null || profileId.isBlank()) {
             return;
         }
-        PasswordSafe.getInstance().set(createCredentialAttributes(profileId), null);
+        updateProfileApiKey(profileId, "");
+        clearPasswordSafeApiKey(profileId);
     }
 
     private CredentialAttributes createCredentialAttributes(String profileId) {
@@ -132,11 +147,11 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
     }
 
     public State snapshotCurrentState() {
-        return copyState(getActiveState());
+        return withLegacyApiKeys(copyState(getActiveState()));
     }
 
     public State snapshotLocalState() {
-        return copyState(state);
+        return withLegacyApiKeys(copyState(state));
     }
 
     public State snapshotSharedState() {
@@ -153,6 +168,43 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
 
     public void notifyStateChanged() {
         // 当前 IDE 设置页按需读取快照，无需额外通知。
+    }
+
+    public void backfillInlineApiKeysFromLegacyPasswordSafe(State targetState) {
+        if (PluginSettings.getInstance().getStorageMode() != PluginSettings.DataStorageMode.USER_SHARED) {
+            return;
+        }
+        State stateWithApiKeys = normalize(copyState(targetState));
+        boolean changed = false;
+        for (AiModelProfile profile : stateWithApiKeys.profiles) {
+            String profileId = profile.getId();
+            if (profileId == null || profileId.isBlank() || profile.hasApiKeySetting()) {
+                continue;
+            }
+            String localApiKey = getPasswordSafeApiKey(profileId);
+            if (localApiKey != null && !localApiKey.isBlank()) {
+                profile.setApiKey(localApiKey);
+                changed = true;
+            }
+        }
+        if (changed) {
+            writeSharedState(stateWithApiKeys);
+        }
+    }
+
+    private void updateProfileApiKey(String profileId, String apiKey) {
+        State next = copyState(getActiveState());
+        boolean changed = false;
+        for (AiModelProfile profile : next.profiles) {
+            if (Objects.equals(profileId, profile.getId())) {
+                profile.setApiKey(apiKey);
+                changed = true;
+                break;
+            }
+        }
+        if (changed) {
+            saveActiveState(next);
+        }
     }
 
     private State getActiveState() {
@@ -177,6 +229,20 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
             State.class,
             normalize(copyState(defaultState))
         ));
+    }
+
+    private State withLegacyApiKeys(State source) {
+        State next = normalize(copyState(source));
+        for (AiModelProfile profile : next.profiles) {
+            if (profile.hasApiKeySetting()) {
+                continue;
+            }
+            String legacyApiKey = getPasswordSafeApiKey(profile.getId());
+            if (legacyApiKey != null && !legacyApiKey.isBlank()) {
+                profile.setApiKey(legacyApiKey);
+            }
+        }
+        return next;
     }
 
     public static State copyState(State source) {
