@@ -1,5 +1,6 @@
 package com.github.mostbean.codingswitch.service;
 
+import com.intellij.ide.DataManager;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.actionSystem.IdeActions;
@@ -14,6 +15,9 @@ import com.intellij.openapi.keymap.KeymapManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.startup.StartupActivity;
 import javax.swing.KeyStroke;
+import java.awt.Component;
+import java.awt.KeyboardFocusManager;
+import java.awt.event.KeyEvent;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -29,11 +33,47 @@ public class AiInlineCompletionStartupActivity implements StartupActivity.DumbAw
         }
         EditorActionManager actionManager = EditorActionManager.getInstance();
         EditorActionHandler originalTabHandler = actionManager.getActionHandler(IdeActions.ACTION_EDITOR_TAB);
+        EditorActionHandler originalEnterHandler = actionManager.getActionHandler(IdeActions.ACTION_EDITOR_ENTER);
         actionManager.setActionHandler(
             IdeActions.ACTION_EDITOR_TAB,
             new AcceptInlineCompletionTabHandler(originalTabHandler)
         );
+        actionManager.setActionHandler(
+            IdeActions.ACTION_EDITOR_ENTER,
+            new ScheduleInlineCompletionEnterHandler(originalEnterHandler)
+        );
+        installAcceptLineKeyDispatcher();
         syncManualCompletionShortcut();
+    }
+
+    private void installAcceptLineKeyDispatcher() {
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(event -> {
+            Component component = event.getComponent();
+            if (!isAcceptLineKey(event) || component == null) {
+                return false;
+            }
+            DataContext dataContext = DataManager.getInstance().getDataContext(component);
+            Project project = CommonDataKeys.PROJECT.getData(dataContext);
+            Editor editor = CommonDataKeys.EDITOR.getData(dataContext);
+            if (project == null || editor == null || !AiInlineCompletionService.getInstance().hasActiveCompletion(editor)) {
+                return false;
+            }
+            return AiInlineCompletionService.getInstance().acceptLine(project, editor);
+        });
+    }
+
+    private boolean isAcceptLineKey(KeyEvent event) {
+        return event.getID() == KeyEvent.KEY_PRESSED
+            && event.getKeyCode() == KeyEvent.VK_DOWN
+            && event.isControlDown()
+            && !event.isAltDown()
+            && !event.isShiftDown()
+            && !event.isMetaDown();
+    }
+
+    private static boolean shouldScheduleAutoCompletion() {
+        AiFeatureSettings settings = AiFeatureSettings.getInstance();
+        return settings.isCodeCompletionEnabled() && settings.isAutoCompletionEnabled();
     }
 
     private void syncManualCompletionShortcut() {
@@ -104,6 +144,31 @@ public class AiInlineCompletionStartupActivity implements StartupActivity.DumbAw
         protected boolean isEnabledForCaret(@NotNull Editor editor, @NotNull Caret caret, DataContext dataContext) {
             return AiInlineCompletionService.getInstance().hasActiveCompletion(editor)
                 || (delegate != null && delegate.isEnabled(editor, caret, dataContext));
+        }
+    }
+
+    private static final class ScheduleInlineCompletionEnterHandler extends EditorActionHandler {
+        private final EditorActionHandler delegate;
+
+        private ScheduleInlineCompletionEnterHandler(EditorActionHandler delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        protected void doExecute(@NotNull Editor editor, @Nullable Caret caret, DataContext dataContext) {
+            if (delegate != null) {
+                delegate.execute(editor, caret, dataContext);
+            }
+            Project project = CommonDataKeys.PROJECT.getData(dataContext);
+            if (project != null && shouldScheduleAutoCompletion()) {
+                AiInlineCompletionService.getInstance().hide(editor);
+                AiInlineCompletionService.getInstance().scheduleAuto(project, editor);
+            }
+        }
+
+        @Override
+        protected boolean isEnabledForCaret(@NotNull Editor editor, @NotNull Caret caret, DataContext dataContext) {
+            return delegate == null || delegate.isEnabled(editor, caret, dataContext);
         }
     }
 }

@@ -77,6 +77,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     private JComboBox<AiCompletionLengthLevel> autoCompletionLengthLevel;
     private JComboBox<AiCompletionLengthLevel> manualCompletionLengthLevel;
     private JTextField manualShortcutField;
+    private KeyAdapter shortcutCaptureListener;
     private String lastManualShortcut = AiFeatureSettings.DEFAULT_MANUAL_SHORTCUT;
     private boolean capturingShortcut = false;
     private JComboBox<AiModelProfile> activeProfileCombo;
@@ -167,10 +168,14 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         shortcutRow.add(new JBLabel("手动触发快捷键:"));
         manualShortcutField = new JBTextField(displayShortcutText(AiFeatureSettings.DEFAULT_MANUAL_SHORTCUT), 18);
         manualShortcutField.setEditable(false);
+        setShortcutPlaceholder("");
         shortcutRow.add(manualShortcutField);
         JButton editShortcutButton = new JButton("修改");
         editShortcutButton.addActionListener(e -> startShortcutCapture());
         shortcutRow.add(editShortcutButton);
+        JButton resetShortcutButton = new JButton("重置");
+        resetShortcutButton.addActionListener(e -> resetManualShortcut());
+        shortcutRow.add(resetShortcutButton);
         JBLabel hint = new JBLabel("仅支持一个修饰键 + 一个普通键");
         hint.setForeground(JBColor.GRAY);
         shortcutRow.add(hint);
@@ -197,17 +202,16 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     }
 
     private void startShortcutCapture() {
+        removeShortcutCaptureListener();
         lastManualShortcut = normalizeShortcutText(manualShortcutField.getText()).isBlank()
             ? AiFeatureSettings.DEFAULT_MANUAL_SHORTCUT
             : normalizeShortcutText(manualShortcutField.getText());
         capturingShortcut = true;
-        manualShortcutField.setText("请按快捷键...");
-        manualShortcutField.setForeground(JBColor.GRAY);
+        manualShortcutField.setText("");
+        manualShortcutField.setForeground(UIManager.getColor("TextField.foreground"));
+        setShortcutPlaceholder("请按快捷键...");
         manualShortcutField.requestFocusInWindow();
-        for (java.awt.event.KeyListener listener : manualShortcutField.getKeyListeners()) {
-            manualShortcutField.removeKeyListener(listener);
-        }
-        manualShortcutField.addKeyListener(new KeyAdapter() {
+        shortcutCaptureListener = new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
                 e.consume();
@@ -218,9 +222,16 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
                 }
                 lastManualShortcut = shortcut;
                 showShortcutValue(shortcut);
-                manualShortcutField.removeKeyListener(this);
+                removeShortcutCaptureListener();
             }
-        });
+        };
+        manualShortcutField.addKeyListener(shortcutCaptureListener);
+    }
+
+    private void resetManualShortcut() {
+        removeShortcutCaptureListener();
+        lastManualShortcut = normalizeShortcutText(AiFeatureSettings.DEFAULT_MANUAL_SHORTCUT);
+        showShortcutValue(lastManualShortcut);
     }
 
     private String toTwoKeyShortcut(KeyEvent e) {
@@ -521,6 +532,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
     @Override
     public void disposeUIResources() {
+        removeShortcutCaptureListener();
         rootPanel = null;
     }
 
@@ -574,8 +586,19 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         capturingShortcut = false;
         manualShortcutField.setText(displayShortcutText(shortcut));
         manualShortcutField.setForeground(UIManager.getColor("TextField.foreground"));
+        setShortcutPlaceholder("");
+    }
+
+    private void setShortcutPlaceholder(String text) {
         if (manualShortcutField instanceof JBTextField field) {
-            field.getEmptyText().setText("");
+            field.getEmptyText().setText(text);
+        }
+    }
+
+    private void removeShortcutCaptureListener() {
+        if (shortcutCaptureListener != null && manualShortcutField != null) {
+            manualShortcutField.removeKeyListener(shortcutCaptureListener);
+            shortcutCaptureListener = null;
         }
     }
 

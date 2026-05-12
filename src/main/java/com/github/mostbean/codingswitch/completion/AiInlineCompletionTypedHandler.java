@@ -28,6 +28,9 @@ public class AiInlineCompletionTypedHandler extends TypedHandlerDelegate {
             || Character.isWhitespace(c)
             || c == '.'
             || c == '_'
+            || c == '('
+            || c == '['
+            || c == '{'
             || c == ')'
             || c == ']'
             || c == '}'

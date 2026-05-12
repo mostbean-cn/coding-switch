@@ -296,7 +296,7 @@
                 class="com.github.mostbean.codingswitch.ui.action.TriggerAiCompletionAction"
                 text="Coding Switch Completion"
                 description="Trigger Coding Switch code completion">
-            <keyboard-shortcut keymap="$default" first-keystroke="alt F"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="alt L"/>
         </action>
         <action id="CodingSwitch.AcceptInlineCompletionLine"
                 class="com.github.mostbean.codingswitch.ui.action.AcceptInlineCompletionLineAction"

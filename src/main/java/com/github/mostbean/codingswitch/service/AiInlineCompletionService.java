@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class AiInlineCompletionService implements Disposable {
 
     private static final long AUTO_TRIGGER_DELAY_MS = 650;
+    private static final long IN_FLIGHT_RETRY_DELAY_MS = 300;
     private static final long STREAM_RENDER_THROTTLE_MS = 45;
     private static final Key<InlineSession> SESSION_KEY = Key.create("coding.switch.ai.inline.session");
     private static final Key<Long> REQUEST_ID_KEY = Key.create("coding.switch.ai.inline.request.id");
@@ -121,6 +122,9 @@ public final class AiInlineCompletionService implements Disposable {
 
     private void request(Project project, Editor editor, AiCompletionTriggerMode triggerMode, long requestId) {
         if (AiCompletionService.getInstance().isCompletionInProgress(project, editor)) {
+            if (triggerMode == AiCompletionTriggerMode.AUTO) {
+                scheduleInFlightRetry(project, editor, requestId);
+            }
             return;
         }
         String unavailableReason = unavailableReason(triggerMode);
@@ -151,6 +155,19 @@ public final class AiInlineCompletionService implements Disposable {
                 flushDelta(editor, requestId, offset, documentStamp, accumulator);
             }
         });
+    }
+
+    private void scheduleInFlightRetry(Project project, Editor editor, long requestId) {
+        scheduler.schedule(
+            () -> ApplicationManager.getApplication().invokeLater(() -> {
+                Long current = editor.getUserData(REQUEST_ID_KEY);
+                if (current != null && current == requestId && !hasActiveCompletion(editor)) {
+                    request(project, editor, AiCompletionTriggerMode.AUTO, requestId);
+                }
+            }),
+            IN_FLIGHT_RETRY_DELAY_MS,
+            TimeUnit.MILLISECONDS
+        );
     }
 
     private String unavailableReason(AiCompletionTriggerMode triggerMode) {

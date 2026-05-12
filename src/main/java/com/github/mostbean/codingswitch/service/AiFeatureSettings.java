@@ -28,7 +28,7 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
 
     private static final String CREDENTIAL_SERVICE_NAME = "CodingSwitchAiModel";
     public static final String MANUAL_COMPLETION_ACTION_ID = "CodingSwitch.TriggerAiCompletion";
-    public static final String DEFAULT_MANUAL_SHORTCUT = "alt F";
+    public static final String DEFAULT_MANUAL_SHORTCUT = "alt L";
 
     public static class State {
         public boolean codeCompletionEnabled = false;

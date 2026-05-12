@@ -20,10 +20,8 @@ import java.util.function.Consumer;
 @Service(Service.Level.APP)
 public final class AiCompletionService {
 
-    private static final long AUTO_COMPLETION_COOLDOWN_MS = 1200;
     private static final long MANUAL_COMPLETION_COOLDOWN_MS = 350;
     private final Map<String, Long> inFlightCompletionKeys = new ConcurrentHashMap<>();
-    private long lastAutoCompletionRequestMs = 0L;
     private long lastManualCompletionRequestMs = 0L;
 
     public static AiCompletionService getInstance() {
@@ -98,10 +96,8 @@ public final class AiCompletionService {
         if (!settings.isCodeCompletionEnabled()) {
             return null;
         }
-        if (triggerMode == AiCompletionTriggerMode.AUTO) {
-            if (!settings.isAutoCompletionEnabled() || shouldSkipAutoRequest()) {
-                return null;
-            }
+        if (triggerMode == AiCompletionTriggerMode.AUTO && !settings.isAutoCompletionEnabled()) {
+            return null;
         }
         if (triggerMode == AiCompletionTriggerMode.MANUAL && shouldSkipManualRequest()) {
             return null;
@@ -177,15 +173,6 @@ public final class AiCompletionService {
             return Optional.empty();
         }
         return Optional.of(text);
-    }
-
-    private synchronized boolean shouldSkipAutoRequest() {
-        long now = System.currentTimeMillis();
-        if (now - lastAutoCompletionRequestMs < AUTO_COMPLETION_COOLDOWN_MS) {
-            return true;
-        }
-        lastAutoCompletionRequestMs = now;
-        return false;
     }
 
     private synchronized boolean shouldSkipManualRequest() {
