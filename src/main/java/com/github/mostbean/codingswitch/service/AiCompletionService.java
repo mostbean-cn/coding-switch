@@ -6,6 +6,7 @@ import com.github.mostbean.codingswitch.model.AiCompletionTriggerMode;
 import com.github.mostbean.codingswitch.model.AiModelFormat;
 import com.github.mostbean.codingswitch.model.AiModelProfile;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
@@ -13,6 +14,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 @Service(Service.Level.APP)
 public final class AiCompletionService {
@@ -29,57 +32,116 @@ public final class AiCompletionService {
 
     public Optional<String> complete(Project project, Editor editor, AiCompletionTriggerMode triggerMode)
         throws IOException, InterruptedException {
-        AiFeatureSettings settings = AiFeatureSettings.getInstance();
-        if (!settings.isCodeCompletionEnabled()) {
-            return Optional.empty();
-        }
-        if (triggerMode == AiCompletionTriggerMode.AUTO) {
-            if (!settings.isAutoCompletionEnabled() || shouldSkipAutoRequest()) {
-                return Optional.empty();
-            }
-        }
-        if (triggerMode == AiCompletionTriggerMode.MANUAL && shouldSkipManualRequest()) {
+        CompletionRequestContext context = prepareCompletionRequest(project, editor, triggerMode);
+        if (context == null) {
             return Optional.empty();
         }
 
-        String inFlightKey = completionKey(project, editor);
-        if (inFlightCompletionKeys.putIfAbsent(inFlightKey, System.currentTimeMillis()) != null) {
-            return Optional.empty();
-        }
-
-        long documentStamp = editor.getDocument().getModificationStamp();
-        int caretOffset = editor.getCaretModel().getOffset();
         try {
-            AiModelProfile profile = settings.getActiveCompletionProfile();
-            if (profile == null || profile.getModel().isBlank()) {
-                return Optional.empty();
-            }
-            String apiKey = settings.getApiKey(profile.getId());
-            if (apiKey.isBlank()) {
-                return Optional.empty();
-            }
-
-            AiCompletionLengthLevel lengthLevel = settings.getCompletionLengthLevel(triggerMode);
-            AiCompletionContextBuilder.Context context = AiCompletionContextBuilder.build(project, editor, triggerMode, lengthLevel);
-            AiCompletionRequest request = new AiCompletionRequest(
-                profile,
-                apiKey,
-                context.systemPrompt(),
-                context.userPrompt(),
-                lengthLevel,
-                settings.getCompletionMaxTokens(triggerMode)
-            );
-            String completion = createClient(profile.getFormat()).complete(request);
+            String completion = createClient(context.profile().getFormat()).complete(context.request());
             if (completion == null || completion.isBlank()) {
                 return Optional.empty();
             }
-            if (editor.getDocument().getModificationStamp() != documentStamp
-                || editor.getCaretModel().getOffset() != caretOffset) {
+            if (!isStillValid(editor, context.snapshot())) {
                 return Optional.empty();
             }
             return Optional.of(completion);
         } finally {
+            inFlightCompletionKeys.remove(context.inFlightKey());
+        }
+    }
+
+    public boolean streamComplete(
+        Project project,
+        Editor editor,
+        AiCompletionTriggerMode triggerMode,
+        Consumer<String> onDelta
+    ) throws IOException, InterruptedException {
+        CompletionRequestContext context = prepareCompletionRequest(project, editor, triggerMode);
+        if (context == null) {
+            return false;
+        }
+
+        AtomicBoolean hasText = new AtomicBoolean(false);
+        try {
+            AiCompletionClient client = createClient(context.profile().getFormat());
+            try {
+                client.streamComplete(context.request(), delta -> {
+                    if (delta == null || delta.isEmpty() || !isStillValid(editor, context.snapshot())) {
+                        return;
+                    }
+                    hasText.set(true);
+                    onDelta.accept(delta);
+                });
+            } catch (IOException ex) {
+                if (hasText.get()) {
+                    throw ex;
+                }
+                String completion = client.complete(context.request());
+                if (completion != null && !completion.isBlank() && isStillValid(editor, context.snapshot())) {
+                    hasText.set(true);
+                    onDelta.accept(completion);
+                }
+            }
+            return hasText.get();
+        } finally {
+            inFlightCompletionKeys.remove(context.inFlightKey());
+        }
+    }
+
+    private CompletionRequestContext prepareCompletionRequest(
+        Project project,
+        Editor editor,
+        AiCompletionTriggerMode triggerMode
+    ) {
+        AiFeatureSettings settings = AiFeatureSettings.getInstance();
+        if (!settings.isCodeCompletionEnabled()) {
+            return null;
+        }
+        if (triggerMode == AiCompletionTriggerMode.AUTO) {
+            if (!settings.isAutoCompletionEnabled() || shouldSkipAutoRequest()) {
+                return null;
+            }
+        }
+        if (triggerMode == AiCompletionTriggerMode.MANUAL && shouldSkipManualRequest()) {
+            return null;
+        }
+
+        String inFlightKey = ReadAction.compute(() -> completionKey(project, editor));
+        if (inFlightCompletionKeys.putIfAbsent(inFlightKey, System.currentTimeMillis()) != null) {
+            return null;
+        }
+
+        try {
+            AiModelProfile profile = settings.getActiveCompletionProfile();
+            if (profile == null || profile.getModel().isBlank()) {
+                inFlightCompletionKeys.remove(inFlightKey);
+                return null;
+            }
+            String apiKey = settings.getApiKey(profile.getId());
+            if (apiKey.isBlank()) {
+                inFlightCompletionKeys.remove(inFlightKey);
+                return null;
+            }
+
+            AiCompletionLengthLevel lengthLevel = settings.getCompletionLengthLevel(triggerMode);
+            CompletionSnapshot snapshot = ReadAction.compute(() -> new CompletionSnapshot(
+                editor.getDocument().getModificationStamp(),
+                editor.getCaretModel().getOffset(),
+                AiCompletionContextBuilder.build(project, editor, triggerMode, lengthLevel)
+            ));
+            AiCompletionRequest request = new AiCompletionRequest(
+                profile,
+                apiKey,
+                snapshot.context().systemPrompt(),
+                snapshot.context().userPrompt(),
+                lengthLevel,
+                settings.getCompletionMaxTokens(triggerMode)
+            );
+            return new CompletionRequestContext(inFlightKey, profile, request, snapshot);
+        } catch (RuntimeException ex) {
             inFlightCompletionKeys.remove(inFlightKey);
+            throw ex;
         }
     }
 
@@ -87,7 +149,7 @@ public final class AiCompletionService {
         if (project == null || editor == null) {
             return false;
         }
-        return inFlightCompletionKeys.containsKey(completionKey(project, editor));
+        return ReadAction.compute(() -> inFlightCompletionKeys.containsKey(completionKey(project, editor)));
     }
 
     public Optional<String> generateText(String systemPrompt, String userPrompt, AiCompletionLengthLevel lengthLevel)
@@ -142,11 +204,33 @@ public final class AiCompletionService {
             + System.identityHashCode(editor.getDocument());
     }
 
+    private boolean isStillValid(Editor editor, CompletionSnapshot snapshot) {
+        return ReadAction.compute(() ->
+            editor.getDocument().getModificationStamp() == snapshot.documentStamp()
+                && editor.getCaretModel().getOffset() == snapshot.caretOffset()
+        );
+    }
+
     private AiCompletionClient createClient(AiModelFormat format) {
         return switch (format) {
             case OPENAI_RESPONSES -> new OpenAiResponsesCompletionClient();
             case OPENAI_CHAT_COMPLETIONS -> new OpenAiChatCompletionClient();
             case ANTHROPIC_MESSAGES -> new AnthropicMessagesCompletionClient();
         };
+    }
+
+    private record CompletionSnapshot(
+        long documentStamp,
+        int caretOffset,
+        AiCompletionContextBuilder.Context context
+    ) {
+    }
+
+    private record CompletionRequestContext(
+        String inFlightKey,
+        AiModelProfile profile,
+        AiCompletionRequest request,
+        CompletionSnapshot snapshot
+    ) {
     }
 }

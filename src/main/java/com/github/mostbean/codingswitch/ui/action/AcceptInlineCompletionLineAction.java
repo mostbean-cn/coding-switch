@@ -1,6 +1,5 @@
 package com.github.mostbean.codingswitch.ui.action;
 
-import com.github.mostbean.codingswitch.service.AiCompletionService;
 import com.github.mostbean.codingswitch.service.AiInlineCompletionService;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
@@ -9,7 +8,7 @@ import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.NotNull;
 
-public class TriggerAiCompletionAction extends DumbAwareAction {
+public class AcceptInlineCompletionLineAction extends DumbAwareAction {
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
@@ -18,20 +17,16 @@ public class TriggerAiCompletionAction extends DumbAwareAction {
         if (project == null || editor == null) {
             return;
         }
-        if (AiCompletionService.getInstance().isCompletionInProgress(project, editor)) {
-            return;
-        }
-        AiInlineCompletionService.getInstance().requestManual(project, editor);
+        AiInlineCompletionService.getInstance().acceptLine(project, editor);
     }
 
     @Override
     public void update(@NotNull AnActionEvent e) {
-        Project project = e.getProject();
         Editor editor = e.getData(CommonDataKeys.EDITOR);
         e.getPresentation().setEnabled(
-            project != null
+            e.getProject() != null
                 && editor != null
-                && !AiCompletionService.getInstance().isCompletionInProgress(project, editor)
+                && AiInlineCompletionService.getInstance().hasActiveCompletion(editor)
         );
     }
 }

@@ -16,10 +16,12 @@ import com.intellij.openapi.keymap.KeymapManager;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.options.SearchableConfigurable;
 import com.intellij.openapi.ui.DialogWrapper;
+import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.ValidationInfo;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
+import com.intellij.ui.components.JBTextField;
 import com.intellij.util.ui.FormBuilder;
 import com.intellij.util.ui.JBUI;
 import java.awt.BorderLayout;
@@ -58,6 +60,7 @@ import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import javax.swing.SpinnerNumberModel;
+import javax.swing.UIManager;
 import javax.swing.table.DefaultTableModel;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
@@ -74,6 +77,8 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     private JComboBox<AiCompletionLengthLevel> autoCompletionLengthLevel;
     private JComboBox<AiCompletionLengthLevel> manualCompletionLengthLevel;
     private JTextField manualShortcutField;
+    private String lastManualShortcut = AiFeatureSettings.DEFAULT_MANUAL_SHORTCUT;
+    private boolean capturingShortcut = false;
     private JComboBox<AiModelProfile> activeProfileCombo;
     private DefaultComboBoxModel<AiModelProfile> activeProfileModel;
     private DefaultTableModel profileTableModel;
@@ -110,9 +115,9 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
         content.add(buildFeatureSection());
         content.add(Box.createVerticalStrut(12));
-        content.add(buildCompletionSection());
-        content.add(Box.createVerticalStrut(12));
         content.add(buildProfileSection());
+        content.add(Box.createVerticalStrut(12));
+        content.add(buildCompletionSection());
         content.add(Box.createVerticalGlue());
         return content;
     }
@@ -138,7 +143,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         activeProfileCombo = new JComboBox<>(activeProfileModel);
         activeProfileCombo.setRenderer((JList<? extends AiModelProfile> list, AiModelProfile value, int index,
             boolean isSelected, boolean cellHasFocus) -> {
-            JLabel label = new JLabel(value == null ? "未配置模型" : value.getDisplayName());
+            JLabel label = new JLabel(value == null ? "未配置模型" : activeProfileDisplayName(value));
             label.setOpaque(true);
             label.setBackground(isSelected ? list.getSelectionBackground() : list.getBackground());
             label.setForeground(isSelected ? list.getSelectionForeground() : list.getForeground());
@@ -160,7 +165,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
         JPanel shortcutRow = rowPanel();
         shortcutRow.add(new JBLabel("手动触发快捷键:"));
-        manualShortcutField = new JTextField(AiFeatureSettings.DEFAULT_MANUAL_SHORTCUT, 18);
+        manualShortcutField = new JBTextField(displayShortcutText(AiFeatureSettings.DEFAULT_MANUAL_SHORTCUT), 18);
         manualShortcutField.setEditable(false);
         shortcutRow.add(manualShortcutField);
         JButton editShortcutButton = new JButton("修改");
@@ -174,6 +179,12 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         return section;
     }
 
+    private String activeProfileDisplayName(AiModelProfile profile) {
+        String name = profile.getDisplayName();
+        String model = profile.getModel();
+        return model.isBlank() ? name : name + " / " + model;
+    }
+
     private JPanel buildProfileSection() {
         JPanel section = createSection("模型配置");
 
@@ -182,13 +193,16 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         configureButton.addActionListener(e -> showProfileManagerDialog());
         row.add(configureButton);
         section.add(row);
-
-        section.add(wrappedHint("这些配置只供 IDE 内代码补全和后续 Git 提交信息生成使用，不会写入 Claude/Codex/Gemini/OpenCode 的 CLI 配置文件。API Key 保存到 IDE PasswordSafe。"));
         return section;
     }
 
     private void startShortcutCapture() {
+        lastManualShortcut = normalizeShortcutText(manualShortcutField.getText()).isBlank()
+            ? AiFeatureSettings.DEFAULT_MANUAL_SHORTCUT
+            : normalizeShortcutText(manualShortcutField.getText());
+        capturingShortcut = true;
         manualShortcutField.setText("请按快捷键...");
+        manualShortcutField.setForeground(JBColor.GRAY);
         manualShortcutField.requestFocusInWindow();
         for (java.awt.event.KeyListener listener : manualShortcutField.getKeyListeners()) {
             manualShortcutField.removeKeyListener(listener);
@@ -202,7 +216,8 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
                     Toolkit.getDefaultToolkit().beep();
                     return;
                 }
-                manualShortcutField.setText(shortcut);
+                lastManualShortcut = shortcut;
+                showShortcutValue(shortcut);
                 manualShortcutField.removeKeyListener(this);
             }
         });
@@ -448,10 +463,13 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
     @Override
     public void apply() throws ConfigurationException {
-        String shortcut = normalizeShortcutText(manualShortcutField.getText().trim());
-        manualShortcutField.setText(shortcut);
+        String shortcut = capturingShortcut ? lastManualShortcut : normalizeShortcutText(manualShortcutField.getText().trim());
+        if (shortcut.isBlank()) {
+            shortcut = lastManualShortcut;
+        }
+        showShortcutValue(shortcut);
         if (!isTwoKeyShortcut(shortcut)) {
-            throw new ConfigurationException("手动补全快捷键必须是一个修饰键 + 一个普通键，例如 control SPACE");
+            throw new ConfigurationException("手动补全快捷键必须是一个修饰键 + 一个普通键，例如 Ctrl + Space");
         }
         AiFeatureSettings.State next = collectState();
         AiFeatureSettings.getInstance().update(next);
@@ -480,7 +498,8 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             state.manualCompletionLengthLevel,
             AiCompletionLengthLevel.MEDIUM
         ));
-        manualShortcutField.setText(state.manualCompletionShortcut);
+        lastManualShortcut = normalizeShortcutText(state.manualCompletionShortcut);
+        showShortcutValue(lastManualShortcut);
 
         profiles.clear();
         for (AiModelProfile profile : state.profiles) {
@@ -520,7 +539,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         );
         state.manualCompletionShortcut = manualShortcutField == null
             ? AiFeatureSettings.DEFAULT_MANUAL_SHORTCUT
-            : manualShortcutField.getText().trim();
+            : manualShortcutValue();
         Object selected = activeProfileCombo == null ? null : activeProfileCombo.getSelectedItem();
         state.activeCompletionProfileId = selected instanceof AiModelProfile profile ? profile.getId() : "";
         state.profiles = new ArrayList<>();
@@ -541,6 +560,23 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             && Objects.equals(a.activeCompletionProfileId, b.activeCompletionProfileId)
             && Objects.equals(a.manualCompletionShortcut, b.manualCompletionShortcut)
             && Objects.equals(a.profiles, b.profiles);
+    }
+
+    private String manualShortcutValue() {
+        if (capturingShortcut) {
+            return lastManualShortcut;
+        }
+        String value = normalizeShortcutText(manualShortcutField.getText());
+        return value.isBlank() ? lastManualShortcut : value;
+    }
+
+    private void showShortcutValue(String shortcut) {
+        capturingShortcut = false;
+        manualShortcutField.setText(displayShortcutText(shortcut));
+        manualShortcutField.setForeground(UIManager.getColor("TextField.foreground"));
+        if (manualShortcutField instanceof JBTextField field) {
+            field.getEmptyText().setText("");
+        }
     }
 
     private String selectedLengthName(
@@ -584,12 +620,96 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         if (shortcutText == null) {
             return "";
         }
-        return shortcutText.trim()
+        String normalized = shortcutText.trim()
+            .replace("+", " ")
             .replace("空格", "SPACE")
             .replace("回车", "ENTER")
             .replace("制表符", "TAB")
             .replace("删除", "DELETE")
-            .replace("退格", "BACK_SPACE");
+            .replace("退格", "BACK_SPACE")
+            .replaceAll("\\s+", " ");
+        String[] parts = normalized.split(" ");
+        if (parts.length != 2) {
+            return normalized;
+        }
+        return normalizeModifierText(parts[0]) + " " + normalizeKeyText(parts[1]);
+    }
+
+    private String normalizeModifierText(String value) {
+        return switch (value.toLowerCase()) {
+            case "ctrl", "control" -> "control";
+            case "alt" -> "alt";
+            case "shift" -> "shift";
+            case "meta", "cmd", "command" -> "meta";
+            default -> value.toLowerCase();
+        };
+    }
+
+    private String normalizeKeyText(String value) {
+        String upper = value.toUpperCase();
+        return switch (upper) {
+            case "SPACE" -> "SPACE";
+            case "ENTER" -> "ENTER";
+            case "TAB" -> "TAB";
+            case "ESC" -> "ESCAPE";
+            case "ESCAPE" -> "ESCAPE";
+            case "BACKSPACE" -> "BACK_SPACE";
+            case "BACK_SPACE" -> "BACK_SPACE";
+            case "DELETE" -> "DELETE";
+            case "INSERT" -> "INSERT";
+            case "HOME" -> "HOME";
+            case "END" -> "END";
+            case "PAGEUP", "PAGE_UP" -> "PAGE_UP";
+            case "PAGEDOWN", "PAGE_DOWN" -> "PAGE_DOWN";
+            case "UP" -> "UP";
+            case "DOWN" -> "DOWN";
+            case "LEFT" -> "LEFT";
+            case "RIGHT" -> "RIGHT";
+            default -> upper;
+        };
+    }
+
+    private String displayShortcutText(String shortcutText) {
+        String normalized = normalizeShortcutText(shortcutText);
+        String[] parts = normalized.split(" ");
+        if (parts.length != 2) {
+            return normalized;
+        }
+        return displayModifierText(parts[0]) + " + " + displayKeyText(parts[1]);
+    }
+
+    private String displayModifierText(String value) {
+        return switch (value) {
+            case "control" -> "Ctrl";
+            case "alt" -> "Alt";
+            case "shift" -> "Shift";
+            case "meta" -> "Meta";
+            default -> capitalize(value);
+        };
+    }
+
+    private String displayKeyText(String value) {
+        if (value.length() == 1 || value.matches("F\\d{1,2}")) {
+            return value;
+        }
+        return switch (value) {
+            case "SPACE" -> "Space";
+            case "ENTER" -> "Enter";
+            case "TAB" -> "Tab";
+            case "ESCAPE" -> "Escape";
+            case "BACK_SPACE" -> "Backspace";
+            case "PAGE_UP" -> "Pageup";
+            case "PAGE_DOWN" -> "Pagedown";
+            default -> capitalize(value.toLowerCase());
+        };
+    }
+
+    private String capitalize(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        String lower = value.toLowerCase();
+        return Character.toUpperCase(lower.charAt(0)) + lower.substring(1);
     }
 
     private void applyShortcut(String shortcutText) {
@@ -703,6 +823,8 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         private JButton testButton;
         private JButton detectModelsButton;
         private JBLabel testStatusLabel;
+        private JButton testDetailButton;
+        private String latestTestDetail = "";
 
         private ProfileDialog(AiModelProfile profile, String existingApiKey) {
             super(true);
@@ -759,7 +881,13 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
             testStatusLabel = new JBLabel(" ");
             testStatusLabel.setForeground(JBColor.GRAY);
+            testStatusLabel.setPreferredSize(new Dimension(JBUI.scale(220), testStatusLabel.getPreferredSize().height));
             buttonRow.add(testStatusLabel);
+
+            testDetailButton = new JButton("详情");
+            testDetailButton.setVisible(false);
+            testDetailButton.addActionListener(e -> showTestDetail());
+            buttonRow.add(testDetailButton);
 
             JPanel panel = new JPanel(new BorderLayout(0, 10));
             panel.setBorder(JBUI.Borders.empty(8));
@@ -872,8 +1000,34 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         }
 
         private void setTestStatus(String message, boolean success) {
-            testStatusLabel.setText(message == null || message.isBlank() ? " " : message);
+            String normalized = message == null ? "" : message.trim();
+            latestTestDetail = normalized;
+            testStatusLabel.setText(shortStatus(normalized, success));
+            testStatusLabel.setToolTipText(normalized.isBlank() ? null : normalized);
             testStatusLabel.setForeground(success ? JBColor.GRAY : JBColor.RED);
+            testDetailButton.setVisible(!success && normalized.length() > 40);
+        }
+
+        private String shortStatus(String message, boolean success) {
+            if (message == null || message.isBlank()) {
+                return " ";
+            }
+            if (success) {
+                return truncateStatus(message);
+            }
+            return "失败，点击详情查看";
+        }
+
+        private String truncateStatus(String message) {
+            int max = 36;
+            return message.length() <= max ? message : message.substring(0, max - 3) + "...";
+        }
+
+        private void showTestDetail() {
+            if (latestTestDetail == null || latestTestDetail.isBlank()) {
+                return;
+            }
+            Messages.showErrorDialog(latestTestDetail, "模型配置检测失败");
         }
     }
 

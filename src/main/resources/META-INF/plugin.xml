@@ -241,6 +241,7 @@
         <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.PluginSettings"/>
         <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.AiFeatureSettings"/>
         <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.AiCompletionService"/>
+        <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.AiInlineCompletionService"/>
         <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.AiCommitMessageService"/>
 
         <!-- IDE Settings -->
@@ -250,10 +251,9 @@
                 id="com.github.mostbean.codingswitch.aiFeatures"
                 displayName="Coding Switch"/>
 
-        <!-- AI Code Completion -->
-        <completion.contributor
-                language="any"
-                implementationClass="com.github.mostbean.codingswitch.completion.AiCompletionContributor"/>
+        <!-- AI Inline Code Completion -->
+        <typedHandler implementation="com.github.mostbean.codingswitch.completion.AiInlineCompletionTypedHandler"/>
+        <postStartupActivity implementation="com.github.mostbean.codingswitch.service.AiInlineCompletionStartupActivity"/>
 
         <!-- Notification Group -->
         <notificationGroup id="Coding Switch" displayType="BALLOON" toolWindowId="Coding Switch"/>
@@ -296,7 +296,13 @@
                 class="com.github.mostbean.codingswitch.ui.action.TriggerAiCompletionAction"
                 text="Coding Switch Completion"
                 description="Trigger Coding Switch code completion">
-            <keyboard-shortcut keymap="$default" first-keystroke="control SPACE"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="alt F"/>
+        </action>
+        <action id="CodingSwitch.AcceptInlineCompletionLine"
+                class="com.github.mostbean.codingswitch.ui.action.AcceptInlineCompletionLineAction"
+                text="Accept Coding Switch Inline Completion Line"
+                description="Accept one line of the current Coding Switch inline completion">
+            <keyboard-shortcut keymap="$default" first-keystroke="control DOWN"/>
         </action>
         <action id="CodingSwitch.GenerateCommitMessage"
                 class="com.github.mostbean.codingswitch.ui.action.GenerateCommitMessageAction"

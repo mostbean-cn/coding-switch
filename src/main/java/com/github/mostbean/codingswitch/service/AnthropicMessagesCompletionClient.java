@@ -9,6 +9,7 @@ import com.google.gson.JsonParser;
 import java.io.IOException;
 import java.net.http.HttpClient;
 import java.util.Map;
+import java.util.function.Consumer;
 
 final class AnthropicMessagesCompletionClient implements AiCompletionClient {
 
@@ -25,17 +26,42 @@ final class AnthropicMessagesCompletionClient implements AiCompletionClient {
                 "x-api-key", request.apiKey(),
                 "anthropic-version", "2023-06-01"
             ),
-            GSON.toJson(createBody(request))
+            GSON.toJson(createBody(request, false))
         );
         return AiCompletionHttpSupport.trimCompletion(extractText(response));
     }
 
-    private JsonObject createBody(AiCompletionRequest request) {
+    @Override
+    public void streamComplete(AiCompletionRequest request, Consumer<String> onDelta)
+        throws IOException, InterruptedException {
+        HttpClient client = AiCompletionHttpSupport.createClient(request.profile());
+        AiCompletionHttpSupport.postJsonStream(
+            client,
+            request.profile(),
+            AiCompletionHttpSupport.ensurePath(request.profile().getBaseUrl(), "/v1/messages"),
+            Map.of(
+                "x-api-key", request.apiKey(),
+                "anthropic-version", "2023-06-01"
+            ),
+            GSON.toJson(createBody(request, true)),
+            event -> {
+                String delta = extractDelta(event);
+                if (!delta.isEmpty()) {
+                    onDelta.accept(delta);
+                }
+            }
+        );
+    }
+
+    private JsonObject createBody(AiCompletionRequest request, boolean stream) {
         JsonObject body = new JsonObject();
         body.addProperty("model", request.profile().getModel());
         body.addProperty("system", request.systemPrompt());
         body.addProperty("max_tokens", request.maxTokens());
         body.addProperty("temperature", 0.2);
+        if (stream) {
+            body.addProperty("stream", true);
+        }
 
         JsonArray messages = new JsonArray();
         JsonObject user = new JsonObject();
@@ -62,5 +88,28 @@ final class AnthropicMessagesCompletionClient implements AiCompletionClient {
             }
         }
         return out.toString();
+    }
+
+    private String extractDelta(String event) {
+        JsonObject root = JsonParser.parseString(event).getAsJsonObject();
+        if (!"content_block_delta".equals(getString(root, "type"))) {
+            return "";
+        }
+        if (!root.has("delta") || !root.get("delta").isJsonObject()) {
+            return "";
+        }
+        JsonObject delta = root.getAsJsonObject("delta");
+        if (!"text_delta".equals(getString(delta, "type"))) {
+            return "";
+        }
+        String text = getString(delta, "text");
+        return text == null ? "" : text;
+    }
+
+    private String getString(JsonObject object, String key) {
+        if (!object.has(key) || object.get(key).isJsonNull()) {
+            return null;
+        }
+        return object.get(key).getAsString();
     }
 }
