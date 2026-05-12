@@ -1,0 +1,96 @@
+package com.github.mostbean.codingswitch.service;
+
+import com.github.mostbean.codingswitch.model.AiModelProfile;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.Map;
+
+final class AiCompletionHttpSupport {
+
+    private AiCompletionHttpSupport() {
+    }
+
+    static HttpClient createClient(AiModelProfile profile) {
+        return HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(profile.getTimeoutSeconds()))
+            .build();
+    }
+
+    static String postJson(HttpClient client, AiModelProfile profile, String url, Map<String, String> headers, String body)
+        throws IOException, InterruptedException {
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+            .uri(URI.create(url))
+            .timeout(Duration.ofSeconds(profile.getTimeoutSeconds()))
+            .header("Content-Type", "application/json");
+        for (Map.Entry<String, String> entry : headers.entrySet()) {
+            if (entry.getValue() != null && !entry.getValue().isBlank()) {
+                builder.header(entry.getKey(), entry.getValue());
+            }
+        }
+        addCustomHeaders(builder, profile.getHeadersJson());
+        HttpResponse<String> response = client.send(
+            builder.POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8)).build(),
+            HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
+        );
+        int statusCode = response.statusCode();
+        String responseBody = response.body() == null ? "" : response.body();
+        if (statusCode >= 200 && statusCode < 300) {
+            return responseBody;
+        }
+        String detail = responseBody.length() > 240 ? responseBody.substring(0, 240) + "..." : responseBody;
+        throw new IOException("HTTP " + statusCode + (detail.isBlank() ? "" : ": " + detail));
+    }
+
+    static String ensurePath(String baseUrl, String path) {
+        String base = trimTrailingSlash(baseUrl);
+        if (base == null) {
+            throw new IllegalArgumentException("Invalid Base URL");
+        }
+        if (base.endsWith(path)) {
+            return base;
+        }
+        if (path.startsWith("/v1/") && base.endsWith("/v1")) {
+            return base + path.substring("/v1".length());
+        }
+        return base + path;
+    }
+
+    static String trimCompletion(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replaceFirst("^```[a-zA-Z0-9_-]*\\s*", "")
+            .replaceFirst("\\s*```$", "")
+            .stripTrailing();
+    }
+
+    private static void addCustomHeaders(HttpRequest.Builder builder, String headersJson) {
+        if (headersJson == null || headersJson.isBlank()) {
+            return;
+        }
+        JsonObject headers = JsonParser.parseString(headersJson).getAsJsonObject();
+        for (String key : headers.keySet()) {
+            if (!headers.get(key).isJsonPrimitive()) {
+                continue;
+            }
+            String value = headers.get(key).getAsString();
+            if (value != null && !value.isBlank()) {
+                builder.header(key, value);
+            }
+        }
+    }
+
+    private static String trimTrailingSlash(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.replaceAll("/+$", "");
+    }
+}

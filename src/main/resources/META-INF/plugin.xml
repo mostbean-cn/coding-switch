@@ -239,6 +239,21 @@
         <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.SkillService"/>
         <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.PromptService"/>
         <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.PluginSettings"/>
+        <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.AiFeatureSettings"/>
+        <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.AiCompletionService"/>
+        <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.AiCommitMessageService"/>
+
+        <!-- IDE Settings -->
+        <applicationConfigurable
+                parentId="tools"
+                instance="com.github.mostbean.codingswitch.ui.settings.AiFeaturesConfigurable"
+                id="com.github.mostbean.codingswitch.aiFeatures"
+                displayName="Coding Switch"/>
+
+        <!-- AI Code Completion -->
+        <completion.contributor
+                language="any"
+                implementationClass="com.github.mostbean.codingswitch.completion.AiCompletionContributor"/>
 
         <!-- Notification Group -->
         <notificationGroup id="Coding Switch" displayType="BALLOON" toolWindowId="Coding Switch"/>
@@ -276,6 +291,19 @@
                 icon="/icons/codingSwitch.svg">
             <add-to-group group-id="Floating.CodeToolbar"
                           anchor="last"/>
+        </action>
+        <action id="CodingSwitch.TriggerAiCompletion"
+                class="com.github.mostbean.codingswitch.ui.action.TriggerAiCompletionAction"
+                text="Coding Switch Completion"
+                description="Trigger Coding Switch code completion">
+            <keyboard-shortcut keymap="$default" first-keystroke="control SPACE"/>
+        </action>
+        <action id="CodingSwitch.GenerateCommitMessage"
+                class="com.github.mostbean.codingswitch.ui.action.GenerateCommitMessageAction"
+                text="Generate Commit Message"
+                description="Generate a Git commit message with Coding Switch"
+                icon="/icons/codingSwitch.svg">
+            <add-to-group group-id="Vcs.MessageActionGroup" anchor="first"/>
         </action>
     </actions>
 </idea-plugin>
