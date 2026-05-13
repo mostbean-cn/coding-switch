@@ -174,6 +174,8 @@ public final class I18n {
                 m.put("aiSettings.section.modelConfig", "模型配置");
                 m.put("aiSettings.button.modelConfig", "模型配置...");
                 m.put("aiSettings.section.projectIndex", "项目索引");
+                m.put("aiSettings.index.project", "当前项目:");
+                m.put("aiSettings.index.project.unavailable", "未识别当前项目");
                 m.put("aiSettings.index.status", "索引状态:");
                 m.put("aiSettings.index.status.ready", "就绪");
                 m.put("aiSettings.index.status.indexing", "索引中...");
@@ -732,6 +734,8 @@ public final class I18n {
                 m.put("aiSettings.section.modelConfig", "Model Configuration");
                 m.put("aiSettings.button.modelConfig", "Model Configuration...");
                 m.put("aiSettings.section.projectIndex", "Project Index");
+                m.put("aiSettings.index.project", "Current project:");
+                m.put("aiSettings.index.project.unavailable", "Current project not detected");
                 m.put("aiSettings.index.status", "Index Status:");
                 m.put("aiSettings.index.status.ready", "Ready");
                 m.put("aiSettings.index.status.indexing", "Indexing...");

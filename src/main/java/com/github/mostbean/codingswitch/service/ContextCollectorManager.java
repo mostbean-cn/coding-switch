@@ -3,6 +3,7 @@ package com.github.mostbean.codingswitch.service;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -92,6 +93,15 @@ public final class ContextCollectorManager {
      */
     public void clearAllCodebaseIndexes() {
         for (Project project : ProjectManager.getInstance().getOpenProjects()) {
+            clearCodebaseIndex(project);
+        }
+    }
+
+    /**
+     * 清空指定项目的代码库索引。
+     */
+    public void clearCodebaseIndex(Project project) {
+        if (project != null && !project.isDisposed()) {
             collectorGroup(project).codebaseSearchCollector().clearIndex(project);
         }
     }
@@ -101,6 +111,15 @@ public final class ContextCollectorManager {
      */
     public void rebuildAllCodebaseIndexes() {
         for (Project project : ProjectManager.getInstance().getOpenProjects()) {
+            rebuildCodebaseIndex(project);
+        }
+    }
+
+    /**
+     * 立即重建指定项目的代码库索引。
+     */
+    public void rebuildCodebaseIndex(Project project) {
+        if (project != null && !project.isDisposed()) {
             collectorGroup(project).codebaseSearchCollector().rebuildIndex(project);
         }
     }
@@ -129,6 +148,18 @@ public final class ContextCollectorManager {
         return new IndexStats(filesIndexed, chunksIndexed, lastUpdateTime, estimatedMemoryBytes, indexing);
     }
 
+    /**
+     * 获取指定项目的代码库索引统计。
+     */
+    public IndexStats getCodebaseStats(Project project) {
+        if (project == null || project.isDisposed()) {
+            return new IndexStats(0, 0, 0, 0, false);
+        }
+        CodebaseSearchCollector collector = collectorGroup(project).codebaseSearchCollector();
+        collector.ensureIndexLoaded(project);
+        return collector.getStats();
+    }
+
     private CollectorGroup collectorGroup(Project project) {
         String key = projectKey(project);
         return projectCollectors.computeIfAbsent(key, ignored -> createCollectorGroup());
@@ -150,6 +181,14 @@ public final class ContextCollectorManager {
     private String projectKey(Project project) {
         if (project == null) {
             return "";
+        }
+        String basePath = project.getBasePath();
+        if (basePath != null && !basePath.isBlank()) {
+            try {
+                return Path.of(basePath).toAbsolutePath().normalize().toString();
+            } catch (Exception ignored) {
+                return basePath;
+            }
         }
         String locationHash = project.getLocationHash();
         return locationHash == null || locationHash.isBlank() ? project.getName() : locationHash;

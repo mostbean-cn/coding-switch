@@ -13,9 +13,12 @@ import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.PluginStorageModeService;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.intellij.ide.DataManager;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
+import com.intellij.openapi.actionSystem.CommonDataKeys;
+import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.actionSystem.KeyboardShortcut;
 import com.intellij.openapi.actionSystem.Shortcut;
 import com.intellij.openapi.keymap.Keymap;
@@ -23,9 +26,12 @@ import com.intellij.openapi.keymap.KeymapManager;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.options.SearchableConfigurable;
 import com.intellij.openapi.application.PathManager;
+import com.intellij.openapi.project.Project;
+import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.ValidationInfo;
+import com.intellij.openapi.wm.WindowManager;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
@@ -38,8 +44,10 @@ import java.awt.Cursor;
 import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.KeyboardFocusManager;
 import java.awt.Rectangle;
 import java.awt.Toolkit;
+import java.awt.Window;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
@@ -111,6 +119,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     private JPanel rootPanel;
 
     // 项目索引相关组件
+    private JBLabel indexProjectValueLabel;
     private JBLabel indexStatusLabel;
     private JBLabel indexFilesLabel;
     private JBLabel indexChunksLabel;
@@ -280,6 +289,12 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         });
         section.add(checkBoxRow(projectContextEnabled));
 
+        JPanel projectRow = rowPanel();
+        projectRow.add(new JBLabel(I18n.t("aiSettings.index.project")));
+        indexProjectValueLabel = new JBLabel(I18n.t("aiSettings.index.project.unavailable"));
+        projectRow.add(indexProjectValueLabel);
+        section.add(projectRow);
+
         // 状态行
         JPanel statusRow = rowPanel();
         statusRow.add(new JBLabel(I18n.t("aiSettings.index.status")));
@@ -318,19 +333,161 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         buttonRow.add(clearIndexButton);
 
         refreshIndexButton = new JButton(I18n.t("aiSettings.button.refreshIndex"));
-        refreshIndexButton.addActionListener(e -> updateIndexStatus());
+        refreshIndexButton.addActionListener(e -> refreshIndexProjectsAndStatus());
         buttonRow.add(refreshIndexButton);
         section.add(buttonRow);
 
         return section;
     }
 
+    private void refreshIndexProjectsAndStatus() {
+        updateIndexStatus();
+    }
+
+    private Project currentIndexProject() {
+        Project project = projectFromDataContext(rootPanel);
+        if (isUsableProject(project)) {
+            return project;
+        }
+
+        project = projectFromDataContext(indexProjectValueLabel);
+        if (isUsableProject(project)) {
+            return project;
+        }
+
+        Window activeWindow = KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow();
+        project = projectFromDataContext(activeWindow);
+        if (isUsableProject(project)) {
+            return project;
+        }
+
+        project = projectFromWindowOwnerChain(activeWindow);
+        if (isUsableProject(project)) {
+            return project;
+        }
+
+        Project[] openProjects = ProjectManager.getInstance().getOpenProjects();
+        if (openProjects.length == 1 && isUsableProject(openProjects[0])) {
+            return openProjects[0];
+        }
+        return null;
+    }
+
+    private Project projectFromWindowOwnerChain(Window window) {
+        if (window == null) {
+            return null;
+        }
+        Project[] openProjects = ProjectManager.getInstance().getOpenProjects();
+        for (Project project : openProjects) {
+            if (!isUsableProject(project)) {
+                continue;
+            }
+            Window projectWindow = projectWindow(project);
+            if (projectWindow != null && isSameOrOwnedWindow(window, projectWindow)) {
+                return project;
+            }
+        }
+        return null;
+    }
+
+    private Window projectWindow(Project project) {
+        Object frame = invokeWindowManagerFrameMethod("getFrame", project);
+        if (frame == null) {
+            frame = invokeWindowManagerFrameMethod("getIdeFrame", project);
+        }
+        if (frame instanceof Window window) {
+            return window;
+        }
+        if (frame instanceof Component component) {
+            return SwingUtilities.getWindowAncestor(component);
+        }
+        Object component = invokeNoArgMethod(frame, "getComponent");
+        if (component instanceof Component frameComponent) {
+            return SwingUtilities.getWindowAncestor(frameComponent);
+        }
+        return null;
+    }
+
+    private Object invokeWindowManagerFrameMethod(String methodName, Project project) {
+        try {
+            return WindowManager.getInstance()
+                .getClass()
+                .getMethod(methodName, Project.class)
+                .invoke(WindowManager.getInstance(), project);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private Object invokeNoArgMethod(Object target, String methodName) {
+        if (target == null) {
+            return null;
+        }
+        try {
+            return target.getClass().getMethod(methodName).invoke(target);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private boolean isSameOrOwnedWindow(Window window, Window expectedOwner) {
+        Window current = window;
+        while (current != null) {
+            if (current == expectedOwner) {
+                return true;
+            }
+            current = current.getOwner();
+        }
+        return false;
+    }
+
+    private Project projectFromDataContext(Component component) {
+        if (component == null) {
+            return null;
+        }
+        try {
+            DataContext dataContext = DataManager.getInstance().getDataContext(component);
+            return CommonDataKeys.PROJECT.getData(dataContext);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private boolean isUsableProject(Project project) {
+        return project != null && !project.isDisposed();
+    }
+
+    private String projectDisplayName(Project project) {
+        if (project == null) {
+            return "";
+        }
+        String basePath = project.getBasePath();
+        return basePath == null || basePath.isBlank()
+            ? project.getName()
+            : project.getName() + " - " + basePath;
+    }
+
+    private void updateIndexProjectDisplay(Project project) {
+        if (indexProjectValueLabel != null) {
+            String text = project == null
+                ? I18n.t("aiSettings.index.project.unavailable")
+                : projectDisplayName(project);
+            indexProjectValueLabel.setText(text);
+            indexProjectValueLabel.setToolTipText(project == null ? null : text);
+        }
+    }
+
     private void rebuildIndex() {
+        Project project = currentIndexProject();
+        if (project == null) {
+            updateIndexStatus();
+            return;
+        }
         rebuildIndexButton.setEnabled(false);
         rebuildIndexButton.setText(I18n.t("aiSettings.index.rebuilding"));
 
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
-            ContextCollectorManager.getInstance().rebuildAllCodebaseIndexes();
+            ContextCollectorManager.getInstance().rebuildCodebaseIndex(project);
 
             SwingUtilities.invokeLater(() -> {
                 rebuildIndexButton.setEnabled(true);
@@ -341,7 +498,12 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     }
 
     private void clearIndex() {
-        ContextCollectorManager.getInstance().clearAllCodebaseIndexes();
+        Project project = currentIndexProject();
+        if (project == null) {
+            updateIndexStatus();
+            return;
+        }
+        ContextCollectorManager.getInstance().clearCodebaseIndex(project);
         Messages.showInfoMessage(I18n.t("aiSettings.index.cleared"), I18n.t("aiSettings.section.projectIndex"));
         updateIndexStatus();
     }
@@ -350,7 +512,9 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         if (indexStatusLabel == null) {
             return;
         }
-        IndexStats stats = ContextCollectorManager.getInstance().getAggregateCodebaseStats();
+        Project project = currentIndexProject();
+        updateIndexProjectDisplay(project);
+        IndexStats stats = ContextCollectorManager.getInstance().getCodebaseStats(project);
 
         AiFeatureSettings settings = AiFeatureSettings.getInstance();
         boolean codeCompletionSelected = codeCompletionEnabled == null
@@ -359,7 +523,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         boolean projectContextSelected = projectContextEnabled == null
             ? settings.isProjectContextEnabled()
             : projectContextEnabled.isSelected();
-        boolean enabled = codeCompletionSelected && projectContextSelected;
+        boolean enabled = project != null && codeCompletionSelected && projectContextSelected;
         indexStatusLabel.setText(enabled
             ? (stats.isIndexing() ? I18n.t("aiSettings.index.status.indexing") : I18n.t("aiSettings.index.status.ready"))
             : I18n.t("aiSettings.index.status.disabled"));
