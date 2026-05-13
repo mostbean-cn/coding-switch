@@ -53,8 +53,8 @@ public class AiInlineCompletionStartupActivity implements StartupActivity.DumbAw
                 return false;
             }
             DataContext dataContext = DataManager.getInstance().getDataContext(component);
-            Project project = CommonDataKeys.PROJECT.getData(dataContext);
-            Editor editor = CommonDataKeys.EDITOR.getData(dataContext);
+            Project project = dataContext.getData(CommonDataKeys.PROJECT);
+            Editor editor = dataContext.getData(CommonDataKeys.EDITOR);
             if (project == null || editor == null || !AiInlineCompletionService.getInstance().hasActiveCompletion(editor)) {
                 return false;
             }
@@ -84,7 +84,7 @@ public class AiInlineCompletionStartupActivity implements StartupActivity.DumbAw
         }
         Keymap keymap = KeymapManager.getInstance().getActiveKeymap();
         KeyboardShortcut targetShortcut = new KeyboardShortcut(keyStroke, null);
-        for (String actionId : keymap.getActionIds(targetShortcut)) {
+        for (String actionId : keymap.getActionIdList(targetShortcut)) {
             if (!AiFeatureSettings.MANUAL_COMPLETION_ACTION_ID.equals(actionId)) {
                 keymap.removeShortcut(actionId, targetShortcut);
             }
@@ -131,7 +131,7 @@ public class AiInlineCompletionStartupActivity implements StartupActivity.DumbAw
 
         @Override
         protected void doExecute(@NotNull Editor editor, @Nullable Caret caret, DataContext dataContext) {
-            Project project = CommonDataKeys.PROJECT.getData(dataContext);
+            Project project = dataContext.getData(CommonDataKeys.PROJECT);
             if (project != null && AiInlineCompletionService.getInstance().acceptAll(project, editor)) {
                 return;
             }
@@ -159,7 +159,7 @@ public class AiInlineCompletionStartupActivity implements StartupActivity.DumbAw
             if (delegate != null) {
                 delegate.execute(editor, caret, dataContext);
             }
-            Project project = CommonDataKeys.PROJECT.getData(dataContext);
+            Project project = dataContext.getData(CommonDataKeys.PROJECT);
             if (project != null && shouldScheduleAutoCompletion() && AiCompletionEditorGuard.isEligible(project, editor)) {
                 AiInlineCompletionService.getInstance().hide(editor);
                 AiInlineCompletionService.getInstance().scheduleAuto(project, editor);

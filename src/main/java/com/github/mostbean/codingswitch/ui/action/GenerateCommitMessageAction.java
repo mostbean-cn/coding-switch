@@ -6,6 +6,7 @@ import com.intellij.notification.NotificationGroupManager;
 import com.intellij.notification.NotificationType;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
+import com.intellij.openapi.actionSystem.DataKey;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
@@ -27,9 +28,9 @@ import org.jetbrains.annotations.NotNull;
 
 public class GenerateCommitMessageAction extends DumbAwareAction {
 
-    private static final String COMMIT_MESSAGE_DATA_ID = "Vcs.CommitMessage.Panel";
-    private static final String CHANGES_SUPPLIER_DATA_ID = "Vcs.CommitMessage.CompletionContext";
-    private static final String COMMIT_WORKFLOW_UI_DATA_ID = "Vcs.CommitWorkflowUI";
+    private static final DataKey<Object> COMMIT_MESSAGE_PANEL_KEY = DataKey.create("Vcs.CommitMessage.Panel");
+    private static final DataKey<Object> CHANGES_SUPPLIER_KEY = DataKey.create("Vcs.CommitMessage.CompletionContext");
+    private static final DataKey<Object> COMMIT_WORKFLOW_UI_KEY = DataKey.create("Vcs.CommitWorkflowUI");
     private static final Key<AtomicBoolean> COMMIT_GENERATION_STATE_KEY =
         Key.create("coding.switch.ai.commit.message.generating");
 
@@ -39,11 +40,11 @@ public class GenerateCommitMessageAction extends DumbAwareAction {
         if (project == null) {
             return;
         }
-        Object commitMessagePanel = e.getDataContext().getData(COMMIT_MESSAGE_DATA_ID);
+        Object commitMessagePanel = e.getData(COMMIT_MESSAGE_PANEL_KEY);
         Object commitMessageControl = e.getData(VcsDataKeys.COMMIT_MESSAGE_CONTROL);
-        Object commitWorkflowUi = e.getDataContext().getData(COMMIT_WORKFLOW_UI_DATA_ID);
+        Object commitWorkflowUi = e.getData(COMMIT_WORKFLOW_UI_KEY);
         Document commitMessageDocument = e.getData(VcsDataKeys.COMMIT_MESSAGE_DOCUMENT);
-        Object changesSupplier = e.getDataContext().getData(CHANGES_SUPPLIER_DATA_ID);
+        Object changesSupplier = e.getData(CHANGES_SUPPLIER_KEY);
         Editor fallbackEditor = e.getData(CommonDataKeys.EDITOR);
         List<Change> changes = resolveChanges(e, changesSupplier);
         List<?> unversionedFiles = toList(resolveIncludedUnversionedFilesFromWorkflow(e));
@@ -105,7 +106,7 @@ public class GenerateCommitMessageAction extends DumbAwareAction {
     }
 
     private boolean hasSelectedChanges(AnActionEvent e) {
-        Object changesSupplier = e.getDataContext().getData(CHANGES_SUPPLIER_DATA_ID);
+        Object changesSupplier = e.getData(CHANGES_SUPPLIER_KEY);
         return !resolveChanges(e, changesSupplier).isEmpty()
             || resolveIncludedUnversionedFilesFromWorkflow(e).iterator().hasNext();
     }
@@ -169,7 +170,7 @@ public class GenerateCommitMessageAction extends DumbAwareAction {
     }
 
     private Iterable<?> resolveIterableFromWorkflow(AnActionEvent e, String methodName) {
-        Object workflowUi = e.getDataContext().getData(COMMIT_WORKFLOW_UI_DATA_ID);
+        Object workflowUi = e.getData(COMMIT_WORKFLOW_UI_KEY);
         if (workflowUi == null) {
             return List.of();
         }

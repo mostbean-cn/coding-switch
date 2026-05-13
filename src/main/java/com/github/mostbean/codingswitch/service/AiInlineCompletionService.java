@@ -19,6 +19,7 @@ import com.intellij.openapi.editor.markup.TextAttributes;
 import com.intellij.notification.NotificationGroupManager;
 import com.intellij.notification.NotificationType;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.Key;
 import com.intellij.ui.JBColor;
 import java.awt.Color;
@@ -441,6 +442,7 @@ public final class AiInlineCompletionService implements Disposable {
         private Inlay<?> blockInlay;
         private DocumentListener documentListener;
         private CaretListener caretListener;
+        private Disposable invalidationDisposable;
 
         private InlineSession(int offset, String remainingText, long documentStamp) {
             this.offset = offset;
@@ -464,9 +466,10 @@ public final class AiInlineCompletionService implements Disposable {
         }
 
         private void attachInvalidationListeners(Editor editor) {
-            if (documentListener != null || caretListener != null) {
+            if (invalidationDisposable != null) {
                 return;
             }
+            invalidationDisposable = Disposer.newDisposable("Coding Switch inline completion invalidation");
             documentListener = new DocumentListener() {
                 @Override
                 public void documentChanged(DocumentEvent event) {
@@ -481,19 +484,17 @@ public final class AiInlineCompletionService implements Disposable {
                     }
                 }
             };
-            editor.getDocument().addDocumentListener(documentListener);
-            editor.getCaretModel().addCaretListener(caretListener);
+            editor.getDocument().addDocumentListener(documentListener, invalidationDisposable);
+            editor.getCaretModel().addCaretListener(caretListener, invalidationDisposable);
         }
 
         private void detachInvalidationListeners(Editor editor) {
-            if (documentListener != null) {
-                editor.getDocument().removeDocumentListener(documentListener);
-                documentListener = null;
+            if (invalidationDisposable != null) {
+                Disposer.dispose(invalidationDisposable);
+                invalidationDisposable = null;
             }
-            if (caretListener != null) {
-                editor.getCaretModel().removeCaretListener(caretListener);
-                caretListener = null;
-            }
+            documentListener = null;
+            caretListener = null;
         }
 
         private void dispose(Editor editor) {

@@ -153,7 +153,7 @@ public class CliQuickLaunchToolbarAction extends DumbAwareAction
 
         private void executeSelectedCli() {
             DataContext dataContext = getDataContext();
-            Project project = CommonDataKeys.PROJECT.getData(dataContext);
+            Project project = dataContext.getData(CommonDataKeys.PROJECT);
             CliQuickLaunchAction.executeSelectedItem(project);
         }
     }

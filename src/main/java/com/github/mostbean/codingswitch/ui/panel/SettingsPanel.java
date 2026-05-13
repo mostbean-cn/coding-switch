@@ -1091,7 +1091,7 @@ public class SettingsPanel extends JPanel {
         if (result == Messages.YES) {
             ApplicationManager.getApplication().invokeLater(
                 () -> ApplicationManager.getApplication().restart(),
-                ModalityState.NON_MODAL
+                ModalityState.nonModal()
             );
         }
     }

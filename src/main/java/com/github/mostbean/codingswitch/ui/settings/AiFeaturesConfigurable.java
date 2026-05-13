@@ -829,7 +829,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     private void restartIdeAfterDialogs() {
         ApplicationManager.getApplication().invokeLater(
             () -> ApplicationManager.getApplication().restart(),
-            ModalityState.NON_MODAL
+            ModalityState.nonModal()
         );
     }
 
@@ -1182,7 +1182,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     private void applyShortcut(String shortcutText) {
         Keymap keymap = KeymapManager.getInstance().getActiveKeymap();
         KeyboardShortcut targetShortcut = new KeyboardShortcut(KeyStroke.getKeyStroke(shortcutText), null);
-        for (String actionId : keymap.getActionIds(targetShortcut)) {
+        for (String actionId : keymap.getActionIdList(targetShortcut)) {
             if (!AiFeatureSettings.MANUAL_COMPLETION_ACTION_ID.equals(actionId)) {
                 keymap.removeShortcut(actionId, targetShortcut);
             }
