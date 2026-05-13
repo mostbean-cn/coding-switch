@@ -10,6 +10,10 @@ import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.EditorCustomElementRenderer;
 import com.intellij.openapi.editor.Inlay;
 import com.intellij.openapi.editor.LogicalPosition;
+import com.intellij.openapi.editor.event.CaretEvent;
+import com.intellij.openapi.editor.event.CaretListener;
+import com.intellij.openapi.editor.event.DocumentEvent;
+import com.intellij.openapi.editor.event.DocumentListener;
 import com.intellij.openapi.editor.colors.EditorFontType;
 import com.intellij.openapi.editor.markup.TextAttributes;
 import com.intellij.notification.NotificationGroupManager;
@@ -84,7 +88,7 @@ public final class AiInlineCompletionService implements Disposable {
         if (session == null) {
             return;
         }
-        session.disposeInlays();
+        session.dispose(editor);
         editor.putUserData(SESSION_KEY, null);
     }
 
@@ -98,6 +102,7 @@ public final class AiInlineCompletionService implements Disposable {
         if (project == null || session == null) {
             return false;
         }
+        session.detachInvalidationListeners(editor);
         insertText(project, editor, session, session.remainingText);
         hide(editor);
         return true;
@@ -109,6 +114,7 @@ public final class AiInlineCompletionService implements Disposable {
             return false;
         }
         String chunk = nextLineChunk(session.remainingText);
+        session.detachInvalidationListeners(editor);
         insertText(project, editor, session, chunk);
         session.remainingText = session.remainingText.substring(chunk.length());
         session.offset += chunk.length();
@@ -118,6 +124,7 @@ public final class AiInlineCompletionService implements Disposable {
             editor.putUserData(SESSION_KEY, null);
         } else {
             renderSession(editor, session);
+            session.attachInvalidationListeners(editor);
         }
         return true;
     }
@@ -221,6 +228,7 @@ public final class AiInlineCompletionService implements Disposable {
         if (session == null) {
             session = new InlineSession(offset, text, documentStamp);
             editor.putUserData(SESSION_KEY, session);
+            session.attachInvalidationListeners(editor);
         } else {
             session.remainingText += text;
         }
@@ -336,11 +344,51 @@ public final class AiInlineCompletionService implements Disposable {
         private long documentStamp;
         private Inlay<?> inlineInlay;
         private Inlay<?> blockInlay;
+        private DocumentListener documentListener;
+        private CaretListener caretListener;
 
         private InlineSession(int offset, String remainingText, long documentStamp) {
             this.offset = offset;
             this.remainingText = remainingText;
             this.documentStamp = documentStamp;
+        }
+
+        private void attachInvalidationListeners(Editor editor) {
+            if (documentListener != null || caretListener != null) {
+                return;
+            }
+            documentListener = new DocumentListener() {
+                @Override
+                public void documentChanged(DocumentEvent event) {
+                    AiInlineCompletionService.getInstance().hide(editor);
+                }
+            };
+            caretListener = new CaretListener() {
+                @Override
+                public void caretPositionChanged(CaretEvent event) {
+                    if (editor.getCaretModel().getOffset() != offset) {
+                        AiInlineCompletionService.getInstance().hide(editor);
+                    }
+                }
+            };
+            editor.getDocument().addDocumentListener(documentListener);
+            editor.getCaretModel().addCaretListener(caretListener);
+        }
+
+        private void detachInvalidationListeners(Editor editor) {
+            if (documentListener != null) {
+                editor.getDocument().removeDocumentListener(documentListener);
+                documentListener = null;
+            }
+            if (caretListener != null) {
+                editor.getCaretModel().removeCaretListener(caretListener);
+                caretListener = null;
+            }
+        }
+
+        private void dispose(Editor editor) {
+            detachInvalidationListeners(editor);
+            disposeInlays();
         }
 
         private void disposeInlays() {
