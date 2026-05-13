@@ -1,6 +1,5 @@
 package com.github.mostbean.codingswitch.service;
 
-import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.EditorKind;
@@ -41,7 +40,7 @@ public final class AiCompletionEditorGuard {
             return false;
         }
 
-        return ReadAction.computeCancellable(() -> isEligibleFile(project, editor));
+        return PlatformReadAccess.compute(() -> isEligibleFile(project, editor));
     }
 
     private static boolean isEligibleFile(Project project, Editor editor) {

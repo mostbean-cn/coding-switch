@@ -6,7 +6,6 @@ import com.github.mostbean.codingswitch.model.AiCompletionTriggerMode;
 import com.github.mostbean.codingswitch.model.AiModelFormat;
 import com.github.mostbean.codingswitch.model.AiModelProfile;
 import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
@@ -129,7 +128,7 @@ public final class AiCompletionService {
             return null;
         }
 
-        String inFlightKey = ReadAction.computeCancellable(() -> completionKey(project, editor));
+        String inFlightKey = PlatformReadAccess.compute(() -> completionKey(project, editor));
         if (inFlightCompletionKeys.putIfAbsent(inFlightKey, System.currentTimeMillis()) != null) {
             return null;
         }
@@ -147,7 +146,7 @@ public final class AiCompletionService {
             }
 
             AiCompletionLengthLevel lengthLevel = settings.getCompletionLengthLevel(triggerMode);
-            CompletionSnapshot snapshot = ReadAction.computeCancellable(() -> new CompletionSnapshot(
+            CompletionSnapshot snapshot = PlatformReadAccess.compute(() -> new CompletionSnapshot(
                 editor.getDocument().getModificationStamp(),
                 editor.getCaretModel().getOffset(),
                 AiCompletionContextBuilder.build(project, editor, triggerMode, lengthLevel)
@@ -173,7 +172,7 @@ public final class AiCompletionService {
         if (project == null || editor == null) {
             return false;
         }
-        return ReadAction.computeCancellable(() -> inFlightCompletionKeys.containsKey(completionKey(project, editor)));
+        return PlatformReadAccess.compute(() -> inFlightCompletionKeys.containsKey(completionKey(project, editor)));
     }
 
     public Optional<String> generateText(String systemPrompt, String userPrompt, AiCompletionLengthLevel lengthLevel)
@@ -242,7 +241,7 @@ public final class AiCompletionService {
     }
 
     private boolean isStillValid(Editor editor, CompletionSnapshot snapshot) {
-        return ReadAction.computeCancellable(() ->
+        return PlatformReadAccess.compute(() ->
             editor.getDocument().getModificationStamp() == snapshot.documentStamp()
                 && editor.getCaretModel().getOffset() == snapshot.caretOffset()
         );
