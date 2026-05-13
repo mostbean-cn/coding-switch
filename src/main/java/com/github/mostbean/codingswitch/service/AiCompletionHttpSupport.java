@@ -102,9 +102,21 @@ final class AiCompletionHttpSupport {
         if (value == null) {
             return "";
         }
-        return value.replaceFirst("^```[a-zA-Z0-9_-]*\\s*", "")
-            .replaceFirst("\\s*```$", "")
-            .stripTrailing();
+        String text = value.replace("\r\n", "\n").stripTrailing();
+        int fenceStart = text.indexOf("```");
+        if (fenceStart >= 0) {
+            int contentStart = text.indexOf('\n', fenceStart);
+            if (contentStart >= 0) {
+                int fenceEnd = text.indexOf("\n```", contentStart + 1);
+                if (fenceEnd >= 0) {
+                    return text.substring(contentStart + 1, fenceEnd).stripTrailing();
+                }
+                if (text.substring(0, fenceStart).isBlank()) {
+                    return text.substring(contentStart + 1).stripTrailing();
+                }
+            }
+        }
+        return text;
     }
 
     private static void addCustomHeaders(HttpRequest.Builder builder, String headersJson) {

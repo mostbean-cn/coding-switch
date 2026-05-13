@@ -31,6 +31,7 @@ final class FimChatCompletionClient implements AiCompletionClient {
     public void streamComplete(AiCompletionRequest request, Consumer<String> onDelta)
         throws IOException, InterruptedException {
         HttpClient client = AiCompletionHttpSupport.createClient(request.profile());
+        StringBuilder completion = new StringBuilder();
         AiCompletionHttpSupport.postJsonStream(
             client,
             request.profile(),
@@ -40,16 +41,20 @@ final class FimChatCompletionClient implements AiCompletionClient {
             event -> {
                 String delta = extractDelta(event);
                 if (!delta.isEmpty()) {
-                    onDelta.accept(delta);
+                    completion.append(delta);
                 }
             }
         );
+        String text = AiCompletionHttpSupport.trimCompletion(completion.toString());
+        if (!text.isBlank()) {
+            onDelta.accept(text);
+        }
     }
 
     private JsonObject createBody(AiCompletionRequest request, boolean stream) {
         JsonObject body = new JsonObject();
         body.addProperty("model", request.profile().getModel());
-        body.add("messages", messages());
+        body.add("messages", messages(request));
         body.addProperty("prefix", request.fimPrefix());
         if (!request.fimSuffix().isBlank()) {
             body.addProperty("suffix", request.fimSuffix());
@@ -60,13 +65,20 @@ final class FimChatCompletionClient implements AiCompletionClient {
         return body;
     }
 
-    private JsonArray messages() {
+    private JsonArray messages(AiCompletionRequest request) {
         JsonArray messages = new JsonArray();
+        JsonObject system = new JsonObject();
+        system.addProperty("role", "system");
+        system.addProperty("content", request.systemPrompt());
+        messages.add(system);
+
         JsonObject user = new JsonObject();
         user.addProperty("role", "user");
         user.addProperty(
             "content",
-            "Complete the code between the provided prefix and suffix. Return only the inserted code."
+            request.userPrompt()
+                + "\n\nUse the provided prefix and suffix to complete only the text at the caret. "
+                + "Return only the inserted code/text. Do not add markdown fences or explanations."
         );
         messages.add(user);
         return messages;
