@@ -198,7 +198,8 @@ public final class AiCompletionService {
         if (profile == null || profile.getModel().isBlank()) {
             return Optional.empty();
         }
-        if (profile.getFormat() == AiModelFormat.DEEPSEEK_FIM_COMPLETIONS) {
+        if (profile.getFormat() == AiModelFormat.DEEPSEEK_FIM_COMPLETIONS
+            || profile.getFormat() == AiModelFormat.FIM_CHAT_COMPLETIONS) {
             return Optional.empty();
         }
         String apiKey = settings.getApiKey(profile.getId());
@@ -252,6 +253,7 @@ public final class AiCompletionService {
             case OPENAI_RESPONSES -> new OpenAiResponsesCompletionClient();
             case OPENAI_CHAT_COMPLETIONS -> new OpenAiChatCompletionClient();
             case DEEPSEEK_FIM_COMPLETIONS -> new DeepSeekFimCompletionClient();
+            case FIM_CHAT_COMPLETIONS -> new FimChatCompletionClient();
             case ANTHROPIC_MESSAGES -> new AnthropicMessagesCompletionClient();
         };
     }

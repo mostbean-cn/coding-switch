@@ -1303,6 +1303,9 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
                 .addLabeledComponent(I18n.t("aiSettings.label.fimFormat"), fimFormatCombo)
                 .addLabeledComponent(I18n.t("aiSettings.label.customHeaders"), new JBScrollPane(headersArea));
 
+            JBLabel completionModelHint = new JBLabel(I18n.t("aiSettings.hint.fimModelRecommended"));
+            completionModelHint.setForeground(JBColor.GRAY);
+
             JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
             testButton = new JButton(I18n.t("aiSettings.button.testConfig"));
             testButton.addActionListener(e -> runConnectionTest());
@@ -1328,7 +1331,14 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             JPanel panel = new JPanel(new BorderLayout(0, 10));
             panel.setBorder(JBUI.Borders.empty(8));
             panel.add(form.getPanel(), BorderLayout.CENTER);
-            panel.add(buttonRow, BorderLayout.SOUTH);
+            JPanel southPanel = new JPanel();
+            southPanel.setLayout(new BoxLayout(southPanel, BoxLayout.Y_AXIS));
+            completionModelHint.setAlignmentX(Component.LEFT_ALIGNMENT);
+            buttonRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+            southPanel.add(completionModelHint);
+            southPanel.add(Box.createVerticalStrut(8));
+            southPanel.add(buttonRow);
+            panel.add(southPanel, BorderLayout.SOUTH);
             panel.setPreferredSize(new Dimension(JBUI.scale(620), JBUI.scale(430)));
             return panel;
         }
@@ -1387,7 +1397,9 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         }
 
         private void syncFimFormatAvailability() {
-            boolean nativeFim = formatCombo.getSelectedItem() == AiModelFormat.DEEPSEEK_FIM_COMPLETIONS;
+            AiModelFormat selected = (AiModelFormat) formatCombo.getSelectedItem();
+            boolean nativeFim = selected == AiModelFormat.DEEPSEEK_FIM_COMPLETIONS
+                || selected == AiModelFormat.FIM_CHAT_COMPLETIONS;
             if (nativeFim) {
                 fimFormatCombo.setSelectedItem(Boolean.FALSE);
             }

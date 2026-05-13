@@ -26,7 +26,9 @@ final class AiCompletionContextBuilder {
         AiCompletionLengthLevel lengthLevel
     ) {
         AiModelProfile profile = AiFeatureSettings.getInstance().getActiveCompletionProfile();
-        boolean useNativeFim = profile != null && profile.getFormat() == AiModelFormat.DEEPSEEK_FIM_COMPLETIONS;
+        boolean useNativeFim = profile != null
+            && (profile.getFormat() == AiModelFormat.DEEPSEEK_FIM_COMPLETIONS
+            || profile.getFormat() == AiModelFormat.FIM_CHAT_COMPLETIONS);
         boolean useFim = profile != null && profile.isFimEnabled() && !useNativeFim;
 
         Document document = editor.getDocument();

@@ -190,6 +190,7 @@ public final class I18n {
                 m.put("aiSettings.label.timeoutSeconds", "超时秒数:");
                 m.put("aiSettings.label.fimFormat", "FIM补全格式:");
                 m.put("aiSettings.label.customHeaders", "自定义 Headers JSON:");
+                m.put("aiSettings.hint.fimModelRecommended", "代码补全推荐使用 FIM 专用模型");
                 m.put("aiSettings.button.testConfig", "测试配置");
                 m.put("aiSettings.button.detectModels", "检测模型");
                 m.put("aiSettings.validation.modelRequired", "请填写模型名称");
@@ -732,6 +733,7 @@ public final class I18n {
                 m.put("aiSettings.label.timeoutSeconds", "Timeout seconds:");
                 m.put("aiSettings.label.fimFormat", "FIM completion format:");
                 m.put("aiSettings.label.customHeaders", "Custom Headers JSON:");
+                m.put("aiSettings.hint.fimModelRecommended", "FIM-specific models are recommended for code completion");
                 m.put("aiSettings.button.testConfig", "Test Configuration");
                 m.put("aiSettings.button.detectModels", "Detect Models");
                 m.put("aiSettings.validation.modelRequired", "Model name is required");

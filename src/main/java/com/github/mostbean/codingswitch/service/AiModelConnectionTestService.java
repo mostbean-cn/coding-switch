@@ -174,11 +174,17 @@ public final class AiModelConnectionTestService {
                 openAiChatBody(profile.getModel()),
                 "OpenAI Chat Completions"
             ));
+            case FIM_CHAT_COMPLETIONS -> List.of(postJson(
+                AiCompletionHttpSupport.ensurePath(profile.getBaseUrl(), "/chat/completions"),
+                bearerHeaders(apiKey),
+                fimChatBody(profile.getModel()),
+                "FIM Chat Completions"
+            ));
             case DEEPSEEK_FIM_COMPLETIONS -> List.of(postJson(
                 AiCompletionHttpSupport.ensurePath(profile.getBaseUrl(), "/completions"),
                 bearerHeaders(apiKey),
                 deepSeekFimBody(profile.getModel()),
-                "DeepSeek FIM Completions"
+                "FIM Completions"
             ));
             case ANTHROPIC_MESSAGES -> {
                 String body = anthropicMessagesBody(profile.getModel());
@@ -229,6 +235,13 @@ public final class AiModelConnectionTestService {
                     "DeepSeek Beta Models"
                 )
             );
+        }
+        if (profile.getFormat() == AiModelFormat.FIM_CHAT_COMPLETIONS) {
+            return List.of(get(
+                AiCompletionHttpSupport.ensurePath(profile.getBaseUrl(), "/models"),
+                bearerHeaders(apiKey),
+                "FIM Chat Models"
+            ));
         }
         return List.of(get(
             AiCompletionHttpSupport.ensurePath(profile.getBaseUrl(), "/v1/models"),
@@ -311,6 +324,16 @@ public final class AiModelConnectionTestService {
         JsonObject body = new JsonObject();
         body.addProperty("model", model);
         body.addProperty("max_tokens", 1);
+        body.add("messages", oneUserMessage());
+        return GSON.toJson(body);
+    }
+
+    private static String fimChatBody(String model) {
+        JsonObject body = new JsonObject();
+        body.addProperty("model", model);
+        body.addProperty("max_tokens", 1);
+        body.addProperty("prefix", "def ping():\n    ");
+        body.addProperty("suffix", "\n");
         body.add("messages", oneUserMessage());
         return GSON.toJson(body);
     }
