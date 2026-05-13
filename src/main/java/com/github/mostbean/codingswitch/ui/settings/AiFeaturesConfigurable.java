@@ -74,6 +74,7 @@ import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import javax.swing.SpinnerNumberModel;
+import javax.swing.Timer;
 import javax.swing.UIManager;
 import javax.swing.table.DefaultTableModel;
 import org.jetbrains.annotations.Nls;
@@ -111,6 +112,8 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     private JBLabel indexMemoryLabel;
     private JButton rebuildIndexButton;
     private JButton clearIndexButton;
+    private JButton refreshIndexButton;
+    private Timer indexStatusRefreshTimer;
 
     private final List<AiModelProfile> profiles = new ArrayList<>();
     private final Map<String, String> editedApiKeys = new HashMap<>();
@@ -156,6 +159,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     private JPanel buildFeatureSection() {
         JPanel section = createSection(I18n.t("aiSettings.section.features"));
         codeCompletionEnabled = new JCheckBox(I18n.t("aiSettings.checkbox.codeCompletion"));
+        codeCompletionEnabled.addActionListener(e -> updateIndexStatus());
         gitCommitMessageEnabled = new JCheckBox(I18n.t("aiSettings.checkbox.gitCommitMessage"));
         section.add(checkBoxRow(codeCompletionEnabled));
         section.add(checkBoxRow(gitCommitMessageEnabled));
@@ -221,8 +225,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
         autoCompletionEnabled = new JCheckBox(I18n.t("aiSettings.checkbox.autoCompletion"));
         section.add(checkBoxRow(autoCompletionEnabled));
-        projectContextEnabled = new JCheckBox(I18n.t("aiSettings.checkbox.projectContext"));
-        section.add(checkBoxRow(projectContextEnabled));
 
         JPanel activeRow = rowPanel();
         activeRow.add(new JBLabel(I18n.t("aiSettings.label.completionProfile")));
@@ -275,6 +277,15 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     private JPanel buildProjectIndexSection() {
         JPanel section = createSection(I18n.t("aiSettings.section.projectIndex"));
 
+        projectContextEnabled = new JCheckBox(I18n.t("aiSettings.checkbox.projectContext"));
+        projectContextEnabled.addActionListener(e -> {
+            updateIndexStatus();
+            if (projectContextEnabled.isSelected()) {
+                startIndexStatusRefreshTimer();
+            }
+        });
+        section.add(checkBoxRow(projectContextEnabled));
+
         // 状态行
         JPanel statusRow = rowPanel();
         statusRow.add(new JBLabel(I18n.t("aiSettings.index.status")));
@@ -311,6 +322,10 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         clearIndexButton = new JButton(I18n.t("aiSettings.button.clearIndex"));
         clearIndexButton.addActionListener(e -> clearIndex());
         buttonRow.add(clearIndexButton);
+
+        refreshIndexButton = new JButton(I18n.t("aiSettings.button.refreshIndex"));
+        refreshIndexButton.addActionListener(e -> updateIndexStatus());
+        buttonRow.add(refreshIndexButton);
         section.add(buttonRow);
 
         return section;
@@ -338,15 +353,25 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     }
 
     private void updateIndexStatus() {
+        if (indexStatusLabel == null) {
+            return;
+        }
         IndexStats stats = ContextCollectorManager.getInstance().getAggregateCodebaseStats();
 
         AiFeatureSettings settings = AiFeatureSettings.getInstance();
-        boolean enabled = settings.isCodeCompletionEnabled() && settings.isProjectContextEnabled();
+        boolean codeCompletionSelected = codeCompletionEnabled == null
+            ? settings.isCodeCompletionEnabled()
+            : codeCompletionEnabled.isSelected();
+        boolean projectContextSelected = projectContextEnabled == null
+            ? settings.isProjectContextEnabled()
+            : projectContextEnabled.isSelected();
+        boolean enabled = codeCompletionSelected && projectContextSelected;
         indexStatusLabel.setText(enabled
             ? (stats.isIndexing() ? I18n.t("aiSettings.index.status.indexing") : I18n.t("aiSettings.index.status.ready"))
             : I18n.t("aiSettings.index.status.disabled"));
         rebuildIndexButton.setEnabled(enabled && !stats.isIndexing());
         clearIndexButton.setEnabled(enabled);
+        refreshIndexButton.setEnabled(true);
 
         indexFilesLabel.setText(String.valueOf(stats.filesIndexed()));
         indexChunksLabel.setText(String.valueOf(stats.chunksIndexed()));
@@ -371,6 +396,28 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             memoryText = String.format("%.1f MB", memoryBytes / (1024.0 * 1024.0));
         }
         indexMemoryLabel.setText(memoryText);
+
+        if (stats.isIndexing()) {
+            startIndexStatusRefreshTimer();
+        } else {
+            stopIndexStatusRefreshTimer();
+        }
+    }
+
+    private void startIndexStatusRefreshTimer() {
+        if (indexStatusRefreshTimer == null) {
+            indexStatusRefreshTimer = new Timer(1000, e -> updateIndexStatus());
+            indexStatusRefreshTimer.setRepeats(true);
+        }
+        if (!indexStatusRefreshTimer.isRunning()) {
+            indexStatusRefreshTimer.start();
+        }
+    }
+
+    private void stopIndexStatusRefreshTimer() {
+        if (indexStatusRefreshTimer != null && indexStatusRefreshTimer.isRunning()) {
+            indexStatusRefreshTimer.stop();
+        }
     }
 
     private String activeProfileDisplayName(AiModelProfile profile) {
@@ -935,6 +982,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
     @Override
     public void disposeUIResources() {
+        stopIndexStatusRefreshTimer();
         removeShortcutCaptureListener();
         rootPanel = null;
     }

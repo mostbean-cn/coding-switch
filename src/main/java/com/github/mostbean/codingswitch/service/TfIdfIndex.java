@@ -1,5 +1,6 @@
 package com.github.mostbean.codingswitch.service;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -138,6 +139,31 @@ public final class TfIdfIndex {
         return documents.size();
     }
 
+    public IndexSnapshot snapshot() {
+        return new IndexSnapshot(
+            copyNestedMap(termFrequency),
+            new HashMap<>(documents),
+            new HashMap<>(docTermCounts),
+            totalDocuments
+        );
+    }
+
+    public void restore(IndexSnapshot snapshot) {
+        clear();
+        if (snapshot == null) {
+            return;
+        }
+        for (Map.Entry<String, Map<String, Integer>> entry : snapshot.termFrequency().entrySet()) {
+            termFrequency.put(entry.getKey(), new ConcurrentHashMap<>(entry.getValue()));
+        }
+        documents.putAll(snapshot.documents());
+        docTermCounts.putAll(snapshot.docTermCounts());
+        totalDocuments = snapshot.totalDocuments();
+        if (totalDocuments != documents.size()) {
+            totalDocuments = documents.size();
+        }
+    }
+
     /**
      * 清空索引。
      */
@@ -224,5 +250,22 @@ public final class TfIdfIndex {
      * 搜索结果。
      */
     public record SearchResult(CodeChunk chunk, double score) {
+    }
+
+    public record IndexSnapshot(
+        Map<String, Map<String, Integer>> termFrequency,
+        Map<String, CodeChunk> documents,
+        Map<String, Integer> docTermCounts,
+        int totalDocuments
+    ) implements Serializable {
+        private static final long serialVersionUID = 1L;
+    }
+
+    private static Map<String, Map<String, Integer>> copyNestedMap(Map<String, Map<String, Integer>> source) {
+        Map<String, Map<String, Integer>> copy = new HashMap<>();
+        for (Map.Entry<String, Map<String, Integer>> entry : source.entrySet()) {
+            copy.put(entry.getKey(), new HashMap<>(entry.getValue()));
+        }
+        return copy;
     }
 }

@@ -116,7 +116,9 @@ public final class ContextCollectorManager {
         boolean indexing = false;
 
         for (Project project : ProjectManager.getInstance().getOpenProjects()) {
-            IndexStats stats = collectorGroup(project).codebaseSearchCollector().getStats();
+            CodebaseSearchCollector collector = collectorGroup(project).codebaseSearchCollector();
+            collector.ensureIndexLoaded(project);
+            IndexStats stats = collector.getStats();
             filesIndexed += stats.filesIndexed();
             chunksIndexed += stats.chunksIndexed();
             lastUpdateTime = Math.max(lastUpdateTime, stats.lastUpdateTime());

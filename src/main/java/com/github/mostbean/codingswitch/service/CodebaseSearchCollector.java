@@ -58,9 +58,7 @@ public class CodebaseSearchCollector implements ContextCollector {
             return "";
         }
 
-        if (metadataLoaded.compareAndSet(false, true)) {
-            loadIndexMetadata(project);
-        }
+        ensureIndexLoaded(project);
 
         // 异步更新索引
         triggerIndexUpdate(project);
@@ -126,10 +124,22 @@ public class CodebaseSearchCollector implements ContextCollector {
         return query.toString();
     }
 
+    public void ensureIndexLoaded(Project project) {
+        if (project != null && metadataLoaded.compareAndSet(false, true)) {
+            loadIndexMetadata(project);
+        }
+    }
+
     private void loadIndexMetadata(Project project) {
         IndexPersistence.IndexData data = IndexPersistence.load(project);
         if (data != null) {
             fileModificationTimes.putAll(data.getFileModificationTimes());
+            if (data.getIndexSnapshot() != null) {
+                index.restore(data.getIndexSnapshot());
+                for (CodeChunk chunk : data.getIndexSnapshot().documents().values()) {
+                    indexedFiles.add(chunk.filePath());
+                }
+            }
             lastIndexTime = data.getSaveTime();
         }
     }

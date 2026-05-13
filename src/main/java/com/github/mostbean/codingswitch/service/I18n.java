@@ -183,6 +183,7 @@ public final class I18n {
                 m.put("aiSettings.index.never", "从未更新");
                 m.put("aiSettings.button.rebuildIndex", "重建索引");
                 m.put("aiSettings.button.clearIndex", "清空索引");
+                m.put("aiSettings.button.refreshIndex", "刷新");
                 m.put("aiSettings.index.rebuilding", "正在重建索引...");
                 m.put("aiSettings.index.cleared", "索引已清空");
                 m.put("aiSettings.index.memoryUsage", "内存占用:");
@@ -744,6 +745,7 @@ public final class I18n {
                 m.put("aiSettings.index.never", "Never");
                 m.put("aiSettings.button.rebuildIndex", "Rebuild Index");
                 m.put("aiSettings.button.clearIndex", "Clear Index");
+                m.put("aiSettings.button.refreshIndex", "Refresh");
                 m.put("aiSettings.index.rebuilding", "Rebuilding index...");
                 m.put("aiSettings.index.cleared", "Index cleared");
                 m.put("aiSettings.index.memoryUsage", "Memory Usage:");

@@ -35,11 +35,10 @@ public final class IndexPersistence {
             IndexData data = new IndexData(
                 index.getDocumentCount(),
                 fileModificationTimes,
+                index.snapshot(),
                 System.currentTimeMillis()
             );
 
-            // 由于 TfIdfIndex 不可序列化，我们只保存元数据
-            // 实际的索引内容会在需要时重新构建
             try (ObjectOutputStream oos = new ObjectOutputStream(Files.newOutputStream(indexPath))) {
                 oos.writeObject(data);
             }
@@ -106,11 +105,22 @@ public final class IndexPersistence {
 
         private final int documentCount;
         private final Map<String, Long> fileModificationTimes;
+        private final TfIdfIndex.IndexSnapshot indexSnapshot;
         private final long saveTime;
 
         public IndexData(int documentCount, Map<String, Long> fileModificationTimes, long saveTime) {
+            this(documentCount, fileModificationTimes, null, saveTime);
+        }
+
+        public IndexData(
+            int documentCount,
+            Map<String, Long> fileModificationTimes,
+            TfIdfIndex.IndexSnapshot indexSnapshot,
+            long saveTime
+        ) {
             this.documentCount = documentCount;
             this.fileModificationTimes = new ConcurrentHashMap<>(fileModificationTimes);
+            this.indexSnapshot = indexSnapshot;
             this.saveTime = saveTime;
         }
 
@@ -120,6 +130,10 @@ public final class IndexPersistence {
 
         public Map<String, Long> getFileModificationTimes() {
             return fileModificationTimes;
+        }
+
+        public TfIdfIndex.IndexSnapshot getIndexSnapshot() {
+            return indexSnapshot;
         }
 
         public long getSaveTime() {

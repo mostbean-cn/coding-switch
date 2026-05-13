@@ -49,18 +49,23 @@ public final class AiCommitMessageService {
             禁止输出“明白”“好的”“我会”“下面是”“以下是”等前缀。
             优先使用 Conventional Commits 格式：type(scope): 中文摘要。
             第一行必须是提交标题，格式为 type(scope): 中文摘要。
-            如果涉及多个文件或多个功能点，标题后空一行，然后用中文短横线列表概括主要变更。
-            每条列表必须来自 diff 中的实际变更，不要编造未出现的功能。
+            标题和列表都要描述“用户可理解的功能变化或行为变化”，不要描述“改了哪些类”。
+            除非类名、方法名、文件名本身就是用户需要关心的公开 API，否则不要在提交信息中出现类名、方法名或文件名。
+            遇到 Java 类、服务、配置页、缓存、索引、收集器等内部实现时，请概括成模块能力，例如“补全请求”“模型配置”“项目索引”“设置界面”“上下文收集”。
+            如果涉及多个文件或多个功能点，标题后空一行，然后用中文短横线列表概括主要用户可见变化。
+            每条列表必须来自 diff 中的实际变更，不要编造未出现的功能，也不要逐个罗列内部类的改动。
+            列表不超过 5 条，每条不超过 40 个中文字符。
             除非代码变更明显要求英文，否则使用简体中文。
             """;
         String userPrompt = """
             请只根据下面的文件变更生成 Git 提交信息。
             直接输出提交信息，不要输出任何其他文字。
+            请把内部实现名转换成更容易理解的模块描述，尽量少出现类名、方法名和文件名。
             推荐格式：
             type(scope): 中文摘要
 
-            - 主要变更 1
-            - 主要变更 2
+            - 面向用户或维护者可理解的变化 1
+            - 面向用户或维护者可理解的变化 2
 
             """ + buildChangesSummary(changeList, unversionedFileList);
         return AiCompletionService.getInstance().generateText(
@@ -68,6 +73,7 @@ public final class AiCommitMessageService {
             userPrompt,
             AiCompletionLengthLevel.LONG
         ).map(this::sanitizeCommitMessage)
+            .map(this::simplifyImplementationNames)
             .map(value -> value.isBlank() ? fallbackCommitMessage(changeList, unversionedFileList) : value)
             .filter(value -> !value.isBlank());
     }
@@ -350,6 +356,25 @@ public final class AiCommitMessageService {
             || lower.contains("\\x1b[31m");
     }
 
+    private String simplifyImplementationNames(String message) {
+        if (message == null || message.isBlank()) {
+            return "";
+        }
+        List<String> lines = new ArrayList<>();
+        for (String line : message.split("\\n", -1)) {
+            String normalized = line.replaceAll(
+                "^(\\s*-\\s+)[A-Z][A-Za-z0-9_]*(?:Service|Builder|Configurable|Manager|Collector|Stats|Cache|Client|Action|Settings|Profile|Index)\\s+",
+                "$1"
+            );
+            normalized = normalized.replaceAll(
+                "\\b[A-Z][A-Za-z0-9_]*(?:Service|Builder|Configurable|Manager|Collector|Stats|Cache|Client|Action|Settings|Profile|Index)\\b",
+                "相关模块"
+            );
+            lines.add(normalized);
+        }
+        return String.join("\n", lines).trim();
+    }
+
     private String fallbackCommitMessage(List<Change> changes, List<?> unversionedFiles) {
         if (changes.isEmpty() && unversionedFiles.isEmpty()) {
             return "";
@@ -360,41 +385,60 @@ public final class AiCommitMessageService {
         String action = allNew ? "添加" : allDeleted ? "删除" : "更新";
         String type = allNew ? "feat" : "chore";
 
-        List<String> names = new ArrayList<>();
-        for (Change change : changes) {
-            String name = simpleFileName(resolvePath(change));
-            if (!name.isBlank() && !names.contains(name)) {
-                names.add(name);
-            }
-            if (names.size() >= 3) {
-                break;
-            }
+        String scope = inferCommitScope(changes, unversionedFiles);
+        String target = inferFallbackTarget(scope);
+        if (changes.size() + unversionedFiles.size() > 1) {
+            target += "相关能力";
         }
-        for (Object filePath : unversionedFiles) {
-            String name = simpleFileName(resolveFilePathText(filePath));
-            if (!name.isBlank() && !names.contains(name)) {
-                names.add(name);
-            }
-            if (names.size() >= 3) {
-                break;
-            }
-        }
-        String target = names.isEmpty() ? "项目文件" : String.join("、", names);
-        if (changes.size() + unversionedFiles.size() > names.size()) {
-            target += " 等文件";
-        }
-        return type + ": " + action + target;
+        return type + "(" + scope + "): " + action + target;
     }
 
-    private String simpleFileName(String path) {
-        if (path == null || path.isBlank()) {
-            return "";
+    private String inferCommitScope(List<Change> changes, List<?> unversionedFiles) {
+        String haystack = collectChangedPathText(changes, unversionedFiles)
+            .replace('\\', '/')
+            .toLowerCase();
+        if (haystack.contains("commitmessage") || haystack.contains("commit-message") || haystack.contains("vcs")) {
+            return "commit";
         }
-        String normalized = path.replace('\\', '/');
-        int slash = normalized.lastIndexOf('/');
-        String fileName = slash >= 0 ? normalized.substring(slash + 1) : normalized;
-        int dot = fileName.lastIndexOf('.');
-        return dot > 0 ? fileName.substring(0, dot) : fileName;
+        if (haystack.contains("completion") || haystack.contains("inline") || haystack.contains("fim")) {
+            return "ai-completion";
+        }
+        if (haystack.contains("settings") || haystack.contains("configurable") || haystack.contains("i18n")) {
+            return "settings";
+        }
+        if (haystack.contains("index") || haystack.contains("context") || haystack.contains("collector")) {
+            return "context";
+        }
+        if (haystack.contains("/ui/")) {
+            return "ui";
+        }
+        if (haystack.contains("/test/")) {
+            return "test";
+        }
+        return "project";
+    }
+
+    private String inferFallbackTarget(String scope) {
+        return switch (scope) {
+            case "commit" -> "提交信息生成";
+            case "ai-completion" -> "AI 补全";
+            case "settings" -> "设置界面";
+            case "context" -> "上下文增强";
+            case "ui" -> "界面交互";
+            case "test" -> "测试覆盖";
+            default -> "项目";
+        };
+    }
+
+    private String collectChangedPathText(List<Change> changes, List<?> unversionedFiles) {
+        StringBuilder text = new StringBuilder();
+        for (Change change : changes) {
+            text.append(resolvePath(change)).append('\n');
+        }
+        for (Object filePath : unversionedFiles) {
+            text.append(resolveFilePathText(filePath)).append('\n');
+        }
+        return text.toString();
     }
 
     private String joinCommitLines(List<String> lines) {
