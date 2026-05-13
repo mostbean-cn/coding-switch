@@ -41,7 +41,7 @@ public final class AiCompletionEditorGuard {
             return false;
         }
 
-        return ReadAction.compute(() -> isEligibleFile(project, editor));
+        return ReadAction.computeCancellable(() -> isEligibleFile(project, editor));
     }
 
     private static boolean isEligibleFile(Project project, Editor editor) {
