@@ -116,7 +116,7 @@ public final class AiInlineCompletionService implements Disposable {
         String chunk = nextLineChunk(session.remainingText);
         session.detachInvalidationListeners(editor);
         insertText(project, editor, session, chunk);
-        session.remainingText = session.remainingText.substring(chunk.length());
+        session.consumeVisiblePrefix(chunk);
         session.offset += chunk.length();
         session.documentStamp = editor.getDocument().getModificationStamp();
         session.disposeInlays();
@@ -230,7 +230,10 @@ public final class AiInlineCompletionService implements Disposable {
             editor.putUserData(SESSION_KEY, session);
             session.attachInvalidationListeners(editor);
         } else {
-            session.remainingText += text;
+            session.appendText(text);
+        }
+        if (session.remainingText.isEmpty()) {
+            return;
         }
         session.disposeInlays();
         renderSession(editor, session);
@@ -294,8 +297,9 @@ public final class AiInlineCompletionService implements Disposable {
         }
         if (newline >= 0) {
             int anchorLine = editor.offsetToLogicalPosition(session.offset).line;
+            int lineStartX = lineStartX(editor, anchorLine);
             session.blockInlay = editor.getInlayModel()
-                .addBlockElement(session.offset, true, false, 0, new GhostBlockRenderer(rest, anchorLine));
+                .addBlockElement(session.offset, true, false, 0, new GhostBlockRenderer(rest, lineStartX));
         }
     }
 
@@ -333,6 +337,96 @@ public final class AiInlineCompletionService implements Disposable {
             .replace("\r", "\n");
     }
 
+    private static String protectIncompleteTail(String text) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+        int lastNewline = text.lastIndexOf('\n');
+        if (lastNewline < 0 || lastNewline == text.length() - 1) {
+            return text;
+        }
+        String lastLine = text.substring(lastNewline + 1);
+        if (!isLikelyIncompleteTail(lastLine)) {
+            return text;
+        }
+        String protectedText = text.substring(0, lastNewline + 1);
+        return protectedText.isBlank() ? text : protectedText;
+    }
+
+    private static boolean isLikelyIncompleteTail(String line) {
+        String trimmed = line.stripTrailing();
+        if (trimmed.isBlank()) {
+            return false;
+        }
+        if (hasUnclosedXmlLikeTag(trimmed) || hasUnclosedQuote(trimmed, '"') || hasUnclosedQuote(trimmed, '\'')) {
+            return true;
+        }
+        if (hasMoreOpeningThanClosing(trimmed, '(', ')')
+            || hasMoreOpeningThanClosing(trimmed, '[', ']')
+            || hasMoreOpeningThanClosing(trimmed, '{', '}')) {
+            return true;
+        }
+        return endsWithDanglingToken(trimmed);
+    }
+
+    private static boolean hasUnclosedXmlLikeTag(String value) {
+        int open = value.lastIndexOf('<');
+        int close = value.lastIndexOf('>');
+        if (open <= close || open >= value.length() - 1) {
+            return false;
+        }
+        char next = value.charAt(open + 1);
+        return Character.isLetter(next) || next == '/' || next == '!' || next == '?';
+    }
+
+    private static boolean hasUnclosedQuote(String value, char quote) {
+        boolean escaped = false;
+        boolean open = false;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+            if (c == '\\') {
+                escaped = true;
+                continue;
+            }
+            if (c == quote) {
+                open = !open;
+            }
+        }
+        return open;
+    }
+
+    private static boolean hasMoreOpeningThanClosing(String value, char open, char close) {
+        int balance = 0;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c == open) {
+                balance++;
+            } else if (c == close && balance > 0) {
+                balance--;
+            }
+        }
+        return balance > 0;
+    }
+
+    private static boolean endsWithDanglingToken(String value) {
+        return value.endsWith("=")
+            || value.endsWith("+")
+            || value.endsWith("-")
+            || value.endsWith("*")
+            || value.endsWith("/")
+            || value.endsWith("%")
+            || value.endsWith(".")
+            || value.endsWith(",")
+            || value.endsWith("&&")
+            || value.endsWith("||")
+            || value.endsWith("?")
+            || value.endsWith(":");
+    }
+
     @Override
     public void dispose() {
         scheduler.shutdownNow();
@@ -340,6 +434,7 @@ public final class AiInlineCompletionService implements Disposable {
 
     private static final class InlineSession {
         private int offset;
+        private String rawText;
         private String remainingText;
         private long documentStamp;
         private Inlay<?> inlineInlay;
@@ -349,8 +444,23 @@ public final class AiInlineCompletionService implements Disposable {
 
         private InlineSession(int offset, String remainingText, long documentStamp) {
             this.offset = offset;
-            this.remainingText = remainingText;
+            this.rawText = remainingText;
+            this.remainingText = protectIncompleteTail(remainingText);
             this.documentStamp = documentStamp;
+        }
+
+        private void appendText(String text) {
+            rawText += text;
+            remainingText = protectIncompleteTail(rawText);
+        }
+
+        private void consumeVisiblePrefix(String text) {
+            if (rawText.startsWith(text)) {
+                rawText = rawText.substring(text.length());
+            } else {
+                rawText = remainingText.substring(Math.min(text.length(), remainingText.length()));
+            }
+            remainingText = protectIncompleteTail(rawText);
         }
 
         private void attachInvalidationListeners(Editor editor) {
@@ -431,11 +541,11 @@ public final class AiInlineCompletionService implements Disposable {
 
     private static final class GhostBlockRenderer implements EditorCustomElementRenderer {
         private final List<String> lines;
-        private final int anchorLine;
+        private final int lineStartX;
 
-        private GhostBlockRenderer(String text, int anchorLine) {
+        private GhostBlockRenderer(String text, int lineStartX) {
             this.lines = splitLines(text);
-            this.anchorLine = Math.max(0, anchorLine);
+            this.lineStartX = Math.max(0, lineStartX);
         }
 
         @Override
@@ -445,7 +555,7 @@ public final class AiInlineCompletionService implements Disposable {
             for (String line : lines) {
                 width = Math.max(width, metrics.stringWidth(line));
             }
-            return width;
+            return Math.max(1, width + lineStartX + metrics.charWidth('m'));
         }
 
         @Override
@@ -458,11 +568,10 @@ public final class AiInlineCompletionService implements Disposable {
             graphics.setFont(editorFont(inlay));
             graphics.setColor(GHOST_FOREGROUND);
             FontMetrics metrics = graphics.getFontMetrics();
-            int x = lineStartX(inlay.getEditor(), anchorLine);
             int y = targetRegion.y + metrics.getAscent();
             for (String line : lines) {
                 if (!line.isEmpty()) {
-                    graphics.drawString(line, x, y);
+                    graphics.drawString(line, lineStartX, y);
                 }
                 y += inlay.getEditor().getLineHeight();
             }

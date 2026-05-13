@@ -100,8 +100,10 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     private boolean suppressFeatureAvailabilityUpdates = false;
     private JComboBox<AiModelProfile> activeProfileCombo;
     private DefaultComboBoxModel<AiModelProfile> activeProfileModel;
+    private JBLabel completionProfileHintLabel;
     private JComboBox<AiModelProfile> gitProfileCombo;
     private DefaultComboBoxModel<AiModelProfile> gitProfileModel;
+    private JBLabel gitProfileHintLabel;
     private DefaultTableModel profileTableModel;
     private JTable profileTable;
     private JPanel rootPanel;
@@ -300,6 +302,8 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         activeProfileCombo = new JComboBox<>(activeProfileModel);
         configureProfileCombo(activeProfileCombo);
         completionRow.add(activeProfileCombo);
+        completionProfileHintLabel = profileHintLabel();
+        completionRow.add(completionProfileHintLabel);
         section.add(completionRow);
 
         JPanel gitRow = profileSelectionRow();
@@ -308,6 +312,8 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         gitProfileCombo = new JComboBox<>(gitProfileModel);
         configureProfileCombo(gitProfileCombo);
         gitRow.add(gitProfileCombo);
+        gitProfileHintLabel = profileHintLabel();
+        gitRow.add(gitProfileHintLabel);
         section.add(gitRow);
         return section;
     }
@@ -329,6 +335,13 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         return label;
     }
 
+    private JBLabel profileHintLabel() {
+        JBLabel label = new JBLabel(" ");
+        label.setForeground(JBColor.GRAY);
+        label.setPreferredSize(new Dimension(JBUI.scale(180), label.getPreferredSize().height));
+        return label;
+    }
+
     private void configureProfileCombo(JComboBox<AiModelProfile> comboBox) {
         comboBox.setRenderer((JList<? extends AiModelProfile> list, AiModelProfile value, int index,
             boolean isSelected, boolean cellHasFocus) -> {
@@ -345,6 +358,35 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
                 updateFeatureAvailability();
             }
         });
+    }
+
+    private void updateProfileHints() {
+        updateProfileHint(
+            completionProfileHintLabel,
+            selectedProfile(activeProfileCombo),
+            false,
+            I18n.t("aiSettings.hint.useFimModel")
+        );
+        updateProfileHint(
+            gitProfileHintLabel,
+            selectedProfile(gitProfileCombo),
+            true,
+            I18n.t("aiSettings.hint.useLlmModel")
+        );
+    }
+
+    private void updateProfileHint(JBLabel label, AiModelProfile profile, boolean showWhenFim, String text) {
+        if (label == null) {
+            return;
+        }
+        boolean shouldShow = profile != null && isFimFormat(profile.getFormat()) == showWhenFim;
+        label.setText(shouldShow ? text : " ");
+        label.setToolTipText(shouldShow ? text : null);
+    }
+
+    private boolean isFimFormat(AiModelFormat format) {
+        return format == AiModelFormat.DEEPSEEK_FIM_COMPLETIONS
+            || format == AiModelFormat.FIM_CHAT_COMPLETIONS;
     }
 
     private void startShortcutCapture() {
@@ -639,6 +681,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     }
 
     private void updateFeatureAvailability() {
+        updateProfileHints();
         boolean hasCompletionModel = hasConfiguredModel(activeProfileCombo);
         boolean hasGitModel = hasConfiguredModel(gitProfileCombo);
 
@@ -1187,6 +1230,9 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             tablePane.setPreferredSize(new Dimension(JBUI.scale(760), JBUI.scale(220)));
             panel.add(tablePane, BorderLayout.CENTER);
 
+            JBLabel completionModelHint = new JBLabel(I18n.t("aiSettings.hint.fimModelRecommended"));
+            completionModelHint.setForeground(JBColor.GRAY);
+
             JPanel buttonRow = rowPanel();
             JButton addButton = new JButton(I18n.t("common.button.add"), AllIcons.General.Add);
             addButton.addActionListener(e -> addProfile());
@@ -1200,7 +1246,14 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             removeButton.addActionListener(e -> removeSelectedProfile());
             buttonRow.add(removeButton);
 
-            panel.add(buttonRow, BorderLayout.SOUTH);
+            JPanel southPanel = new JPanel();
+            southPanel.setLayout(new BoxLayout(southPanel, BoxLayout.Y_AXIS));
+            completionModelHint.setAlignmentX(Component.LEFT_ALIGNMENT);
+            buttonRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+            southPanel.add(completionModelHint);
+            southPanel.add(Box.createVerticalStrut(8));
+            southPanel.add(buttonRow);
+            panel.add(southPanel, BorderLayout.SOUTH);
 
             reloadProfiles();
             return panel;
