@@ -1,6 +1,7 @@
 package com.github.mostbean.codingswitch.completion;
 
 import com.github.mostbean.codingswitch.service.AiFeatureSettings;
+import com.github.mostbean.codingswitch.service.AiCompletionEditorGuard;
 import com.github.mostbean.codingswitch.service.AiInlineCompletionService;
 import com.intellij.codeInsight.editorActions.TypedHandlerDelegate;
 import com.intellij.openapi.editor.Editor;
@@ -13,7 +14,7 @@ public class AiInlineCompletionTypedHandler extends TypedHandlerDelegate {
     @Override
     public @NotNull Result charTyped(char c, @NotNull Project project, @NotNull Editor editor, @NotNull PsiFile file) {
         AiInlineCompletionService.getInstance().hide(editor);
-        if (shouldSchedule(c)) {
+        if (AiCompletionEditorGuard.isEligible(project, editor) && shouldSchedule(c)) {
             AiInlineCompletionService.getInstance().scheduleAuto(project, editor);
         }
         return Result.CONTINUE;

@@ -159,8 +159,10 @@ public final class PluginStorageModeService {
         boolean configured = normalized.codeCompletionEnabled != empty.codeCompletionEnabled
                 || normalized.gitCommitMessageEnabled != empty.gitCommitMessageEnabled
                 || normalized.autoCompletionEnabled != empty.autoCompletionEnabled
+                || normalized.projectContextEnabled != empty.projectContextEnabled
                 || normalized.autoCompletionMaxTokens != empty.autoCompletionMaxTokens
                 || normalized.manualCompletionMaxTokens != empty.manualCompletionMaxTokens
+                || !java.util.Objects.equals(normalized.timingConfig, empty.timingConfig)
                 || !java.util.Objects.equals(normalized.autoCompletionLengthLevel, empty.autoCompletionLengthLevel)
                 || !java.util.Objects.equals(normalized.manualCompletionLengthLevel, empty.manualCompletionLengthLevel)
                 || !java.util.Objects.equals(normalized.activeCompletionProfileId, empty.activeCompletionProfileId)

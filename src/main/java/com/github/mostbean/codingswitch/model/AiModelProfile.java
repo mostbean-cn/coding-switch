@@ -16,6 +16,10 @@ public class AiModelProfile {
     private String apiKey;
     private int timeoutSeconds;
     private String headersJson;
+    private boolean fimEnabled;
+    private String fimPrefixToken;
+    private String fimSuffixToken;
+    private String fimMiddleToken;
 
     public AiModelProfile() {
         this.id = UUID.randomUUID().toString();
@@ -26,6 +30,10 @@ public class AiModelProfile {
         this.apiKey = "";
         this.timeoutSeconds = 30;
         this.headersJson = "";
+        this.fimEnabled = false;
+        this.fimPrefixToken = "<|fim_prefix|>";
+        this.fimSuffixToken = "<|fim_suffix|>";
+        this.fimMiddleToken = "<|fim_middle|>";
     }
 
     public AiModelProfile copy() {
@@ -38,6 +46,10 @@ public class AiModelProfile {
         copy.apiKey = this.apiKey;
         copy.timeoutSeconds = this.timeoutSeconds;
         copy.headersJson = this.headersJson;
+        copy.fimEnabled = this.fimEnabled;
+        copy.fimPrefixToken = this.fimPrefixToken;
+        copy.fimSuffixToken = this.fimSuffixToken;
+        copy.fimMiddleToken = this.fimMiddleToken;
         return copy;
     }
 
@@ -110,6 +122,38 @@ public class AiModelProfile {
         this.headersJson = headersJson == null ? "" : headersJson.trim();
     }
 
+    public boolean isFimEnabled() {
+        return fimEnabled;
+    }
+
+    public void setFimEnabled(boolean fimEnabled) {
+        this.fimEnabled = fimEnabled;
+    }
+
+    public String getFimPrefixToken() {
+        return fimPrefixToken == null || fimPrefixToken.isBlank() ? "<|fim_prefix|>" : fimPrefixToken;
+    }
+
+    public void setFimPrefixToken(String fimPrefixToken) {
+        this.fimPrefixToken = fimPrefixToken == null || fimPrefixToken.isBlank() ? "<|fim_prefix|>" : fimPrefixToken;
+    }
+
+    public String getFimSuffixToken() {
+        return fimSuffixToken == null || fimSuffixToken.isBlank() ? "<|fim_suffix|>" : fimSuffixToken;
+    }
+
+    public void setFimSuffixToken(String fimSuffixToken) {
+        this.fimSuffixToken = fimSuffixToken == null || fimSuffixToken.isBlank() ? "<|fim_suffix|>" : fimSuffixToken;
+    }
+
+    public String getFimMiddleToken() {
+        return fimMiddleToken == null || fimMiddleToken.isBlank() ? "<|fim_middle|>" : fimMiddleToken;
+    }
+
+    public void setFimMiddleToken(String fimMiddleToken) {
+        this.fimMiddleToken = fimMiddleToken == null || fimMiddleToken.isBlank() ? "<|fim_middle|>" : fimMiddleToken;
+    }
+
     public String getDisplayName() {
         String profileName = getName();
         return profileName.isBlank() ? getFormat().getDisplayName() : profileName;
@@ -124,13 +168,17 @@ public class AiModelProfile {
             return false;
         }
         return getTimeoutSeconds() == that.getTimeoutSeconds()
+            && fimEnabled == that.fimEnabled
             && Objects.equals(getId(), that.getId())
             && Objects.equals(getName(), that.getName())
             && getFormat() == that.getFormat()
             && Objects.equals(getBaseUrl(), that.getBaseUrl())
             && Objects.equals(getModel(), that.getModel())
             && Objects.equals(getApiKey(), that.getApiKey())
-            && Objects.equals(getHeadersJson(), that.getHeadersJson());
+            && Objects.equals(getHeadersJson(), that.getHeadersJson())
+            && Objects.equals(getFimPrefixToken(), that.getFimPrefixToken())
+            && Objects.equals(getFimSuffixToken(), that.getFimSuffixToken())
+            && Objects.equals(getFimMiddleToken(), that.getFimMiddleToken());
     }
 
     @Override
@@ -143,7 +191,11 @@ public class AiModelProfile {
             getModel(),
             getApiKey(),
             getTimeoutSeconds(),
-            getHeadersJson()
+            getHeadersJson(),
+            fimEnabled,
+            getFimPrefixToken(),
+            getFimSuffixToken(),
+            getFimMiddleToken()
         );
     }
 }

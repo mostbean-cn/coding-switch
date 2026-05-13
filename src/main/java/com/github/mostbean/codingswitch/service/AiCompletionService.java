@@ -20,7 +20,6 @@ import java.util.function.Consumer;
 @Service(Service.Level.APP)
 public final class AiCompletionService {
 
-    private static final long MANUAL_COMPLETION_COOLDOWN_MS = 350;
     private final Map<String, Long> inFlightCompletionKeys = new ConcurrentHashMap<>();
     private long lastManualCompletionRequestMs = 0L;
 
@@ -35,6 +34,14 @@ public final class AiCompletionService {
             return Optional.empty();
         }
 
+        AiCompletionCache cache = AiCompletionCache.getInstance();
+        String filePath = context.snapshot().context().filePath();
+        Optional<String> cached = cache.get(filePath, context.snapshot().caretOffset(), context.snapshot().documentStamp());
+        if (cached.isPresent()) {
+            inFlightCompletionKeys.remove(context.inFlightKey());
+            return cached;
+        }
+
         try {
             String completion = createClient(context.profile().getFormat()).complete(context.request());
             if (completion == null || completion.isBlank()) {
@@ -43,6 +50,7 @@ public final class AiCompletionService {
             if (!isStillValid(editor, context.snapshot())) {
                 return Optional.empty();
             }
+            cache.put(filePath, context.snapshot().caretOffset(), context.snapshot().documentStamp(), completion);
             return Optional.of(completion);
         } finally {
             inFlightCompletionKeys.remove(context.inFlightKey());
@@ -60,6 +68,16 @@ public final class AiCompletionService {
             return false;
         }
 
+        AiCompletionCache cache = AiCompletionCache.getInstance();
+        String filePath = context.snapshot().context().filePath();
+        Optional<String> cached = cache.get(filePath, context.snapshot().caretOffset(), context.snapshot().documentStamp());
+        if (cached.isPresent()) {
+            onDelta.accept(cached.get());
+            inFlightCompletionKeys.remove(context.inFlightKey());
+            return true;
+        }
+
+        StringBuilder fullCompletion = new StringBuilder();
         AtomicBoolean hasText = new AtomicBoolean(false);
         try {
             AiCompletionClient client = createClient(context.profile().getFormat());
@@ -69,6 +87,7 @@ public final class AiCompletionService {
                         return;
                     }
                     hasText.set(true);
+                    fullCompletion.append(delta);
                     onDelta.accept(delta);
                 });
             } catch (IOException ex) {
@@ -78,8 +97,12 @@ public final class AiCompletionService {
                 String completion = client.complete(context.request());
                 if (completion != null && !completion.isBlank() && isStillValid(editor, context.snapshot())) {
                     hasText.set(true);
+                    fullCompletion.append(completion);
                     onDelta.accept(completion);
                 }
+            }
+            if (hasText.get()) {
+                cache.put(filePath, context.snapshot().caretOffset(), context.snapshot().documentStamp(), fullCompletion.toString());
             }
             return hasText.get();
         } finally {
@@ -97,6 +120,9 @@ public final class AiCompletionService {
             return null;
         }
         if (triggerMode == AiCompletionTriggerMode.AUTO && !settings.isAutoCompletionEnabled()) {
+            return null;
+        }
+        if (!AiCompletionEditorGuard.isEligible(project, editor)) {
             return null;
         }
         if (triggerMode == AiCompletionTriggerMode.MANUAL && shouldSkipManualRequest()) {
@@ -177,7 +203,8 @@ public final class AiCompletionService {
 
     private synchronized boolean shouldSkipManualRequest() {
         long now = System.currentTimeMillis();
-        if (now - lastManualCompletionRequestMs < MANUAL_COMPLETION_COOLDOWN_MS) {
+        long cooldown = AiFeatureSettings.getInstance().getTimingConfig().getManualCooldownMs();
+        if (now - lastManualCompletionRequestMs < cooldown) {
             return true;
         }
         lastManualCompletionRequestMs = now;

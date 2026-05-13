@@ -5,7 +5,9 @@ import com.github.mostbean.codingswitch.model.AiModelProfile;
 import com.github.mostbean.codingswitch.model.AiCompletionLengthLevel;
 import com.github.mostbean.codingswitch.service.AiFeatureSettings;
 import com.github.mostbean.codingswitch.service.AiModelConnectionTestService;
+import com.github.mostbean.codingswitch.service.ContextCollectorManager;
 import com.github.mostbean.codingswitch.service.I18n;
+import com.github.mostbean.codingswitch.service.IndexStats;
 import com.github.mostbean.codingswitch.service.PluginDataStorage;
 import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.PluginStorageModeService;
@@ -88,6 +90,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     private JComboBox<PluginSettings.Language> uiLanguageCombo;
     private JComboBox<PluginSettings.DataStorageMode> storageModeCombo;
     private JCheckBox autoCompletionEnabled;
+    private JCheckBox projectContextEnabled;
     private JComboBox<AiCompletionLengthLevel> autoCompletionLengthLevel;
     private JComboBox<AiCompletionLengthLevel> manualCompletionLengthLevel;
     private JTextField manualShortcutField;
@@ -99,6 +102,15 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     private DefaultTableModel profileTableModel;
     private JTable profileTable;
     private JPanel rootPanel;
+
+    // 项目索引相关组件
+    private JBLabel indexStatusLabel;
+    private JBLabel indexFilesLabel;
+    private JBLabel indexChunksLabel;
+    private JBLabel indexLastUpdateLabel;
+    private JBLabel indexMemoryLabel;
+    private JButton rebuildIndexButton;
+    private JButton clearIndexButton;
 
     private final List<AiModelProfile> profiles = new ArrayList<>();
     private final Map<String, String> editedApiKeys = new HashMap<>();
@@ -133,6 +145,8 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         content.add(buildProfileSection());
         content.add(Box.createVerticalStrut(12));
         content.add(buildCompletionSection());
+        content.add(Box.createVerticalStrut(12));
+        content.add(buildProjectIndexSection());
         content.add(Box.createVerticalStrut(12));
         content.add(buildPreferenceSection());
         content.add(Box.createVerticalGlue());
@@ -207,6 +221,8 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
         autoCompletionEnabled = new JCheckBox(I18n.t("aiSettings.checkbox.autoCompletion"));
         section.add(checkBoxRow(autoCompletionEnabled));
+        projectContextEnabled = new JCheckBox(I18n.t("aiSettings.checkbox.projectContext"));
+        section.add(checkBoxRow(projectContextEnabled));
 
         JPanel activeRow = rowPanel();
         activeRow.add(new JBLabel(I18n.t("aiSettings.label.completionProfile")));
@@ -254,6 +270,107 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         section.add(shortcutRow);
 
         return section;
+    }
+
+    private JPanel buildProjectIndexSection() {
+        JPanel section = createSection(I18n.t("aiSettings.section.projectIndex"));
+
+        // 状态行
+        JPanel statusRow = rowPanel();
+        statusRow.add(new JBLabel(I18n.t("aiSettings.index.status")));
+        indexStatusLabel = new JBLabel(I18n.t("aiSettings.index.status.disabled"));
+        statusRow.add(indexStatusLabel);
+        section.add(statusRow);
+
+        // 统计行
+        JPanel statsRow = rowPanel();
+        statsRow.add(new JBLabel(I18n.t("aiSettings.index.filesIndexed")));
+        indexFilesLabel = new JBLabel("0");
+        statsRow.add(indexFilesLabel);
+        statsRow.add(new JBLabel(I18n.t("aiSettings.index.chunksIndexed")));
+        indexChunksLabel = new JBLabel("0");
+        statsRow.add(indexChunksLabel);
+        section.add(statsRow);
+
+        // 更新时间和内存占用
+        JPanel infoRow = rowPanel();
+        infoRow.add(new JBLabel(I18n.t("aiSettings.index.lastUpdate")));
+        indexLastUpdateLabel = new JBLabel(I18n.t("aiSettings.index.never"));
+        infoRow.add(indexLastUpdateLabel);
+        infoRow.add(new JBLabel(I18n.t("aiSettings.index.memoryUsage")));
+        indexMemoryLabel = new JBLabel("0 KB");
+        infoRow.add(indexMemoryLabel);
+        section.add(infoRow);
+
+        // 操作按钮
+        JPanel buttonRow = rowPanel();
+        rebuildIndexButton = new JButton(I18n.t("aiSettings.button.rebuildIndex"));
+        rebuildIndexButton.addActionListener(e -> rebuildIndex());
+        buttonRow.add(rebuildIndexButton);
+
+        clearIndexButton = new JButton(I18n.t("aiSettings.button.clearIndex"));
+        clearIndexButton.addActionListener(e -> clearIndex());
+        buttonRow.add(clearIndexButton);
+        section.add(buttonRow);
+
+        return section;
+    }
+
+    private void rebuildIndex() {
+        rebuildIndexButton.setEnabled(false);
+        rebuildIndexButton.setText(I18n.t("aiSettings.index.rebuilding"));
+
+        ApplicationManager.getApplication().executeOnPooledThread(() -> {
+            ContextCollectorManager.getInstance().rebuildAllCodebaseIndexes();
+
+            SwingUtilities.invokeLater(() -> {
+                rebuildIndexButton.setEnabled(true);
+                rebuildIndexButton.setText(I18n.t("aiSettings.button.rebuildIndex"));
+                updateIndexStatus();
+            });
+        });
+    }
+
+    private void clearIndex() {
+        ContextCollectorManager.getInstance().clearAllCodebaseIndexes();
+        Messages.showInfoMessage(I18n.t("aiSettings.index.cleared"), I18n.t("aiSettings.section.projectIndex"));
+        updateIndexStatus();
+    }
+
+    private void updateIndexStatus() {
+        IndexStats stats = ContextCollectorManager.getInstance().getAggregateCodebaseStats();
+
+        AiFeatureSettings settings = AiFeatureSettings.getInstance();
+        boolean enabled = settings.isCodeCompletionEnabled() && settings.isProjectContextEnabled();
+        indexStatusLabel.setText(enabled
+            ? (stats.isIndexing() ? I18n.t("aiSettings.index.status.indexing") : I18n.t("aiSettings.index.status.ready"))
+            : I18n.t("aiSettings.index.status.disabled"));
+        rebuildIndexButton.setEnabled(enabled && !stats.isIndexing());
+        clearIndexButton.setEnabled(enabled);
+
+        indexFilesLabel.setText(String.valueOf(stats.filesIndexed()));
+        indexChunksLabel.setText(String.valueOf(stats.chunksIndexed()));
+
+        if (stats.lastUpdateTime() > 0) {
+            java.time.Instant instant = java.time.Instant.ofEpochMilli(stats.lastUpdateTime());
+            java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter
+                .ofPattern("yyyy-MM-dd HH:mm:ss")
+                .withZone(java.time.ZoneId.systemDefault());
+            indexLastUpdateLabel.setText(formatter.format(instant));
+        } else {
+            indexLastUpdateLabel.setText(I18n.t("aiSettings.index.never"));
+        }
+
+        long memoryBytes = stats.estimatedMemoryBytes();
+        String memoryText;
+        if (memoryBytes < 1024) {
+            memoryText = memoryBytes + " B";
+        } else if (memoryBytes < 1024 * 1024) {
+            memoryText = (memoryBytes / 1024) + " KB";
+        } else {
+            memoryText = String.format("%.1f MB", memoryBytes / (1024.0 * 1024.0));
+        }
+        indexMemoryLabel.setText(memoryText);
     }
 
     private String activeProfileDisplayName(AiModelProfile profile) {
@@ -612,6 +729,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         codeCompletionEnabled.setSelected(state.codeCompletionEnabled);
         gitCommitMessageEnabled.setSelected(state.gitCommitMessageEnabled);
         autoCompletionEnabled.setSelected(state.autoCompletionEnabled);
+        projectContextEnabled.setSelected(state.projectContextEnabled);
         autoCompletionLengthLevel.setSelectedItem(parseLengthLevel(
             state.autoCompletionLengthLevel,
             AiCompletionLengthLevel.SINGLE_LINE
@@ -631,6 +749,9 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         selectProfile(state.activeCompletionProfileId);
         removedProfileIds.clear();
         editedApiKeys.clear();
+
+        // 更新项目索引状态
+        updateIndexStatus();
     }
 
     private AiCompletionLengthLevel parseLengthLevel(String value, AiCompletionLengthLevel fallback) {
@@ -819,10 +940,11 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     }
 
     private AiFeatureSettings.State collectState() {
-        AiFeatureSettings.State state = new AiFeatureSettings.State();
+        AiFeatureSettings.State state = AiFeatureSettings.getInstance().snapshot();
         state.codeCompletionEnabled = codeCompletionEnabled != null && codeCompletionEnabled.isSelected();
         state.gitCommitMessageEnabled = gitCommitMessageEnabled != null && gitCommitMessageEnabled.isSelected();
         state.autoCompletionEnabled = autoCompletionEnabled != null && autoCompletionEnabled.isSelected();
+        state.projectContextEnabled = projectContextEnabled != null && projectContextEnabled.isSelected();
         state.autoCompletionLengthLevel = selectedLengthName(
             autoCompletionLengthLevel,
             AiCompletionLengthLevel.SINGLE_LINE
@@ -849,10 +971,12 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         return a.codeCompletionEnabled == b.codeCompletionEnabled
             && a.gitCommitMessageEnabled == b.gitCommitMessageEnabled
             && a.autoCompletionEnabled == b.autoCompletionEnabled
+            && a.projectContextEnabled == b.projectContextEnabled
             && Objects.equals(a.autoCompletionLengthLevel, b.autoCompletionLengthLevel)
             && Objects.equals(a.manualCompletionLengthLevel, b.manualCompletionLengthLevel)
             && Objects.equals(a.activeCompletionProfileId, b.activeCompletionProfileId)
             && Objects.equals(a.manualCompletionShortcut, b.manualCompletionShortcut)
+            && Objects.equals(a.timingConfig, b.timingConfig)
             && Objects.equals(a.profiles, b.profiles);
     }
 
@@ -1130,6 +1254,10 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         private JPasswordField apiKeyField;
         private JSpinner timeoutSpinner;
         private JTextArea headersArea;
+        private JCheckBox fimEnabledField;
+        private JTextField fimPrefixTokenField;
+        private JTextField fimSuffixTokenField;
+        private JTextField fimMiddleTokenField;
         private JButton testButton;
         private JButton detectModelsButton;
         private JBLabel testStatusLabel;
@@ -1156,6 +1284,11 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             headersArea = new JTextArea(original.getHeadersJson(), 4, 30);
             headersArea.setLineWrap(true);
             headersArea.setWrapStyleWord(true);
+            fimEnabledField = new JCheckBox(I18n.t("aiSettings.checkbox.fimEnabled"));
+            fimEnabledField.setSelected(original.isFimEnabled());
+            fimPrefixTokenField = new JTextField(original.getFimPrefixToken(), 30);
+            fimSuffixTokenField = new JTextField(original.getFimSuffixToken(), 30);
+            fimMiddleTokenField = new JTextField(original.getFimMiddleToken(), 30);
 
             AiModelFormat[] previousFormat = {original.getFormat()};
             formatCombo.addActionListener(e -> {
@@ -1178,7 +1311,11 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
                 .addLabeledComponent(I18n.t("aiSettings.label.model"), modelField)
                 .addLabeledComponent("API Key:", apiKeyField)
                 .addLabeledComponent(I18n.t("aiSettings.label.timeoutSeconds"), timeoutSpinner)
-                .addLabeledComponent(I18n.t("aiSettings.label.customHeaders"), new JBScrollPane(headersArea));
+                .addLabeledComponent(I18n.t("aiSettings.label.customHeaders"), new JBScrollPane(headersArea))
+                .addComponent(fimEnabledField)
+                .addLabeledComponent(I18n.t("aiSettings.label.fimPrefixToken"), fimPrefixTokenField)
+                .addLabeledComponent(I18n.t("aiSettings.label.fimSuffixToken"), fimSuffixTokenField)
+                .addLabeledComponent(I18n.t("aiSettings.label.fimMiddleToken"), fimMiddleTokenField);
 
             JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
             testButton = new JButton(I18n.t("aiSettings.button.testConfig"));
@@ -1203,7 +1340,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             panel.setBorder(JBUI.Borders.empty(8));
             panel.add(form.getPanel(), BorderLayout.CENTER);
             panel.add(buttonRow, BorderLayout.SOUTH);
-            panel.setPreferredSize(new Dimension(JBUI.scale(620), JBUI.scale(400)));
+            panel.setPreferredSize(new Dimension(JBUI.scale(620), JBUI.scale(520)));
             return panel;
         }
 
@@ -1225,6 +1362,17 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
                     return new ValidationInfo(I18n.t("aiSettings.validation.headersInvalid", ex.getMessage()), headersArea);
                 }
             }
+            if (fimEnabledField.isSelected()) {
+                if (fimPrefixTokenField.getText().trim().isBlank()) {
+                    return new ValidationInfo(I18n.t("aiSettings.validation.fimTokenRequired"), fimPrefixTokenField);
+                }
+                if (fimSuffixTokenField.getText().trim().isBlank()) {
+                    return new ValidationInfo(I18n.t("aiSettings.validation.fimTokenRequired"), fimSuffixTokenField);
+                }
+                if (fimMiddleTokenField.getText().trim().isBlank()) {
+                    return new ValidationInfo(I18n.t("aiSettings.validation.fimTokenRequired"), fimMiddleTokenField);
+                }
+            }
             return null;
         }
 
@@ -1237,6 +1385,10 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             profile.setApiKey(getApiKey());
             profile.setTimeoutSeconds((Integer) timeoutSpinner.getValue());
             profile.setHeadersJson(normalizeHeaders(headersArea.getText()));
+            profile.setFimEnabled(fimEnabledField.isSelected());
+            profile.setFimPrefixToken(fimPrefixTokenField.getText().trim());
+            profile.setFimSuffixToken(fimSuffixTokenField.getText().trim());
+            profile.setFimMiddleToken(fimMiddleTokenField.getText().trim());
             return profile;
         }
 

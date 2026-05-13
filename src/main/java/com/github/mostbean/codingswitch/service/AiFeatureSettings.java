@@ -4,6 +4,7 @@ import com.github.mostbean.codingswitch.model.AiCompletionTriggerMode;
 import com.github.mostbean.codingswitch.model.AiCompletionLengthLevel;
 import com.github.mostbean.codingswitch.model.AiModelFormat;
 import com.github.mostbean.codingswitch.model.AiModelProfile;
+import com.github.mostbean.codingswitch.model.CompletionTimingConfig;
 import com.intellij.credentialStore.CredentialAttributes;
 import com.intellij.credentialStore.CredentialAttributesKt;
 import com.intellij.ide.passwordSafe.PasswordSafe;
@@ -33,12 +34,14 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
         public boolean codeCompletionEnabled = false;
         public boolean gitCommitMessageEnabled = false;
         public boolean autoCompletionEnabled = false;
+        public boolean projectContextEnabled = false;
         public int autoCompletionMaxTokens = 64;
         public int manualCompletionMaxTokens = 160;
         public String autoCompletionLengthLevel = AiCompletionLengthLevel.SINGLE_LINE.name();
         public String manualCompletionLengthLevel = AiCompletionLengthLevel.MEDIUM.name();
         public String activeCompletionProfileId = "";
         public String manualCompletionShortcut = DEFAULT_MANUAL_SHORTCUT;
+        public CompletionTimingConfig timingConfig = new CompletionTimingConfig();
         public List<AiModelProfile> profiles = new ArrayList<>();
     }
 
@@ -74,6 +77,10 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
         return getActiveState().autoCompletionEnabled;
     }
 
+    public boolean isProjectContextEnabled() {
+        return getActiveState().projectContextEnabled;
+    }
+
     public boolean isGitCommitMessageEnabled() {
         return getActiveState().gitCommitMessageEnabled;
     }
@@ -97,6 +104,11 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
             }
         }
         return active.profiles.isEmpty() ? null : active.profiles.get(0).copy();
+    }
+
+    public CompletionTimingConfig getTimingConfig() {
+        State active = getActiveState();
+        return active.timingConfig != null ? active.timingConfig.copy() : new CompletionTimingConfig();
     }
 
     public String getApiKey(String profileId) {
@@ -251,12 +263,14 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
         copy.codeCompletionEnabled = safe.codeCompletionEnabled;
         copy.gitCommitMessageEnabled = safe.gitCommitMessageEnabled;
         copy.autoCompletionEnabled = safe.autoCompletionEnabled;
+        copy.projectContextEnabled = safe.projectContextEnabled;
         copy.autoCompletionMaxTokens = safe.autoCompletionMaxTokens;
         copy.manualCompletionMaxTokens = safe.manualCompletionMaxTokens;
         copy.autoCompletionLengthLevel = safe.autoCompletionLengthLevel;
         copy.manualCompletionLengthLevel = safe.manualCompletionLengthLevel;
         copy.activeCompletionProfileId = safe.activeCompletionProfileId;
         copy.manualCompletionShortcut = safe.manualCompletionShortcut;
+        copy.timingConfig = safe.timingConfig != null ? safe.timingConfig.copy() : new CompletionTimingConfig();
         copy.profiles = new ArrayList<>();
         if (safe.profiles != null) {
             for (AiModelProfile profile : safe.profiles) {
@@ -272,6 +286,9 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
         State normalized = source == null ? new State() : source;
         normalized.autoCompletionMaxTokens = clamp(normalized.autoCompletionMaxTokens, 16, 512, 64);
         normalized.manualCompletionMaxTokens = clamp(normalized.manualCompletionMaxTokens, 16, 1024, 160);
+        normalized.timingConfig = normalized.timingConfig == null
+            ? new CompletionTimingConfig()
+            : normalized.timingConfig.copy();
         if (normalized.autoCompletionLengthLevel == null || normalized.autoCompletionLengthLevel.isBlank()) {
             normalized.autoCompletionLengthLevel = inferLengthLevel(normalized.autoCompletionMaxTokens, true).name();
         }

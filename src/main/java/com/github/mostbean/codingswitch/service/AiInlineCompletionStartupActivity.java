@@ -160,7 +160,7 @@ public class AiInlineCompletionStartupActivity implements StartupActivity.DumbAw
                 delegate.execute(editor, caret, dataContext);
             }
             Project project = CommonDataKeys.PROJECT.getData(dataContext);
-            if (project != null && shouldScheduleAutoCompletion()) {
+            if (project != null && shouldScheduleAutoCompletion() && AiCompletionEditorGuard.isEligible(project, editor)) {
                 AiInlineCompletionService.getInstance().hide(editor);
                 AiInlineCompletionService.getInstance().scheduleAuto(project, editor);
             }

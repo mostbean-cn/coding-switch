@@ -2,6 +2,7 @@ package com.github.mostbean.codingswitch.service;
 
 import com.github.mostbean.codingswitch.model.AiCompletionTriggerMode;
 import com.github.mostbean.codingswitch.model.AiCompletionLengthLevel;
+import com.github.mostbean.codingswitch.model.AiModelProfile;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
@@ -23,6 +24,9 @@ final class AiCompletionContextBuilder {
         AiCompletionTriggerMode triggerMode,
         AiCompletionLengthLevel lengthLevel
     ) {
+        AiModelProfile profile = AiFeatureSettings.getInstance().getActiveCompletionProfile();
+        boolean useFim = profile != null && profile.isFimEnabled();
+
         Document document = editor.getDocument();
         int offset = Math.max(0, Math.min(editor.getCaretModel().getOffset(), document.getTextLength()));
         String text = document.getText();
@@ -36,28 +40,72 @@ final class AiCompletionContextBuilder {
         VirtualFile file = psiFile == null ? null : psiFile.getVirtualFile();
         String path = file == null ? "" : file.getPath();
 
-        String systemPrompt = """
-            You are a code completion engine inside a JetBrains IDE.
-            Return only the code/text suffix that should be inserted at the caret.
-            Do not repeat the existing prefix, do not add markdown fences, and do not explain.
-            Keep the completion concise and syntactically consistent with the surrounding file.
-            %s
-            """.formatted(lengthLevel.getPromptHint());
+        String additionalContext = ContextCollectorManager.getInstance().collectAll(project, editor, offset);
 
-        String userPrompt = """
-            Trigger: %s
-            Language: %s
-            File: %s
+        String systemPrompt;
+        String userPrompt;
 
-            Text before caret:
-            %s
-            <caret>
-            Text after caret:
-            %s
-            """.formatted(triggerMode.name().toLowerCase(), language, path, prefix, suffix);
-        return new Context(systemPrompt, userPrompt);
+        if (useFim) {
+            systemPrompt = """
+                You are a code completion engine inside a JetBrains IDE.
+                You are given a code snippet with a missing part between FIM markers.
+                Return only the missing code that should be inserted between the markers.
+                Do not repeat the existing code, do not add markdown fences, and do not explain.
+                Keep the completion concise and syntactically consistent with the surrounding file.
+                %s
+                """.formatted(lengthLevel.getPromptHint());
+
+            userPrompt = """
+                Trigger: %s
+                Language: %s
+                File: %s
+
+                %s
+                %s%s%s%s%s
+                """.formatted(
+                triggerMode.name().toLowerCase(),
+                language,
+                path,
+                additionalContext.isEmpty() ? "" : "Context:\n" + additionalContext + "\n",
+                profile.getFimPrefixToken(),
+                prefix,
+                profile.getFimSuffixToken(),
+                suffix,
+                profile.getFimMiddleToken()
+            );
+        } else {
+            systemPrompt = """
+                You are a code completion engine inside a JetBrains IDE.
+                Return only the code/text suffix that should be inserted at the caret.
+                Do not repeat the existing prefix, do not add markdown fences, and do not explain.
+                Keep the completion concise and syntactically consistent with the surrounding file.
+                %s
+                """.formatted(lengthLevel.getPromptHint());
+
+            userPrompt = """
+                Trigger: %s
+                Language: %s
+                File: %s
+
+                %s
+                Text before caret:
+                %s
+                <caret>
+                Text after caret:
+                %s
+                """.formatted(
+                triggerMode.name().toLowerCase(),
+                language,
+                path,
+                additionalContext.isEmpty() ? "" : "Context:\n" + additionalContext + "\n",
+                prefix,
+                suffix
+            );
+        }
+
+        return new Context(systemPrompt, userPrompt, path);
     }
 
-    record Context(String systemPrompt, String userPrompt) {
+    record Context(String systemPrompt, String userPrompt, String filePath) {
     }
 }

@@ -29,9 +29,6 @@ import java.util.concurrent.atomic.AtomicLong;
 @Service(Service.Level.APP)
 public final class AiInlineCompletionService implements Disposable {
 
-    private static final long AUTO_TRIGGER_DELAY_MS = 650;
-    private static final long IN_FLIGHT_RETRY_DELAY_MS = 300;
-    private static final long STREAM_RENDER_THROTTLE_MS = 45;
     private static final Key<InlineSession> SESSION_KEY = Key.create("coding.switch.ai.inline.session");
     private static final Key<Long> REQUEST_ID_KEY = Key.create("coding.switch.ai.inline.request.id");
 
@@ -52,6 +49,7 @@ public final class AiInlineCompletionService implements Disposable {
         }
         long requestId = requestIds.incrementAndGet();
         editor.putUserData(REQUEST_ID_KEY, requestId);
+        long delay = AiFeatureSettings.getInstance().getTimingConfig().getDebounceDelayMs();
         scheduler.schedule(
             () -> ApplicationManager.getApplication().invokeLater(() -> {
                 Long current = editor.getUserData(REQUEST_ID_KEY);
@@ -59,7 +57,7 @@ public final class AiInlineCompletionService implements Disposable {
                     request(project, editor, AiCompletionTriggerMode.AUTO, requestId);
                 }
             }),
-            AUTO_TRIGGER_DELAY_MS,
+            delay,
             TimeUnit.MILLISECONDS
         );
     }
@@ -158,6 +156,7 @@ public final class AiInlineCompletionService implements Disposable {
     }
 
     private void scheduleInFlightRetry(Project project, Editor editor, long requestId) {
+        long delay = AiFeatureSettings.getInstance().getTimingConfig().getInFlightRetryDelayMs();
         scheduler.schedule(
             () -> ApplicationManager.getApplication().invokeLater(() -> {
                 Long current = editor.getUserData(REQUEST_ID_KEY);
@@ -165,7 +164,7 @@ public final class AiInlineCompletionService implements Disposable {
                     request(project, editor, AiCompletionTriggerMode.AUTO, requestId);
                 }
             }),
-            IN_FLIGHT_RETRY_DELAY_MS,
+            delay,
             TimeUnit.MILLISECONDS
         );
     }
@@ -243,9 +242,10 @@ public final class AiInlineCompletionService implements Disposable {
             }
             accumulator.flushScheduled = true;
         }
+        long throttle = AiFeatureSettings.getInstance().getTimingConfig().getStreamRenderThrottleMs();
         scheduler.schedule(
             () -> flushDelta(editor, requestId, offset, documentStamp, accumulator),
-            STREAM_RENDER_THROTTLE_MS,
+            throttle,
             TimeUnit.MILLISECONDS
         );
     }
