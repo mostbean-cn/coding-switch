@@ -166,6 +166,7 @@ public final class PluginStorageModeService {
                 || !java.util.Objects.equals(normalized.autoCompletionLengthLevel, empty.autoCompletionLengthLevel)
                 || !java.util.Objects.equals(normalized.manualCompletionLengthLevel, empty.manualCompletionLengthLevel)
                 || !java.util.Objects.equals(normalized.activeCompletionProfileId, empty.activeCompletionProfileId)
+                || !java.util.Objects.equals(normalized.activeGitCommitProfileId, empty.activeGitCommitProfileId)
                 || !java.util.Objects.equals(normalized.manualCompletionShortcut, empty.manualCompletionShortcut)
                 || !java.util.Objects.equals(normalized.profiles, empty.profiles);
         return configured ? 1 : 0;

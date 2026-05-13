@@ -37,9 +37,10 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
         public boolean projectContextEnabled = false;
         public int autoCompletionMaxTokens = 64;
         public int manualCompletionMaxTokens = 160;
-        public String autoCompletionLengthLevel = AiCompletionLengthLevel.SINGLE_LINE.name();
+        public String autoCompletionLengthLevel = AiCompletionLengthLevel.SHORT.name();
         public String manualCompletionLengthLevel = AiCompletionLengthLevel.MEDIUM.name();
         public String activeCompletionProfileId = "";
+        public String activeGitCommitProfileId = "";
         public String manualCompletionShortcut = DEFAULT_MANUAL_SHORTCUT;
         public CompletionTimingConfig timingConfig = new CompletionTimingConfig();
         public List<AiModelProfile> profiles = new ArrayList<>();
@@ -92,12 +93,24 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
     public AiCompletionLengthLevel getCompletionLengthLevel(AiCompletionTriggerMode mode) {
         return mode == AiCompletionTriggerMode.MANUAL
             ? parseLengthLevel(getActiveState().manualCompletionLengthLevel, AiCompletionLengthLevel.MEDIUM)
-            : parseLengthLevel(getActiveState().autoCompletionLengthLevel, AiCompletionLengthLevel.SINGLE_LINE);
+            : parseLengthLevel(getActiveState().autoCompletionLengthLevel, AiCompletionLengthLevel.SHORT);
     }
 
     public AiModelProfile getActiveCompletionProfile() {
+        return getActiveProfile(getActiveState().activeCompletionProfileId);
+    }
+
+    public AiModelProfile getActiveGitCommitProfile() {
         State active = getActiveState();
-        String activeId = active.activeCompletionProfileId == null ? "" : active.activeCompletionProfileId;
+        String activeId = active.activeGitCommitProfileId == null || active.activeGitCommitProfileId.isBlank()
+            ? active.activeCompletionProfileId
+            : active.activeGitCommitProfileId;
+        return getActiveProfile(activeId);
+    }
+
+    private AiModelProfile getActiveProfile(String profileId) {
+        State active = getActiveState();
+        String activeId = profileId == null ? "" : profileId;
         for (AiModelProfile profile : active.profiles) {
             if (Objects.equals(activeId, profile.getId())) {
                 return profile.copy();
@@ -269,6 +282,7 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
         copy.autoCompletionLengthLevel = safe.autoCompletionLengthLevel;
         copy.manualCompletionLengthLevel = safe.manualCompletionLengthLevel;
         copy.activeCompletionProfileId = safe.activeCompletionProfileId;
+        copy.activeGitCommitProfileId = safe.activeGitCommitProfileId;
         copy.manualCompletionShortcut = safe.manualCompletionShortcut;
         copy.timingConfig = safe.timingConfig != null ? safe.timingConfig.copy() : new CompletionTimingConfig();
         copy.profiles = new ArrayList<>();
@@ -297,7 +311,7 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
         }
         normalized.autoCompletionLengthLevel = parseLengthLevel(
             normalized.autoCompletionLengthLevel,
-            AiCompletionLengthLevel.SINGLE_LINE
+            AiCompletionLengthLevel.SHORT
         ).name();
         normalized.manualCompletionLengthLevel = parseLengthLevel(
             normalized.manualCompletionLengthLevel,
@@ -330,12 +344,20 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
         if (normalized.activeCompletionProfileId == null) {
             normalized.activeCompletionProfileId = "";
         }
+        if (normalized.activeGitCommitProfileId == null) {
+            normalized.activeGitCommitProfileId = "";
+        }
         boolean activeExists = normalized.profiles.stream()
             .anyMatch(profile -> Objects.equals(profile.getId(), normalized.activeCompletionProfileId));
         if (!activeExists) {
             normalized.activeCompletionProfileId = normalized.profiles.isEmpty()
                 ? ""
                 : normalized.profiles.get(0).getId();
+        }
+        boolean gitActiveExists = normalized.profiles.stream()
+            .anyMatch(profile -> Objects.equals(profile.getId(), normalized.activeGitCommitProfileId));
+        if (!gitActiveExists) {
+            normalized.activeGitCommitProfileId = normalized.activeCompletionProfileId;
         }
         return normalized;
     }

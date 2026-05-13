@@ -177,7 +177,22 @@ public final class AiCompletionService {
     public Optional<String> generateText(String systemPrompt, String userPrompt, AiCompletionLengthLevel lengthLevel)
         throws IOException, InterruptedException {
         AiFeatureSettings settings = AiFeatureSettings.getInstance();
-        AiModelProfile profile = settings.getActiveCompletionProfile();
+        return generateText(systemPrompt, userPrompt, lengthLevel, settings.getActiveCompletionProfile());
+    }
+
+    public Optional<String> generateGitCommitText(String systemPrompt, String userPrompt, AiCompletionLengthLevel lengthLevel)
+        throws IOException, InterruptedException {
+        AiFeatureSettings settings = AiFeatureSettings.getInstance();
+        return generateText(systemPrompt, userPrompt, lengthLevel, settings.getActiveGitCommitProfile());
+    }
+
+    private Optional<String> generateText(
+        String systemPrompt,
+        String userPrompt,
+        AiCompletionLengthLevel lengthLevel,
+        AiModelProfile profile
+    ) throws IOException, InterruptedException {
+        AiFeatureSettings settings = AiFeatureSettings.getInstance();
         if (profile == null || profile.getModel().isBlank()) {
             return Optional.empty();
         }

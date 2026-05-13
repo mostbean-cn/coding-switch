@@ -68,7 +68,7 @@ public final class AiCommitMessageService {
             - 面向用户或维护者可理解的变化 2
 
             """ + buildChangesSummary(changeList, unversionedFileList);
-        return AiCompletionService.getInstance().generateText(
+        return AiCompletionService.getInstance().generateGitCommitText(
             systemPrompt,
             userPrompt,
             AiCompletionLengthLevel.LONG
