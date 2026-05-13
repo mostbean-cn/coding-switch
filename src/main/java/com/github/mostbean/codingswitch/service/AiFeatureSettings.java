@@ -34,7 +34,6 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
         public boolean codeCompletionEnabled = false;
         public boolean gitCommitMessageEnabled = false;
         public boolean autoCompletionEnabled = false;
-        public boolean projectContextEnabled = false;
         public int autoCompletionMaxTokens = 64;
         public int manualCompletionMaxTokens = 160;
         public String autoCompletionLengthLevel = AiCompletionLengthLevel.SHORT.name();
@@ -76,10 +75,6 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
 
     public boolean isAutoCompletionEnabled() {
         return getActiveState().autoCompletionEnabled;
-    }
-
-    public boolean isProjectContextEnabled() {
-        return getActiveState().projectContextEnabled;
     }
 
     public boolean isGitCommitMessageEnabled() {
@@ -276,7 +271,6 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
         copy.codeCompletionEnabled = safe.codeCompletionEnabled;
         copy.gitCommitMessageEnabled = safe.gitCommitMessageEnabled;
         copy.autoCompletionEnabled = safe.autoCompletionEnabled;
-        copy.projectContextEnabled = safe.projectContextEnabled;
         copy.autoCompletionMaxTokens = safe.autoCompletionMaxTokens;
         copy.manualCompletionMaxTokens = safe.manualCompletionMaxTokens;
         copy.autoCompletionLengthLevel = safe.autoCompletionLengthLevel;

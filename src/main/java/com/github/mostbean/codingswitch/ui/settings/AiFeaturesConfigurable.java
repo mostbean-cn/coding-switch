@@ -5,20 +5,15 @@ import com.github.mostbean.codingswitch.model.AiModelProfile;
 import com.github.mostbean.codingswitch.model.AiCompletionLengthLevel;
 import com.github.mostbean.codingswitch.service.AiFeatureSettings;
 import com.github.mostbean.codingswitch.service.AiModelConnectionTestService;
-import com.github.mostbean.codingswitch.service.ContextCollectorManager;
 import com.github.mostbean.codingswitch.service.I18n;
-import com.github.mostbean.codingswitch.service.IndexStats;
 import com.github.mostbean.codingswitch.service.PluginDataStorage;
 import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.PluginStorageModeService;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.intellij.ide.DataManager;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
-import com.intellij.openapi.actionSystem.CommonDataKeys;
-import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.actionSystem.KeyboardShortcut;
 import com.intellij.openapi.actionSystem.Shortcut;
 import com.intellij.openapi.keymap.Keymap;
@@ -26,12 +21,9 @@ import com.intellij.openapi.keymap.KeymapManager;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.options.SearchableConfigurable;
 import com.intellij.openapi.application.PathManager;
-import com.intellij.openapi.project.Project;
-import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.ValidationInfo;
-import com.intellij.openapi.wm.WindowManager;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
@@ -44,10 +36,8 @@ import java.awt.Cursor;
 import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
-import java.awt.KeyboardFocusManager;
 import java.awt.Rectangle;
 import java.awt.Toolkit;
-import java.awt.Window;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
@@ -85,7 +75,6 @@ import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import javax.swing.SpinnerNumberModel;
-import javax.swing.Timer;
 import javax.swing.UIManager;
 import javax.swing.table.DefaultTableModel;
 import org.jetbrains.annotations.Nls;
@@ -102,7 +91,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     private JComboBox<PluginSettings.Language> uiLanguageCombo;
     private JComboBox<PluginSettings.DataStorageMode> storageModeCombo;
     private JCheckBox autoCompletionEnabled;
-    private JCheckBox projectContextEnabled;
     private JComboBox<AiCompletionLengthLevel> autoCompletionLengthLevel;
     private JComboBox<AiCompletionLengthLevel> manualCompletionLengthLevel;
     private JTextField manualShortcutField;
@@ -117,18 +105,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     private DefaultTableModel profileTableModel;
     private JTable profileTable;
     private JPanel rootPanel;
-
-    // 项目索引相关组件
-    private JBLabel indexProjectValueLabel;
-    private JBLabel indexStatusLabel;
-    private JBLabel indexFilesLabel;
-    private JBLabel indexChunksLabel;
-    private JBLabel indexLastUpdateLabel;
-    private JBLabel indexMemoryLabel;
-    private JButton rebuildIndexButton;
-    private JButton clearIndexButton;
-    private JButton refreshIndexButton;
-    private Timer indexStatusRefreshTimer;
 
     private final List<AiModelProfile> profiles = new ArrayList<>();
     private final Map<String, String> editedApiKeys = new HashMap<>();
@@ -164,8 +140,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         content.add(Box.createVerticalStrut(12));
         content.add(buildCompletionSection());
         content.add(Box.createVerticalStrut(12));
-        content.add(buildProjectIndexSection());
-        content.add(Box.createVerticalStrut(12));
         content.add(buildPreferenceSection());
         content.add(Box.createVerticalGlue());
         return content;
@@ -174,10 +148,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     private JPanel buildFeatureSection() {
         JPanel section = createSection(I18n.t("aiSettings.section.features"));
         codeCompletionEnabled = new JCheckBox(I18n.t("aiSettings.checkbox.codeCompletion"));
-        codeCompletionEnabled.addActionListener(e -> {
-            updateFeatureAvailability();
-            updateIndexStatus();
-        });
+        codeCompletionEnabled.addActionListener(e -> updateFeatureAvailability());
         gitCommitMessageEnabled = new JCheckBox(I18n.t("aiSettings.checkbox.gitCommitMessage"));
         gitCommitMessageEnabled.addActionListener(e -> updateFeatureAvailability());
         section.add(checkBoxRow(codeCompletionEnabled));
@@ -275,307 +246,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         section.add(shortcutRow);
 
         return section;
-    }
-
-    private JPanel buildProjectIndexSection() {
-        JPanel section = createSection(I18n.t("aiSettings.section.projectIndex"));
-
-        projectContextEnabled = new JCheckBox(I18n.t("aiSettings.checkbox.projectContext"));
-        projectContextEnabled.addActionListener(e -> {
-            updateIndexStatus();
-            if (projectContextEnabled.isSelected()) {
-                startIndexStatusRefreshTimer();
-            }
-        });
-        section.add(checkBoxRow(projectContextEnabled));
-
-        JPanel projectRow = rowPanel();
-        projectRow.add(new JBLabel(I18n.t("aiSettings.index.project")));
-        indexProjectValueLabel = new JBLabel(I18n.t("aiSettings.index.project.unavailable"));
-        projectRow.add(indexProjectValueLabel);
-        section.add(projectRow);
-
-        // 状态行
-        JPanel statusRow = rowPanel();
-        statusRow.add(new JBLabel(I18n.t("aiSettings.index.status")));
-        indexStatusLabel = new JBLabel(I18n.t("aiSettings.index.status.disabled"));
-        statusRow.add(indexStatusLabel);
-        section.add(statusRow);
-
-        // 统计行
-        JPanel statsRow = rowPanel();
-        statsRow.add(new JBLabel(I18n.t("aiSettings.index.filesIndexed")));
-        indexFilesLabel = new JBLabel("0");
-        statsRow.add(indexFilesLabel);
-        statsRow.add(new JBLabel(I18n.t("aiSettings.index.chunksIndexed")));
-        indexChunksLabel = new JBLabel("0");
-        statsRow.add(indexChunksLabel);
-        section.add(statsRow);
-
-        // 更新时间和内存占用
-        JPanel infoRow = rowPanel();
-        infoRow.add(new JBLabel(I18n.t("aiSettings.index.lastUpdate")));
-        indexLastUpdateLabel = new JBLabel(I18n.t("aiSettings.index.never"));
-        infoRow.add(indexLastUpdateLabel);
-        infoRow.add(new JBLabel(I18n.t("aiSettings.index.memoryUsage")));
-        indexMemoryLabel = new JBLabel("0 KB");
-        infoRow.add(indexMemoryLabel);
-        section.add(infoRow);
-
-        // 操作按钮
-        JPanel buttonRow = rowPanel();
-        rebuildIndexButton = new JButton(I18n.t("aiSettings.button.rebuildIndex"));
-        rebuildIndexButton.addActionListener(e -> rebuildIndex());
-        buttonRow.add(rebuildIndexButton);
-
-        clearIndexButton = new JButton(I18n.t("aiSettings.button.clearIndex"));
-        clearIndexButton.addActionListener(e -> clearIndex());
-        buttonRow.add(clearIndexButton);
-
-        refreshIndexButton = new JButton(I18n.t("aiSettings.button.refreshIndex"));
-        refreshIndexButton.addActionListener(e -> refreshIndexProjectsAndStatus());
-        buttonRow.add(refreshIndexButton);
-        section.add(buttonRow);
-
-        return section;
-    }
-
-    private void refreshIndexProjectsAndStatus() {
-        updateIndexStatus();
-    }
-
-    private Project currentIndexProject() {
-        Project project = projectFromDataContext(rootPanel);
-        if (isUsableProject(project)) {
-            return project;
-        }
-
-        project = projectFromDataContext(indexProjectValueLabel);
-        if (isUsableProject(project)) {
-            return project;
-        }
-
-        Window activeWindow = KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow();
-        project = projectFromDataContext(activeWindow);
-        if (isUsableProject(project)) {
-            return project;
-        }
-
-        project = projectFromWindowOwnerChain(activeWindow);
-        if (isUsableProject(project)) {
-            return project;
-        }
-
-        Project[] openProjects = ProjectManager.getInstance().getOpenProjects();
-        if (openProjects.length == 1 && isUsableProject(openProjects[0])) {
-            return openProjects[0];
-        }
-        return null;
-    }
-
-    private Project projectFromWindowOwnerChain(Window window) {
-        if (window == null) {
-            return null;
-        }
-        Project[] openProjects = ProjectManager.getInstance().getOpenProjects();
-        for (Project project : openProjects) {
-            if (!isUsableProject(project)) {
-                continue;
-            }
-            Window projectWindow = projectWindow(project);
-            if (projectWindow != null && isSameOrOwnedWindow(window, projectWindow)) {
-                return project;
-            }
-        }
-        return null;
-    }
-
-    private Window projectWindow(Project project) {
-        Object frame = invokeWindowManagerFrameMethod("getFrame", project);
-        if (frame == null) {
-            frame = invokeWindowManagerFrameMethod("getIdeFrame", project);
-        }
-        if (frame instanceof Window window) {
-            return window;
-        }
-        if (frame instanceof Component component) {
-            return SwingUtilities.getWindowAncestor(component);
-        }
-        Object component = invokeNoArgMethod(frame, "getComponent");
-        if (component instanceof Component frameComponent) {
-            return SwingUtilities.getWindowAncestor(frameComponent);
-        }
-        return null;
-    }
-
-    private Object invokeWindowManagerFrameMethod(String methodName, Project project) {
-        try {
-            return WindowManager.getInstance()
-                .getClass()
-                .getMethod(methodName, Project.class)
-                .invoke(WindowManager.getInstance(), project);
-        } catch (Exception ignored) {
-            return null;
-        }
-    }
-
-    private Object invokeNoArgMethod(Object target, String methodName) {
-        if (target == null) {
-            return null;
-        }
-        try {
-            return target.getClass().getMethod(methodName).invoke(target);
-        } catch (Exception ignored) {
-            return null;
-        }
-    }
-
-    private boolean isSameOrOwnedWindow(Window window, Window expectedOwner) {
-        Window current = window;
-        while (current != null) {
-            if (current == expectedOwner) {
-                return true;
-            }
-            current = current.getOwner();
-        }
-        return false;
-    }
-
-    private Project projectFromDataContext(Component component) {
-        if (component == null) {
-            return null;
-        }
-        try {
-            DataContext dataContext = DataManager.getInstance().getDataContext(component);
-            return CommonDataKeys.PROJECT.getData(dataContext);
-        } catch (Exception ignored) {
-            return null;
-        }
-    }
-
-    private boolean isUsableProject(Project project) {
-        return project != null && !project.isDisposed();
-    }
-
-    private String projectDisplayName(Project project) {
-        if (project == null) {
-            return "";
-        }
-        String basePath = project.getBasePath();
-        return basePath == null || basePath.isBlank()
-            ? project.getName()
-            : project.getName() + " - " + basePath;
-    }
-
-    private void updateIndexProjectDisplay(Project project) {
-        if (indexProjectValueLabel != null) {
-            String text = project == null
-                ? I18n.t("aiSettings.index.project.unavailable")
-                : projectDisplayName(project);
-            indexProjectValueLabel.setText(text);
-            indexProjectValueLabel.setToolTipText(project == null ? null : text);
-        }
-    }
-
-    private void rebuildIndex() {
-        Project project = currentIndexProject();
-        if (project == null) {
-            updateIndexStatus();
-            return;
-        }
-        rebuildIndexButton.setEnabled(false);
-        rebuildIndexButton.setText(I18n.t("aiSettings.index.rebuilding"));
-
-        ApplicationManager.getApplication().executeOnPooledThread(() -> {
-            ContextCollectorManager.getInstance().rebuildCodebaseIndex(project);
-
-            SwingUtilities.invokeLater(() -> {
-                rebuildIndexButton.setEnabled(true);
-                rebuildIndexButton.setText(I18n.t("aiSettings.button.rebuildIndex"));
-                updateIndexStatus();
-            });
-        });
-    }
-
-    private void clearIndex() {
-        Project project = currentIndexProject();
-        if (project == null) {
-            updateIndexStatus();
-            return;
-        }
-        ContextCollectorManager.getInstance().clearCodebaseIndex(project);
-        Messages.showInfoMessage(I18n.t("aiSettings.index.cleared"), I18n.t("aiSettings.section.projectIndex"));
-        updateIndexStatus();
-    }
-
-    private void updateIndexStatus() {
-        if (indexStatusLabel == null) {
-            return;
-        }
-        Project project = currentIndexProject();
-        updateIndexProjectDisplay(project);
-        IndexStats stats = ContextCollectorManager.getInstance().getCodebaseStats(project);
-
-        AiFeatureSettings settings = AiFeatureSettings.getInstance();
-        boolean codeCompletionSelected = codeCompletionEnabled == null
-            ? settings.isCodeCompletionEnabled()
-            : codeCompletionEnabled.isSelected();
-        boolean projectContextSelected = projectContextEnabled == null
-            ? settings.isProjectContextEnabled()
-            : projectContextEnabled.isSelected();
-        boolean enabled = project != null && codeCompletionSelected && projectContextSelected;
-        indexStatusLabel.setText(enabled
-            ? (stats.isIndexing() ? I18n.t("aiSettings.index.status.indexing") : I18n.t("aiSettings.index.status.ready"))
-            : I18n.t("aiSettings.index.status.disabled"));
-        rebuildIndexButton.setEnabled(enabled && !stats.isIndexing());
-        clearIndexButton.setEnabled(enabled);
-        refreshIndexButton.setEnabled(true);
-
-        indexFilesLabel.setText(String.valueOf(stats.filesIndexed()));
-        indexChunksLabel.setText(String.valueOf(stats.chunksIndexed()));
-
-        if (stats.lastUpdateTime() > 0) {
-            java.time.Instant instant = java.time.Instant.ofEpochMilli(stats.lastUpdateTime());
-            java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter
-                .ofPattern("yyyy-MM-dd HH:mm:ss")
-                .withZone(java.time.ZoneId.systemDefault());
-            indexLastUpdateLabel.setText(formatter.format(instant));
-        } else {
-            indexLastUpdateLabel.setText(I18n.t("aiSettings.index.never"));
-        }
-
-        long memoryBytes = stats.estimatedMemoryBytes();
-        String memoryText;
-        if (memoryBytes < 1024) {
-            memoryText = memoryBytes + " B";
-        } else if (memoryBytes < 1024 * 1024) {
-            memoryText = (memoryBytes / 1024) + " KB";
-        } else {
-            memoryText = String.format("%.1f MB", memoryBytes / (1024.0 * 1024.0));
-        }
-        indexMemoryLabel.setText(memoryText);
-
-        if (stats.isIndexing()) {
-            startIndexStatusRefreshTimer();
-        } else {
-            stopIndexStatusRefreshTimer();
-        }
-    }
-
-    private void startIndexStatusRefreshTimer() {
-        if (indexStatusRefreshTimer == null) {
-            indexStatusRefreshTimer = new Timer(1000, e -> updateIndexStatus());
-            indexStatusRefreshTimer.setRepeats(true);
-        }
-        if (!indexStatusRefreshTimer.isRunning()) {
-            indexStatusRefreshTimer.start();
-        }
-    }
-
-    private void stopIndexStatusRefreshTimer() {
-        if (indexStatusRefreshTimer != null && indexStatusRefreshTimer.isRunning()) {
-            indexStatusRefreshTimer.stop();
-        }
     }
 
     private String activeProfileDisplayName(AiModelProfile profile) {
@@ -993,13 +663,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
                 autoCompletionEnabled.setSelected(false);
             }
         }
-        if (projectContextEnabled != null) {
-            projectContextEnabled.setEnabled(completionEnabled);
-            if (!completionEnabled) {
-                projectContextEnabled.setSelected(false);
-            }
-        }
-        updateIndexStatus();
     }
 
     private boolean hasConfiguredModel(JComboBox<AiModelProfile> comboBox) {
@@ -1062,7 +725,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         codeCompletionEnabled.setSelected(state.codeCompletionEnabled);
         gitCommitMessageEnabled.setSelected(state.gitCommitMessageEnabled);
         autoCompletionEnabled.setSelected(state.autoCompletionEnabled);
-        projectContextEnabled.setSelected(state.projectContextEnabled);
         autoCompletionLengthLevel.setSelectedItem(parseLengthLevel(
             state.autoCompletionLengthLevel,
             AiCompletionLengthLevel.SHORT
@@ -1084,9 +746,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         removedProfileIds.clear();
         editedApiKeys.clear();
         updateFeatureAvailability();
-
-        // 更新项目索引状态
-        updateIndexStatus();
     }
 
     private AiCompletionLengthLevel parseLengthLevel(String value, AiCompletionLengthLevel fallback) {
@@ -1270,7 +929,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
     @Override
     public void disposeUIResources() {
-        stopIndexStatusRefreshTimer();
         removeShortcutCaptureListener();
         rootPanel = null;
     }
@@ -1280,7 +938,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         state.codeCompletionEnabled = codeCompletionEnabled != null && codeCompletionEnabled.isSelected();
         state.gitCommitMessageEnabled = gitCommitMessageEnabled != null && gitCommitMessageEnabled.isSelected();
         state.autoCompletionEnabled = autoCompletionEnabled != null && autoCompletionEnabled.isSelected();
-        state.projectContextEnabled = projectContextEnabled != null && projectContextEnabled.isSelected();
         state.autoCompletionLengthLevel = selectedLengthName(
             autoCompletionLengthLevel,
             AiCompletionLengthLevel.SHORT
@@ -1309,7 +966,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         return a.codeCompletionEnabled == b.codeCompletionEnabled
             && a.gitCommitMessageEnabled == b.gitCommitMessageEnabled
             && a.autoCompletionEnabled == b.autoCompletionEnabled
-            && a.projectContextEnabled == b.projectContextEnabled
             && Objects.equals(a.autoCompletionLengthLevel, b.autoCompletionLengthLevel)
             && Objects.equals(a.manualCompletionLengthLevel, b.manualCompletionLengthLevel)
             && Objects.equals(a.activeCompletionProfileId, b.activeCompletionProfileId)

@@ -42,10 +42,6 @@ final class AiCompletionContextBuilder {
         VirtualFile file = psiFile == null ? null : psiFile.getVirtualFile();
         String path = file == null ? "" : file.getPath();
 
-        String additionalContext = useNativeFim
-            ? ""
-            : ContextCollectorManager.getInstance().collectAll(project, editor, offset);
-
         String systemPrompt;
         String userPrompt;
 
@@ -70,7 +66,7 @@ final class AiCompletionContextBuilder {
                 triggerMode.name().toLowerCase(),
                 language,
                 path,
-                additionalContext.isEmpty() ? "" : "Context:\n" + additionalContext + "\n",
+                "",
                 profile.getFimPrefixToken(),
                 prefix,
                 profile.getFimSuffixToken(),
@@ -101,7 +97,7 @@ final class AiCompletionContextBuilder {
                 triggerMode.name().toLowerCase(),
                 language,
                 path,
-                additionalContext.isEmpty() ? "" : "Context:\n" + additionalContext + "\n",
+                "",
                 prefix,
                 suffix
             );
