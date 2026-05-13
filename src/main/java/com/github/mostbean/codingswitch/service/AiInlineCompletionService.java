@@ -23,6 +23,7 @@ import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.Key;
 import com.intellij.ui.JBColor;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
@@ -528,15 +529,14 @@ public final class AiInlineCompletionService implements Disposable {
 
         @Override
         public int calcWidthInPixels(Inlay inlay) {
-            return fontMetrics(inlay).stringWidth(text);
+            return textWidth(inlay, text);
         }
 
         @Override
         public void paint(Inlay inlay, Graphics graphics, Rectangle targetRegion, TextAttributes textAttributes) {
-            graphics.setFont(editorFont(inlay));
             graphics.setColor(GHOST_FOREGROUND);
-            FontMetrics metrics = graphics.getFontMetrics();
-            graphics.drawString(text, targetRegion.x, targetRegion.y + metrics.getAscent());
+            FontMetrics metrics = fontMetrics(inlay, editorFont(inlay));
+            drawGhostText(inlay, graphics, text, targetRegion.x, targetRegion.y + metrics.getAscent());
         }
     }
 
@@ -551,10 +551,10 @@ public final class AiInlineCompletionService implements Disposable {
 
         @Override
         public int calcWidthInPixels(Inlay inlay) {
-            FontMetrics metrics = fontMetrics(inlay);
+            FontMetrics metrics = fontMetrics(inlay, editorFont(inlay));
             int width = 0;
             for (String line : lines) {
-                width = Math.max(width, metrics.stringWidth(line));
+                width = Math.max(width, textWidth(inlay, line));
             }
             return Math.max(1, width + lineStartX + metrics.charWidth('m'));
         }
@@ -566,13 +566,12 @@ public final class AiInlineCompletionService implements Disposable {
 
         @Override
         public void paint(Inlay inlay, Graphics graphics, Rectangle targetRegion, TextAttributes textAttributes) {
-            graphics.setFont(editorFont(inlay));
             graphics.setColor(GHOST_FOREGROUND);
-            FontMetrics metrics = graphics.getFontMetrics();
+            FontMetrics metrics = fontMetrics(inlay, editorFont(inlay));
             int y = targetRegion.y + metrics.getAscent();
             for (String line : lines) {
                 if (!line.isEmpty()) {
-                    graphics.drawString(line, lineStartX, y);
+                    drawGhostText(inlay, graphics, line, lineStartX, y);
                 }
                 y += inlay.getEditor().getLineHeight();
             }
@@ -591,8 +590,63 @@ public final class AiInlineCompletionService implements Disposable {
         return inlay.getEditor().getColorsScheme().getFont(EditorFontType.PLAIN);
     }
 
-    private static FontMetrics fontMetrics(Inlay inlay) {
-        return inlay.getEditor().getContentComponent().getFontMetrics(editorFont(inlay));
+    private static FontMetrics fontMetrics(Inlay inlay, Font font) {
+        return inlay.getEditor().getContentComponent().getFontMetrics(font);
+    }
+
+    private static int textWidth(Inlay inlay, String text) {
+        Component component = inlay.getEditor().getContentComponent();
+        Font editorFont = editorFont(inlay);
+        int width = 0;
+        int index = 0;
+        while (index < text.length()) {
+            int codePoint = text.codePointAt(index);
+            Font font = displayFont(editorFont, codePoint);
+            int next = nextFontRunEnd(text, index, font, editorFont);
+            width += component.getFontMetrics(font).stringWidth(text.substring(index, next));
+            index = next;
+        }
+        return width;
+    }
+
+    private static void drawGhostText(Inlay inlay, Graphics graphics, String text, int x, int baseline) {
+        Component component = inlay.getEditor().getContentComponent();
+        Font editorFont = editorFont(inlay);
+        int currentX = x;
+        int index = 0;
+        while (index < text.length()) {
+            int codePoint = text.codePointAt(index);
+            Font font = displayFont(editorFont, codePoint);
+            int next = nextFontRunEnd(text, index, font, editorFont);
+            String run = text.substring(index, next);
+            graphics.setFont(font);
+            graphics.drawString(run, currentX, baseline);
+            currentX += component.getFontMetrics(font).stringWidth(run);
+            index = next;
+        }
+    }
+
+    private static int nextFontRunEnd(String text, int start, Font font, Font editorFont) {
+        int index = start;
+        while (index < text.length()) {
+            int codePoint = text.codePointAt(index);
+            if (!displayFont(editorFont, codePoint).equals(font)) {
+                break;
+            }
+            index += Character.charCount(codePoint);
+        }
+        return index;
+    }
+
+    private static Font displayFont(Font editorFont, int codePoint) {
+        if (editorFont.canDisplay(codePoint)) {
+            return editorFont;
+        }
+        Font monospaced = new Font(Font.MONOSPACED, editorFont.getStyle(), editorFont.getSize());
+        if (monospaced.canDisplay(codePoint)) {
+            return monospaced;
+        }
+        return new Font(Font.DIALOG, editorFont.getStyle(), editorFont.getSize());
     }
 
     private static int lineStartX(Editor editor, int line) {
