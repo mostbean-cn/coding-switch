@@ -24,7 +24,7 @@ public class AiModelProfile {
     public AiModelProfile() {
         this.id = UUID.randomUUID().toString();
         this.name = "";
-        this.format = AiModelFormat.OPENAI_RESPONSES;
+        this.format = AiModelFormat.FIM_COMPLETIONS;
         this.baseUrl = this.format.getDefaultBaseUrl();
         this.model = "";
         this.apiKey = "";

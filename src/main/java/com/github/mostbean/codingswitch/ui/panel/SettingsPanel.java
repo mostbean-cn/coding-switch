@@ -6,10 +6,12 @@ import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.PluginDataStorage;
 import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.PluginStorageModeService;
+import com.github.mostbean.codingswitch.ui.settings.AiFeaturesConfigurable;
 import com.intellij.icons.AllIcons;
 import com.intellij.ide.ActivityTracker;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
+import com.intellij.openapi.options.ShowSettingsUtil;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowManager;
 import com.intellij.openapi.application.PathManager;
@@ -384,7 +386,20 @@ public class SettingsPanel extends JPanel {
         storageRow.add(openStorageDirBtn);
         content.add(storageRow);
 
-        // ========== 3. CLI 快速启动 ==========
+        // ========== 3. 代码补全 ==========
+        JPanel codeCompletionRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
+        codeCompletionRow.add(createInfoHintIcon(
+            I18n.t("settings.hint.codeCompletion"),
+            I18n.t("settings.label.codeCompletion")
+        ));
+        codeCompletionRow.add(new JBLabel(I18n.t("settings.label.codeCompletion")));
+
+        JButton codeCompletionConfigBtn = new JButton(I18n.t("settings.button.codeCompletionConfig"));
+        codeCompletionConfigBtn.addActionListener(e -> openCodeCompletionSettings());
+        codeCompletionRow.add(codeCompletionConfigBtn);
+        content.add(codeCompletionRow);
+
+        // ========== 4. CLI 快速启动 ==========
         JPanel cliQuickLaunchRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
         cliQuickLaunchRow.add(createInfoHintIcon(
             I18n.t("settings.hint.cliQuickLaunch"),
@@ -495,6 +510,10 @@ public class SettingsPanel extends JPanel {
             cliCommandTableModel.addRow(new Object[]{item.name, item.command});
         }
         updateCliCommandTableViewportHeight();
+    }
+
+    private void openCodeCompletionSettings() {
+        ShowSettingsUtil.getInstance().showSettingsDialog(project, AiFeaturesConfigurable.class);
     }
 
     private void showAddOrEditDialog(int editRowIndex) {

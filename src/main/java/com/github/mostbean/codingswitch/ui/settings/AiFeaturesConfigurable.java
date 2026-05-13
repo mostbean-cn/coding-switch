@@ -385,7 +385,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     }
 
     private boolean isFimFormat(AiModelFormat format) {
-        return format == AiModelFormat.DEEPSEEK_FIM_COMPLETIONS
+        return format == AiModelFormat.FIM_COMPLETIONS
             || format == AiModelFormat.FIM_CHAT_COMPLETIONS;
     }
 
@@ -1451,7 +1451,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
         private void syncFimFormatAvailability() {
             AiModelFormat selected = (AiModelFormat) formatCombo.getSelectedItem();
-            boolean nativeFim = selected == AiModelFormat.DEEPSEEK_FIM_COMPLETIONS
+            boolean nativeFim = selected == AiModelFormat.FIM_COMPLETIONS
                 || selected == AiModelFormat.FIM_CHAT_COMPLETIONS;
             if (nativeFim) {
                 fimFormatCombo.setSelectedItem(Boolean.FALSE);

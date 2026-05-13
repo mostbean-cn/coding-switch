@@ -180,7 +180,7 @@ public final class AiModelConnectionTestService {
                 fimChatBody(profile.getModel()),
                 "FIM Chat Completions"
             ));
-            case DEEPSEEK_FIM_COMPLETIONS -> List.of(postJson(
+            case FIM_COMPLETIONS -> List.of(postJson(
                 AiCompletionHttpSupport.ensurePath(profile.getBaseUrl(), "/completions"),
                 bearerHeaders(apiKey),
                 deepSeekFimBody(profile.getModel()),
@@ -221,7 +221,7 @@ public final class AiModelConnectionTestService {
                 )
             );
         }
-        if (profile.getFormat() == AiModelFormat.DEEPSEEK_FIM_COMPLETIONS) {
+        if (profile.getFormat() == AiModelFormat.FIM_COMPLETIONS) {
             String baseUrl = removeTrailingBetaPath(profile.getBaseUrl());
             return List.of(
                 get(
