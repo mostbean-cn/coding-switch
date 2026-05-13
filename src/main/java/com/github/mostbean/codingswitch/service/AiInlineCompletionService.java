@@ -9,12 +9,15 @@ import com.intellij.openapi.components.Service;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.EditorCustomElementRenderer;
 import com.intellij.openapi.editor.Inlay;
+import com.intellij.openapi.editor.LogicalPosition;
+import com.intellij.openapi.editor.colors.EditorFontType;
 import com.intellij.openapi.editor.markup.TextAttributes;
 import com.intellij.notification.NotificationGroupManager;
 import com.intellij.notification.NotificationType;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
 import com.intellij.ui.JBColor;
+import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
@@ -31,6 +34,7 @@ public final class AiInlineCompletionService implements Disposable {
 
     private static final Key<InlineSession> SESSION_KEY = Key.create("coding.switch.ai.inline.session");
     private static final Key<Long> REQUEST_ID_KEY = Key.create("coding.switch.ai.inline.request.id");
+    private static final Color GHOST_FOREGROUND = new JBColor(new Color(0x8A8A8A), new Color(0x6F737A));
 
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(runnable -> {
         Thread thread = new Thread(runnable, "Coding Switch Inline Completion");
@@ -280,10 +284,10 @@ public final class AiInlineCompletionService implements Disposable {
             session.inlineInlay = editor.getInlayModel()
                 .addInlineElement(session.offset, true, new GhostInlineRenderer(firstLine));
         }
-        if (!rest.isBlank()) {
-            int indentX = editor.logicalPositionToXY(editor.offsetToLogicalPosition(session.offset)).x;
+        if (newline >= 0) {
+            int anchorLine = editor.offsetToLogicalPosition(session.offset).line;
             session.blockInlay = editor.getInlayModel()
-                .addBlockElement(session.offset, true, false, 0, new GhostBlockRenderer(rest, indentX));
+                .addBlockElement(session.offset, true, false, 0, new GhostBlockRenderer(rest, anchorLine));
         }
     }
 
@@ -371,7 +375,7 @@ public final class AiInlineCompletionService implements Disposable {
         @Override
         public void paint(Inlay inlay, Graphics graphics, Rectangle targetRegion, TextAttributes textAttributes) {
             graphics.setFont(editorFont(inlay));
-            graphics.setColor(JBColor.GRAY);
+            graphics.setColor(GHOST_FOREGROUND);
             FontMetrics metrics = graphics.getFontMetrics();
             graphics.drawString(text, targetRegion.x, targetRegion.y + metrics.getAscent());
         }
@@ -379,11 +383,11 @@ public final class AiInlineCompletionService implements Disposable {
 
     private static final class GhostBlockRenderer implements EditorCustomElementRenderer {
         private final List<String> lines;
-        private final int indentX;
+        private final int anchorLine;
 
-        private GhostBlockRenderer(String text, int indentX) {
+        private GhostBlockRenderer(String text, int anchorLine) {
             this.lines = splitLines(text);
-            this.indentX = Math.max(0, indentX);
+            this.anchorLine = Math.max(0, anchorLine);
         }
 
         @Override
@@ -393,7 +397,7 @@ public final class AiInlineCompletionService implements Disposable {
             for (String line : lines) {
                 width = Math.max(width, metrics.stringWidth(line));
             }
-            return indentX + width;
+            return width;
         }
 
         @Override
@@ -404,11 +408,14 @@ public final class AiInlineCompletionService implements Disposable {
         @Override
         public void paint(Inlay inlay, Graphics graphics, Rectangle targetRegion, TextAttributes textAttributes) {
             graphics.setFont(editorFont(inlay));
-            graphics.setColor(JBColor.GRAY);
+            graphics.setColor(GHOST_FOREGROUND);
             FontMetrics metrics = graphics.getFontMetrics();
+            int x = lineStartX(inlay.getEditor(), anchorLine);
             int y = targetRegion.y + metrics.getAscent();
             for (String line : lines) {
-                graphics.drawString(line, targetRegion.x + indentX, y);
+                if (!line.isEmpty()) {
+                    graphics.drawString(line, x, y);
+                }
                 y += inlay.getEditor().getLineHeight();
             }
         }
@@ -416,19 +423,21 @@ public final class AiInlineCompletionService implements Disposable {
         private static List<String> splitLines(String text) {
             List<String> result = new ArrayList<>();
             for (String line : text.split("\\n", -1)) {
-                if (!line.isEmpty()) {
-                    result.add(line);
-                }
+                result.add(line);
             }
             return result;
         }
     }
 
     private static Font editorFont(Inlay inlay) {
-        return inlay.getEditor().getContentComponent().getFont();
+        return inlay.getEditor().getColorsScheme().getFont(EditorFontType.PLAIN);
     }
 
     private static FontMetrics fontMetrics(Inlay inlay) {
         return inlay.getEditor().getContentComponent().getFontMetrics(editorFont(inlay));
+    }
+
+    private static int lineStartX(Editor editor, int line) {
+        return editor.logicalPositionToXY(new LogicalPosition(Math.max(0, line), 0)).x;
     }
 }
