@@ -1620,6 +1620,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             fimFormatCombo = new JComboBox<>(new Boolean[] {Boolean.FALSE, Boolean.TRUE});
             configureFimFormatCombo();
             fimFormatCombo.setSelectedItem(original.isFimEnabled());
+            syncFimFormatAvailability();
 
             AiModelFormat[] previousFormat = {original.getFormat()};
             formatCombo.addActionListener(e -> {
@@ -1633,6 +1634,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
                     baseUrlField.setText(selected.getDefaultBaseUrl());
                 }
                 previousFormat[0] = selected;
+                syncFimFormatAvailability();
             });
 
             FormBuilder form = FormBuilder.createFormBuilder()
@@ -1726,6 +1728,14 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
                     return this;
                 }
             });
+        }
+
+        private void syncFimFormatAvailability() {
+            boolean nativeFim = formatCombo.getSelectedItem() == AiModelFormat.DEEPSEEK_FIM_COMPLETIONS;
+            if (nativeFim) {
+                fimFormatCombo.setSelectedItem(Boolean.FALSE);
+            }
+            fimFormatCombo.setEnabled(!nativeFim);
         }
 
         private String getApiKey() {

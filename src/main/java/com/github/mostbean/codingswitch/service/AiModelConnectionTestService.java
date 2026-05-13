@@ -174,6 +174,12 @@ public final class AiModelConnectionTestService {
                 openAiChatBody(profile.getModel()),
                 "OpenAI Chat Completions"
             ));
+            case DEEPSEEK_FIM_COMPLETIONS -> List.of(postJson(
+                AiCompletionHttpSupport.ensurePath(profile.getBaseUrl(), "/completions"),
+                bearerHeaders(apiKey),
+                deepSeekFimBody(profile.getModel()),
+                "DeepSeek FIM Completions"
+            ));
             case ANTHROPIC_MESSAGES -> {
                 String body = anthropicMessagesBody(profile.getModel());
                 yield List.of(
@@ -206,6 +212,21 @@ public final class AiModelConnectionTestService {
                     AiCompletionHttpSupport.ensurePath(profile.getBaseUrl(), "/models"),
                     anthropicHeaders(apiKey),
                     "Anthropic Models"
+                )
+            );
+        }
+        if (profile.getFormat() == AiModelFormat.DEEPSEEK_FIM_COMPLETIONS) {
+            String baseUrl = removeTrailingBetaPath(profile.getBaseUrl());
+            return List.of(
+                get(
+                    AiCompletionHttpSupport.ensurePath(baseUrl, "/models"),
+                    bearerHeaders(apiKey),
+                    "DeepSeek Models"
+                ),
+                get(
+                    AiCompletionHttpSupport.ensurePath(profile.getBaseUrl(), "/models"),
+                    bearerHeaders(apiKey),
+                    "DeepSeek Beta Models"
                 )
             );
         }
@@ -291,6 +312,16 @@ public final class AiModelConnectionTestService {
         body.addProperty("model", model);
         body.addProperty("max_tokens", 1);
         body.add("messages", oneUserMessage());
+        return GSON.toJson(body);
+    }
+
+    private static String deepSeekFimBody(String model) {
+        JsonObject body = new JsonObject();
+        body.addProperty("model", model);
+        body.addProperty("prompt", "def ping():\n    ");
+        body.addProperty("suffix", "\n");
+        body.addProperty("max_tokens", 1);
+        body.addProperty("temperature", 0.2);
         return GSON.toJson(body);
     }
 
@@ -382,6 +413,14 @@ public final class AiModelConnectionTestService {
             return b;
         }
         return null;
+    }
+
+    private static String removeTrailingBetaPath(String baseUrl) {
+        String value = baseUrl == null ? "" : baseUrl.trim().replaceAll("/+$", "");
+        if (value.endsWith("/beta")) {
+            return value.substring(0, value.length() - "/beta".length());
+        }
+        return value;
     }
 
     private static TestResult chooseBetterFailure(TestResult previous, TestResult current) {

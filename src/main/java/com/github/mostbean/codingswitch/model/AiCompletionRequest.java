@@ -6,6 +6,12 @@ public record AiCompletionRequest(
     String systemPrompt,
     String userPrompt,
     AiCompletionLengthLevel lengthLevel,
-    int maxTokens
+    int maxTokens,
+    String fimPrefix,
+    String fimSuffix
 ) {
+    public AiCompletionRequest {
+        fimPrefix = fimPrefix == null ? "" : fimPrefix;
+        fimSuffix = fimSuffix == null ? "" : fimSuffix;
+    }
 }

@@ -2,6 +2,7 @@ package com.github.mostbean.codingswitch.service;
 
 import com.github.mostbean.codingswitch.model.AiCompletionTriggerMode;
 import com.github.mostbean.codingswitch.model.AiCompletionLengthLevel;
+import com.github.mostbean.codingswitch.model.AiModelFormat;
 import com.github.mostbean.codingswitch.model.AiModelProfile;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
@@ -25,7 +26,8 @@ final class AiCompletionContextBuilder {
         AiCompletionLengthLevel lengthLevel
     ) {
         AiModelProfile profile = AiFeatureSettings.getInstance().getActiveCompletionProfile();
-        boolean useFim = profile != null && profile.isFimEnabled();
+        boolean useNativeFim = profile != null && profile.getFormat() == AiModelFormat.DEEPSEEK_FIM_COMPLETIONS;
+        boolean useFim = profile != null && profile.isFimEnabled() && !useNativeFim;
 
         Document document = editor.getDocument();
         int offset = Math.max(0, Math.min(editor.getCaretModel().getOffset(), document.getTextLength()));
@@ -40,7 +42,9 @@ final class AiCompletionContextBuilder {
         VirtualFile file = psiFile == null ? null : psiFile.getVirtualFile();
         String path = file == null ? "" : file.getPath();
 
-        String additionalContext = ContextCollectorManager.getInstance().collectAll(project, editor, offset);
+        String additionalContext = useNativeFim
+            ? ""
+            : ContextCollectorManager.getInstance().collectAll(project, editor, offset);
 
         String systemPrompt;
         String userPrompt;
@@ -103,9 +107,9 @@ final class AiCompletionContextBuilder {
             );
         }
 
-        return new Context(systemPrompt, userPrompt, path);
+        return new Context(systemPrompt, userPrompt, path, prefix, suffix);
     }
 
-    record Context(String systemPrompt, String userPrompt, String filePath) {
+    record Context(String systemPrompt, String userPrompt, String filePath, String fimPrefix, String fimSuffix) {
     }
 }

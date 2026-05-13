@@ -158,7 +158,9 @@ public final class AiCompletionService {
                 snapshot.context().systemPrompt(),
                 snapshot.context().userPrompt(),
                 lengthLevel,
-                settings.getCompletionMaxTokens(triggerMode)
+                settings.getCompletionMaxTokens(triggerMode),
+                snapshot.context().fimPrefix(),
+                snapshot.context().fimSuffix()
             );
             return new CompletionRequestContext(inFlightKey, profile, request, snapshot);
         } catch (RuntimeException ex) {
@@ -196,6 +198,9 @@ public final class AiCompletionService {
         if (profile == null || profile.getModel().isBlank()) {
             return Optional.empty();
         }
+        if (profile.getFormat() == AiModelFormat.DEEPSEEK_FIM_COMPLETIONS) {
+            return Optional.empty();
+        }
         String apiKey = settings.getApiKey(profile.getId());
         if (apiKey.isBlank()) {
             return Optional.empty();
@@ -207,7 +212,9 @@ public final class AiCompletionService {
             systemPrompt,
             userPrompt,
             lengthLevel,
-            lengthLevel.getMaxTokens()
+            lengthLevel.getMaxTokens(),
+            "",
+            ""
         );
         String text = createClient(profile.getFormat()).complete(request);
         if (text == null || text.isBlank()) {
@@ -244,6 +251,7 @@ public final class AiCompletionService {
         return switch (format) {
             case OPENAI_RESPONSES -> new OpenAiResponsesCompletionClient();
             case OPENAI_CHAT_COMPLETIONS -> new OpenAiChatCompletionClient();
+            case DEEPSEEK_FIM_COMPLETIONS -> new DeepSeekFimCompletionClient();
             case ANTHROPIC_MESSAGES -> new AnthropicMessagesCompletionClient();
         };
     }

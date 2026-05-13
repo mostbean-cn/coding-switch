@@ -6,6 +6,7 @@ package com.github.mostbean.codingswitch.model;
 public enum AiModelFormat {
     OPENAI_CHAT_COMPLETIONS("OpenAI Chat Completions", "https://api.openai.com/v1"),
     OPENAI_RESPONSES("OpenAI Responses", "https://api.openai.com/v1"),
+    DEEPSEEK_FIM_COMPLETIONS("DeepSeek FIM Completions", "https://api.deepseek.com/beta"),
     ANTHROPIC_MESSAGES("Anthropic Messages", "https://api.anthropic.com");
 
     private final String displayName;
