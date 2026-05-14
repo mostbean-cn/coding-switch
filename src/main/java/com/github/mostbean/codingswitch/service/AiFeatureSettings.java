@@ -37,8 +37,8 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
         public boolean autoCompletionEnabled = false;
         public int autoCompletionMaxTokens = 64;
         public int manualCompletionMaxTokens = 160;
-        public String autoCompletionLengthLevel = AiCompletionLengthLevel.SHORT.name();
-        public String manualCompletionLengthLevel = AiCompletionLengthLevel.MEDIUM.name();
+        public String autoCompletionLengthLevel = AiCompletionLengthLevel.SINGLE_LINE.name();
+        public String manualCompletionLengthLevel = AiCompletionLengthLevel.SHORT.name();
         public String activeCompletionProfileId = "";
         public String activeGitCommitProfileId = "";
         public String manualCompletionShortcut = DEFAULT_MANUAL_SHORTCUT;
@@ -88,8 +88,8 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
 
     public AiCompletionLengthLevel getCompletionLengthLevel(AiCompletionTriggerMode mode) {
         return mode == AiCompletionTriggerMode.MANUAL
-            ? parseLengthLevel(getActiveState().manualCompletionLengthLevel, AiCompletionLengthLevel.MEDIUM)
-            : parseLengthLevel(getActiveState().autoCompletionLengthLevel, AiCompletionLengthLevel.SHORT);
+            ? parseLengthLevel(getActiveState().manualCompletionLengthLevel, AiCompletionLengthLevel.SHORT)
+            : parseLengthLevel(getActiveState().autoCompletionLengthLevel, AiCompletionLengthLevel.SINGLE_LINE);
     }
 
     public AiModelProfile getActiveCompletionProfile() {
@@ -306,11 +306,11 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
         }
         normalized.autoCompletionLengthLevel = parseLengthLevel(
             normalized.autoCompletionLengthLevel,
-            AiCompletionLengthLevel.SHORT
+            AiCompletionLengthLevel.SINGLE_LINE
         ).name();
         normalized.manualCompletionLengthLevel = parseLengthLevel(
             normalized.manualCompletionLengthLevel,
-            AiCompletionLengthLevel.MEDIUM
+            AiCompletionLengthLevel.SHORT
         ).name();
         if (normalized.manualCompletionShortcut == null || normalized.manualCompletionShortcut.isBlank()) {
             normalized.manualCompletionShortcut = DEFAULT_MANUAL_SHORTCUT;

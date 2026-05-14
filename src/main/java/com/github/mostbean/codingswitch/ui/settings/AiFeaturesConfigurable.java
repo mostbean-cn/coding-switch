@@ -812,11 +812,11 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         autoCompletionEnabled.setSelected(state.autoCompletionEnabled);
         autoCompletionLengthLevel.setSelectedItem(parseLengthLevel(
             state.autoCompletionLengthLevel,
-            AiCompletionLengthLevel.SHORT
+            AiCompletionLengthLevel.SINGLE_LINE
         ));
         manualCompletionLengthLevel.setSelectedItem(parseLengthLevel(
             state.manualCompletionLengthLevel,
-            AiCompletionLengthLevel.MEDIUM
+            AiCompletionLengthLevel.SHORT
         ));
         lastManualShortcut = normalizeShortcutText(state.manualCompletionShortcut);
         showShortcutValue(lastManualShortcut);
@@ -1026,11 +1026,11 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         state.autoCompletionEnabled = autoCompletionEnabled != null && autoCompletionEnabled.isSelected();
         state.autoCompletionLengthLevel = selectedLengthName(
             autoCompletionLengthLevel,
-            AiCompletionLengthLevel.SHORT
+            AiCompletionLengthLevel.SINGLE_LINE
         );
         state.manualCompletionLengthLevel = selectedLengthName(
             manualCompletionLengthLevel,
-            AiCompletionLengthLevel.MEDIUM
+            AiCompletionLengthLevel.SHORT
         );
         state.manualCompletionShortcut = manualShortcutField == null
             ? AiFeatureSettings.DEFAULT_MANUAL_SHORTCUT
