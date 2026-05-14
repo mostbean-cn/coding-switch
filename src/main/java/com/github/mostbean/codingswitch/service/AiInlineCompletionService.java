@@ -339,96 +339,6 @@ public final class AiInlineCompletionService implements Disposable {
             .replace("\r", "\n");
     }
 
-    private static String protectIncompleteTail(String text) {
-        if (text == null || text.isEmpty()) {
-            return "";
-        }
-        int lastNewline = text.lastIndexOf('\n');
-        if (lastNewline < 0 || lastNewline == text.length() - 1) {
-            return text;
-        }
-        String lastLine = text.substring(lastNewline + 1);
-        if (!isLikelyIncompleteTail(lastLine)) {
-            return text;
-        }
-        String protectedText = text.substring(0, lastNewline + 1);
-        return protectedText.isBlank() ? text : protectedText;
-    }
-
-    private static boolean isLikelyIncompleteTail(String line) {
-        String trimmed = line.stripTrailing();
-        if (trimmed.isBlank()) {
-            return false;
-        }
-        if (hasUnclosedXmlLikeTag(trimmed) || hasUnclosedQuote(trimmed, '"') || hasUnclosedQuote(trimmed, '\'')) {
-            return true;
-        }
-        if (hasMoreOpeningThanClosing(trimmed, '(', ')')
-            || hasMoreOpeningThanClosing(trimmed, '[', ']')
-            || hasMoreOpeningThanClosing(trimmed, '{', '}')) {
-            return true;
-        }
-        return endsWithDanglingToken(trimmed);
-    }
-
-    private static boolean hasUnclosedXmlLikeTag(String value) {
-        int open = value.lastIndexOf('<');
-        int close = value.lastIndexOf('>');
-        if (open <= close || open >= value.length() - 1) {
-            return false;
-        }
-        char next = value.charAt(open + 1);
-        return Character.isLetter(next) || next == '/' || next == '!' || next == '?';
-    }
-
-    private static boolean hasUnclosedQuote(String value, char quote) {
-        boolean escaped = false;
-        boolean open = false;
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            if (escaped) {
-                escaped = false;
-                continue;
-            }
-            if (c == '\\') {
-                escaped = true;
-                continue;
-            }
-            if (c == quote) {
-                open = !open;
-            }
-        }
-        return open;
-    }
-
-    private static boolean hasMoreOpeningThanClosing(String value, char open, char close) {
-        int balance = 0;
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            if (c == open) {
-                balance++;
-            } else if (c == close && balance > 0) {
-                balance--;
-            }
-        }
-        return balance > 0;
-    }
-
-    private static boolean endsWithDanglingToken(String value) {
-        return value.endsWith("=")
-            || value.endsWith("+")
-            || value.endsWith("-")
-            || value.endsWith("*")
-            || value.endsWith("/")
-            || value.endsWith("%")
-            || value.endsWith(".")
-            || value.endsWith(",")
-            || value.endsWith("&&")
-            || value.endsWith("||")
-            || value.endsWith("?")
-            || value.endsWith(":");
-    }
-
     @Override
     public void dispose() {
         scheduler.shutdownNow();
@@ -448,13 +358,13 @@ public final class AiInlineCompletionService implements Disposable {
         private InlineSession(int offset, String remainingText, long documentStamp) {
             this.offset = offset;
             this.rawText = remainingText;
-            this.remainingText = protectIncompleteTail(remainingText);
+            this.remainingText = remainingText;
             this.documentStamp = documentStamp;
         }
 
         private void appendText(String text) {
             rawText += text;
-            remainingText = protectIncompleteTail(rawText);
+            remainingText = rawText;
         }
 
         private void consumeVisiblePrefix(String text) {
@@ -463,7 +373,7 @@ public final class AiInlineCompletionService implements Disposable {
             } else {
                 rawText = remainingText.substring(Math.min(text.length(), remainingText.length()));
             }
-            remainingText = protectIncompleteTail(rawText);
+            remainingText = rawText;
         }
 
         private void attachInvalidationListeners(Editor editor) {

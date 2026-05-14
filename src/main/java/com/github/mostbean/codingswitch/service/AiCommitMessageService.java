@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Pattern;
 
@@ -21,6 +22,8 @@ public final class AiCommitMessageService {
 
     private static final int MAX_TOTAL_CHARS = 12000;
     private static final int MAX_FILE_CONTENT_CHARS = 1800;
+    private static final int DIFF_CONTEXT_LINES = 3;
+    private static final int MAX_DIFF_MATRIX_CELLS = 2_000_000;
     private static final Pattern CONVENTIONAL_COMMIT_PATTERN = Pattern.compile(
         "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\\([^)]+\\))?!?:\\s+.+",
         Pattern.CASE_INSENSITIVE
@@ -106,7 +109,7 @@ public final class AiCommitMessageService {
 
     private String buildChangesSummary(List<Change> changes, List<?> unversionedFiles) {
         StringBuilder out = new StringBuilder();
-        out.append("下面是当前已选择提交文件的 Git diff，包含具体代码变更内容：\n\n");
+        out.append("下面是当前已选择提交文件的 VCS diff，包含具体代码变更内容：\n\n");
         for (Change change : changes) {
             if (out.length() >= MAX_TOTAL_CHARS) {
                 out.append("\n... truncated ...\n");
@@ -209,16 +212,138 @@ public final class AiCommitMessageService {
         }
         try {
             String content = revision.getContent();
-            return content == null ? "" : trimToLimit(content, MAX_FILE_CONTENT_CHARS);
+            return content == null ? "" : content;
         } catch (VcsException e) {
             return null;
         }
     }
 
     private void appendFocusedDiff(StringBuilder out, String before, String after) {
-        String[] beforeLines = before.split("\\n", -1);
-        String[] afterLines = after.split("\\n", -1);
+        if (Objects.equals(before, after)) {
+            out.append("@@ no textual changes @@\n");
+            return;
+        }
+        String[] beforeLines = splitLines(before);
+        String[] afterLines = splitLines(after);
+        long cells = (long) (beforeLines.length + 1) * (afterLines.length + 1);
+        if (cells > MAX_DIFF_MATRIX_CELLS) {
+            appendFallbackFocusedDiff(out, beforeLines, afterLines);
+            return;
+        }
+        appendUnifiedDiff(out, buildLineDiff(beforeLines, afterLines));
+    }
 
+    private String[] splitLines(String value) {
+        return (value == null ? "" : value)
+            .replace("\r\n", "\n")
+            .replace("\r", "\n")
+            .split("\\n", -1);
+    }
+
+    private List<DiffLine> buildLineDiff(String[] beforeLines, String[] afterLines) {
+        int[][] lcs = new int[beforeLines.length + 1][afterLines.length + 1];
+        for (int i = beforeLines.length - 1; i >= 0; i--) {
+            for (int j = afterLines.length - 1; j >= 0; j--) {
+                if (beforeLines[i].equals(afterLines[j])) {
+                    lcs[i][j] = lcs[i + 1][j + 1] + 1;
+                } else {
+                    lcs[i][j] = Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+                }
+            }
+        }
+
+        List<DiffLine> lines = new ArrayList<>();
+        int oldLine = 1;
+        int newLine = 1;
+        int i = 0;
+        int j = 0;
+        while (i < beforeLines.length || j < afterLines.length) {
+            if (i < beforeLines.length && j < afterLines.length && beforeLines[i].equals(afterLines[j])) {
+                lines.add(new DiffLine(DiffType.EQUAL, beforeLines[i], oldLine++, newLine++));
+                i++;
+                j++;
+            } else if (j >= afterLines.length
+                || (i < beforeLines.length && lcs[i + 1][j] >= lcs[i][j + 1])) {
+                lines.add(new DiffLine(DiffType.DELETE, beforeLines[i], oldLine++, 0));
+                i++;
+            } else {
+                lines.add(new DiffLine(DiffType.INSERT, afterLines[j], 0, newLine++));
+                j++;
+            }
+        }
+        return lines;
+    }
+
+    private void appendUnifiedDiff(StringBuilder out, List<DiffLine> lines) {
+        List<Integer> changes = new ArrayList<>();
+        for (int i = 0; i < lines.size(); i++) {
+            if (lines.get(i).type() != DiffType.EQUAL) {
+                changes.add(i);
+            }
+        }
+        if (changes.isEmpty()) {
+            out.append("@@ no textual changes @@\n");
+            return;
+        }
+
+        int changeIndex = 0;
+        while (changeIndex < changes.size()) {
+            int firstChange = changes.get(changeIndex);
+            int lastChange = firstChange;
+            while (changeIndex + 1 < changes.size()
+                && changes.get(changeIndex + 1) - lastChange <= DIFF_CONTEXT_LINES * 2 + 1) {
+                changeIndex++;
+                lastChange = changes.get(changeIndex);
+            }
+            int hunkStart = Math.max(0, firstChange - DIFF_CONTEXT_LINES);
+            int hunkEnd = Math.min(lines.size() - 1, lastChange + DIFF_CONTEXT_LINES);
+            appendHunk(out, lines, hunkStart, hunkEnd);
+            changeIndex++;
+        }
+    }
+
+    private void appendHunk(StringBuilder out, List<DiffLine> lines, int start, int end) {
+        int oldStart = firstLineNumber(lines, start, end, true);
+        int newStart = firstLineNumber(lines, start, end, false);
+        int oldCount = 0;
+        int newCount = 0;
+        for (int i = start; i <= end; i++) {
+            DiffLine line = lines.get(i);
+            if (line.type() != DiffType.INSERT) {
+                oldCount++;
+            }
+            if (line.type() != DiffType.DELETE) {
+                newCount++;
+            }
+        }
+        out.append("@@ -").append(oldStart).append(",").append(oldCount)
+            .append(" +").append(newStart).append(",").append(newCount).append(" @@\n");
+        for (int i = start; i <= end; i++) {
+            DiffLine line = lines.get(i);
+            out.append(linePrefix(line.type())).append(line.text()).append("\n");
+        }
+    }
+
+    private int firstLineNumber(List<DiffLine> lines, int start, int end, boolean oldSide) {
+        for (int i = start; i <= end; i++) {
+            DiffLine line = lines.get(i);
+            int lineNumber = oldSide ? line.oldLine() : line.newLine();
+            if (lineNumber > 0) {
+                return lineNumber;
+            }
+        }
+        return 1;
+    }
+
+    private String linePrefix(DiffType type) {
+        return switch (type) {
+            case EQUAL -> " ";
+            case DELETE -> "-";
+            case INSERT -> "+";
+        };
+    }
+
+    private void appendFallbackFocusedDiff(StringBuilder out, String[] beforeLines, String[] afterLines) {
         int prefix = 0;
         int maxPrefix = Math.min(beforeLines.length, afterLines.length);
         while (prefix < maxPrefix && beforeLines[prefix].equals(afterLines[prefix])) {
@@ -234,9 +359,9 @@ public final class AiCommitMessageService {
             afterSuffix--;
         }
 
-        int contextStart = Math.max(0, prefix - 3);
-        int beforeContextEnd = Math.min(beforeLines.length - 1, beforeSuffix + 3);
-        int afterContextEnd = Math.min(afterLines.length - 1, afterSuffix + 3);
+        int contextStart = Math.max(0, prefix - DIFF_CONTEXT_LINES);
+        int beforeContextEnd = Math.min(beforeLines.length - 1, beforeSuffix + DIFF_CONTEXT_LINES);
+        int afterContextEnd = Math.min(afterLines.length - 1, afterSuffix + DIFF_CONTEXT_LINES);
         out.append("@@ selected change @@\n");
         for (int i = contextStart; i < prefix && i < beforeLines.length; i++) {
             out.append(" ").append(beforeLines[i]).append("\n");
@@ -253,6 +378,15 @@ public final class AiCommitMessageService {
         if (beforeContextEnd + afterContextEnd < beforeLines.length + afterLines.length - 2) {
             out.append("... diff truncated ...\n");
         }
+    }
+
+    private enum DiffType {
+        EQUAL,
+        DELETE,
+        INSERT
+    }
+
+    private record DiffLine(DiffType type, String text, int oldLine, int newLine) {
     }
 
     private void appendPrefixedLines(StringBuilder out, String prefix, String content) {

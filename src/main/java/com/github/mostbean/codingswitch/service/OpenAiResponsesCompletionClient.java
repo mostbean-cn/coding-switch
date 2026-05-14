@@ -52,7 +52,6 @@ final class OpenAiResponsesCompletionClient implements AiCompletionClient {
         body.addProperty("model", request.profile().getModel());
         body.addProperty("instructions", request.systemPrompt());
         body.addProperty("input", request.userPrompt());
-        body.addProperty("max_output_tokens", request.maxTokens());
         body.addProperty("temperature", 0.2);
         if (stream) {
             body.addProperty("stream", true);

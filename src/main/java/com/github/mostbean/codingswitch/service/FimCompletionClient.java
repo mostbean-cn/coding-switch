@@ -10,7 +10,7 @@ import java.net.http.HttpClient;
 import java.util.Map;
 import java.util.function.Consumer;
 
-final class DeepSeekFimCompletionClient implements AiCompletionClient {
+final class FimCompletionClient implements AiCompletionClient {
 
     private static final Gson GSON = new Gson();
 
@@ -49,16 +49,28 @@ final class DeepSeekFimCompletionClient implements AiCompletionClient {
     private JsonObject createBody(AiCompletionRequest request, boolean stream) {
         JsonObject body = new JsonObject();
         body.addProperty("model", request.profile().getModel());
-        body.addProperty("prompt", request.fimPrefix());
+        body.addProperty("prompt", promptWithGuidance(request));
         if (!request.fimSuffix().isBlank()) {
             body.addProperty("suffix", request.fimSuffix());
         }
-        body.addProperty("max_tokens", Math.min(4096, request.maxTokens()));
         body.addProperty("temperature", 0.2);
         if (stream) {
             body.addProperty("stream", true);
         }
         return body;
+    }
+
+    private String promptWithGuidance(AiCompletionRequest request) {
+        String guidance = request.systemPrompt();
+        String prefix = request.fimPrefix();
+        if (guidance == null || guidance.isBlank()) {
+            return prefix;
+        }
+        return "/*\n"
+            + "Coding Switch completion guidance:\n"
+            + guidance.strip()
+            + "\n*/\n\n"
+            + prefix;
     }
 
     private String extractText(String response) {

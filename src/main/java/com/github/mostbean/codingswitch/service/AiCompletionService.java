@@ -156,8 +156,6 @@ public final class AiCompletionService {
                 apiKey,
                 snapshot.context().systemPrompt(),
                 snapshot.context().userPrompt(),
-                lengthLevel,
-                settings.getCompletionMaxTokens(triggerMode),
                 snapshot.context().fimPrefix(),
                 snapshot.context().fimSuffix()
             );
@@ -183,8 +181,13 @@ public final class AiCompletionService {
 
     public Optional<String> generateGitCommitText(String systemPrompt, String userPrompt, AiCompletionLengthLevel lengthLevel)
         throws IOException, InterruptedException {
-        AiFeatureSettings settings = AiFeatureSettings.getInstance();
-        return generateText(systemPrompt, userPrompt, lengthLevel, settings.getActiveGitCommitProfile());
+        return generateText(
+            systemPrompt,
+            userPrompt,
+            lengthLevel,
+            BuiltInGitCommitModel.profile(),
+            BuiltInGitCommitModel.apiKey()
+        );
     }
 
     private Optional<String> generateText(
@@ -205,14 +208,21 @@ public final class AiCompletionService {
         if (apiKey.isBlank()) {
             return Optional.empty();
         }
+        return generateText(systemPrompt, userPrompt, lengthLevel, profile, apiKey);
+    }
 
+    private Optional<String> generateText(
+        String systemPrompt,
+        String userPrompt,
+        AiCompletionLengthLevel lengthLevel,
+        AiModelProfile profile,
+        String apiKey
+    ) throws IOException, InterruptedException {
         AiCompletionRequest request = new AiCompletionRequest(
             profile,
             apiKey,
             systemPrompt,
             userPrompt,
-            lengthLevel,
-            lengthLevel.getMaxTokens(),
             "",
             ""
         );
@@ -251,7 +261,7 @@ public final class AiCompletionService {
         return switch (format) {
             case OPENAI_RESPONSES -> new OpenAiResponsesCompletionClient();
             case OPENAI_CHAT_COMPLETIONS -> new OpenAiChatCompletionClient();
-            case FIM_COMPLETIONS -> new DeepSeekFimCompletionClient();
+            case FIM_COMPLETIONS -> new FimCompletionClient();
             case FIM_CHAT_COMPLETIONS -> new FimChatCompletionClient();
             case ANTHROPIC_MESSAGES -> new AnthropicMessagesCompletionClient();
         };

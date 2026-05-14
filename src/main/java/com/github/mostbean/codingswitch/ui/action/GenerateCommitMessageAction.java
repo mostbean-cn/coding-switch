@@ -65,7 +65,7 @@ public class GenerateCommitMessageAction extends DumbAwareAction {
                 try {
                     Optional<String> message = AiCommitMessageService.getInstance().generate(changes, unversionedFiles);
                     if (message.isEmpty()) {
-                        showNotification(project, "未生成提交信息，请检查模型配置和当前变更。", NotificationType.WARNING);
+                        showNotification(project, "未生成提交信息，请检查当前变更后重试。", NotificationType.WARNING);
                         return;
                     }
                     clearOnExit = false;

@@ -101,9 +101,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     private JComboBox<AiModelProfile> activeProfileCombo;
     private DefaultComboBoxModel<AiModelProfile> activeProfileModel;
     private JBLabel completionProfileHintLabel;
-    private JComboBox<AiModelProfile> gitProfileCombo;
-    private DefaultComboBoxModel<AiModelProfile> gitProfileModel;
-    private JBLabel gitProfileHintLabel;
     private DefaultTableModel profileTableModel;
     private JTable profileTable;
     private JPanel rootPanel;
@@ -287,8 +284,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     private JPanel buildProfileSection() {
         JPanel section = createSection(I18n.t("aiSettings.section.modelConfig"));
         String completionProfileLabel = I18n.t("aiSettings.label.completionProfile");
-        String gitProfileLabel = I18n.t("aiSettings.label.gitProfile");
-        int profileLabelWidth = profileSelectionLabelWidth(gitProfileLabel);
+        int profileLabelWidth = profileSelectionLabelWidth(completionProfileLabel);
 
         JPanel buttonRow = rowPanel();
         JButton configureButton = new JButton(I18n.t("aiSettings.button.modelConfig"), AllIcons.Actions.Edit);
@@ -306,15 +302,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         completionRow.add(completionProfileHintLabel);
         section.add(completionRow);
 
-        JPanel gitRow = profileSelectionRow();
-        gitRow.add(profileSelectionLabel(gitProfileLabel, profileLabelWidth));
-        gitProfileModel = new DefaultComboBoxModel<>();
-        gitProfileCombo = new JComboBox<>(gitProfileModel);
-        configureProfileCombo(gitProfileCombo);
-        gitRow.add(gitProfileCombo);
-        gitProfileHintLabel = profileHintLabel();
-        gitRow.add(gitProfileHintLabel);
-        section.add(gitRow);
         return section;
     }
 
@@ -324,8 +311,8 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         return row;
     }
 
-    private int profileSelectionLabelWidth(String gitProfileLabel) {
-        return new JBLabel(gitProfileLabel).getPreferredSize().width + JBUI.scale(10);
+    private int profileSelectionLabelWidth(String profileLabel) {
+        return new JBLabel(profileLabel).getPreferredSize().width + JBUI.scale(10);
     }
 
     private JBLabel profileSelectionLabel(String text, int width) {
@@ -366,12 +353,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             selectedProfile(activeProfileCombo),
             false,
             I18n.t("aiSettings.hint.useFimModel")
-        );
-        updateProfileHint(
-            gitProfileHintLabel,
-            selectedProfile(gitProfileCombo),
-            true,
-            I18n.t("aiSettings.hint.useLlmModel")
         );
     }
 
@@ -502,7 +483,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         Map<String, String> editedApiKeysSnapshot = new HashMap<>(editedApiKeys);
         Set<String> removedProfileIdsSnapshot = new HashSet<>(removedProfileIds);
         Object activeSnapshot = activeProfileCombo.getSelectedItem();
-        Object gitSnapshot = gitProfileCombo.getSelectedItem();
 
         ProfileManagerDialog dialog = new ProfileManagerDialog();
         if (!dialog.showAndGet()) {
@@ -515,9 +495,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             reloadProfiles();
             if (activeSnapshot instanceof AiModelProfile profile) {
                 selectProfile(profile.getId());
-            }
-            if (gitSnapshot instanceof AiModelProfile profile) {
-                selectGitProfile(profile.getId());
             }
             updateFeatureAvailability();
         }
@@ -576,7 +553,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         reloadProfiles();
         if (firstProfile) {
             selectProfile(profile.getId());
-            selectGitProfile(profile.getId());
         }
         updateFeatureAvailability();
     }
@@ -619,9 +595,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
     private void reloadProfiles() {
         Object activeSelection = activeProfileCombo == null ? null : activeProfileCombo.getSelectedItem();
-        Object gitSelection = gitProfileCombo == null ? null : gitProfileCombo.getSelectedItem();
         String activeId = activeSelection instanceof AiModelProfile activeProfile ? activeProfile.getId() : "";
-        String gitId = gitSelection instanceof AiModelProfile gitProfile ? gitProfile.getId() : "";
         suppressFeatureAvailabilityUpdates = true;
         try {
             if (profileTableModel != null) {
@@ -629,9 +603,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             }
             if (activeProfileModel != null) {
                 activeProfileModel.removeAllElements();
-            }
-            if (gitProfileModel != null) {
-                gitProfileModel.removeAllElements();
             }
             for (AiModelProfile profile : profiles) {
                 if (profileTableModel != null) {
@@ -645,17 +616,10 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
                 if (activeProfileModel != null) {
                     activeProfileModel.addElement(profile);
                 }
-                if (gitProfileModel != null) {
-                    gitProfileModel.addElement(profile);
-                }
             }
             selectProfile(activeId);
-            selectGitProfile(gitId);
             if (activeProfileModel != null && activeProfileModel.getSize() > 0 && activeProfileCombo.getSelectedItem() == null) {
                 activeProfileCombo.setSelectedIndex(0);
-            }
-            if (gitProfileModel != null && gitProfileModel.getSize() > 0 && gitProfileCombo.getSelectedItem() == null) {
-                gitProfileCombo.setSelectedIndex(0);
             }
         } finally {
             suppressFeatureAvailabilityUpdates = false;
@@ -671,19 +635,9 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         }
     }
 
-    private void selectGitProfile(String profileId) {
-        for (AiModelProfile profile : profiles) {
-            if (Objects.equals(profile.getId(), profileId)) {
-                gitProfileCombo.setSelectedItem(profile);
-                return;
-            }
-        }
-    }
-
     private void updateFeatureAvailability() {
         updateProfileHints();
         boolean hasCompletionModel = hasConfiguredModel(activeProfileCombo);
-        boolean hasGitModel = hasConfiguredModel(gitProfileCombo);
 
         if (codeCompletionEnabled != null) {
             codeCompletionEnabled.setEnabled(hasCompletionModel);
@@ -692,10 +646,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             }
         }
         if (gitCommitMessageEnabled != null) {
-            gitCommitMessageEnabled.setEnabled(hasGitModel);
-            if (!hasGitModel) {
-                gitCommitMessageEnabled.setSelected(false);
-            }
+            gitCommitMessageEnabled.setEnabled(true);
         }
         boolean completionEnabled = codeCompletionEnabled != null
             && codeCompletionEnabled.isEnabled()
@@ -785,7 +736,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         }
         reloadProfiles();
         selectProfile(state.activeCompletionProfileId);
-        selectGitProfile(state.activeGitCommitProfileId);
         removedProfileIds.clear();
         editedApiKeys.clear();
         updateFeatureAvailability();
@@ -994,8 +944,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             : manualShortcutValue();
         Object selected = activeProfileCombo == null ? null : activeProfileCombo.getSelectedItem();
         state.activeCompletionProfileId = selected instanceof AiModelProfile completionProfile ? completionProfile.getId() : "";
-        Object gitSelected = gitProfileCombo == null ? null : gitProfileCombo.getSelectedItem();
-        state.activeGitCommitProfileId = gitSelected instanceof AiModelProfile gitProfile ? gitProfile.getId() : "";
+        state.activeGitCommitProfileId = "";
         state.profiles = new ArrayList<>();
         for (AiModelProfile profile : profiles) {
             state.profiles.add(profile.copy());
@@ -1012,7 +961,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             && Objects.equals(a.autoCompletionLengthLevel, b.autoCompletionLengthLevel)
             && Objects.equals(a.manualCompletionLengthLevel, b.manualCompletionLengthLevel)
             && Objects.equals(a.activeCompletionProfileId, b.activeCompletionProfileId)
-            && Objects.equals(a.activeGitCommitProfileId, b.activeGitCommitProfileId)
             && Objects.equals(a.manualCompletionShortcut, b.manualCompletionShortcut)
             && Objects.equals(a.timingConfig, b.timingConfig)
             && Objects.equals(a.profiles, b.profiles);
@@ -1299,7 +1247,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         private JPasswordField apiKeyField;
         private JSpinner timeoutSpinner;
         private JTextArea headersArea;
-        private JComboBox<Boolean> fimFormatCombo;
         private JButton testButton;
         private JButton detectModelsButton;
         private JBLabel testStatusLabel;
@@ -1317,8 +1264,15 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         @Override
         protected @Nullable JComponent createCenterPanel() {
             nameField = new JTextField(original.getName(), 30);
-            formatCombo = new JComboBox<>(AiModelFormat.values());
-            formatCombo.setSelectedItem(original.getFormat());
+            formatCombo = new JComboBox<>(new AiModelFormat[] {
+                AiModelFormat.FIM_COMPLETIONS,
+                AiModelFormat.FIM_CHAT_COMPLETIONS
+            });
+            formatCombo.setSelectedItem(
+                AiFeatureSettings.isConfigurableCompletionFormat(original.getFormat())
+                    ? original.getFormat()
+                    : AiModelFormat.FIM_COMPLETIONS
+            );
             baseUrlField = new JTextField(original.getBaseUrl(), 30);
             modelField = new JTextField(original.getModel(), 30);
             apiKeyField = new JPasswordField(existingApiKey, 30);
@@ -1326,24 +1280,11 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             headersArea = new JTextArea(original.getHeadersJson(), 4, 30);
             headersArea.setLineWrap(true);
             headersArea.setWrapStyleWord(true);
-            fimFormatCombo = new JComboBox<>(new Boolean[] {Boolean.FALSE, Boolean.TRUE});
-            configureFimFormatCombo();
-            fimFormatCombo.setSelectedItem(original.isFimEnabled());
-            syncFimFormatAvailability();
-
-            AiModelFormat[] previousFormat = {original.getFormat()};
             formatCombo.addActionListener(e -> {
                 AiModelFormat selected = (AiModelFormat) formatCombo.getSelectedItem();
                 if (selected == null) {
                     return;
                 }
-                String currentBaseUrl = baseUrlField.getText().trim();
-                String previousDefaultBaseUrl = previousFormat[0].getDefaultBaseUrl();
-                if (currentBaseUrl.isBlank() || currentBaseUrl.equals(previousDefaultBaseUrl)) {
-                    baseUrlField.setText(selected.getDefaultBaseUrl());
-                }
-                previousFormat[0] = selected;
-                syncFimFormatAvailability();
             });
 
             FormBuilder form = FormBuilder.createFormBuilder()
@@ -1353,7 +1294,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
                 .addLabeledComponent(I18n.t("aiSettings.label.model"), modelField)
                 .addLabeledComponent("API Key:", apiKeyField)
                 .addLabeledComponent(I18n.t("aiSettings.label.timeoutSeconds"), timeoutSpinner)
-                .addLabeledComponent(I18n.t("aiSettings.label.fimFormat"), fimFormatCombo)
                 .addLabeledComponent(I18n.t("aiSettings.label.customHeaders"), new JBScrollPane(headersArea));
 
             JBLabel completionModelHint = new JBLabel(I18n.t("aiSettings.hint.fimModelRecommended"));
@@ -1426,37 +1366,8 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             profile.setApiKey(getApiKey());
             profile.setTimeoutSeconds((Integer) timeoutSpinner.getValue());
             profile.setHeadersJson(normalizeHeaders(headersArea.getText()));
-            profile.setFimEnabled(Boolean.TRUE.equals(fimFormatCombo.getSelectedItem()));
+            profile.setFimEnabled(false);
             return profile;
-        }
-
-        private void configureFimFormatCombo() {
-            fimFormatCombo.setRenderer(new DefaultListCellRenderer() {
-                @Override
-                public Component getListCellRendererComponent(
-                    JList<?> list,
-                    Object value,
-                    int index,
-                    boolean isSelected,
-                    boolean cellHasFocus
-                ) {
-                    super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                    setText(Boolean.TRUE.equals(value)
-                        ? I18n.t("settings.option.enabled")
-                        : I18n.t("settings.option.disabled"));
-                    return this;
-                }
-            });
-        }
-
-        private void syncFimFormatAvailability() {
-            AiModelFormat selected = (AiModelFormat) formatCombo.getSelectedItem();
-            boolean nativeFim = selected == AiModelFormat.FIM_COMPLETIONS
-                || selected == AiModelFormat.FIM_CHAT_COMPLETIONS;
-            if (nativeFim) {
-                fimFormatCombo.setSelectedItem(Boolean.FALSE);
-            }
-            fimFormatCombo.setEnabled(!nativeFim);
         }
 
         private String getApiKey() {

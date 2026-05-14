@@ -183,7 +183,7 @@ public final class AiModelConnectionTestService {
             case FIM_COMPLETIONS -> List.of(postJson(
                 AiCompletionHttpSupport.ensurePath(profile.getBaseUrl(), "/completions"),
                 bearerHeaders(apiKey),
-                deepSeekFimBody(profile.getModel()),
+                fimCompletionBody(profile.getModel()),
                 "FIM Completions"
             ));
             case ANTHROPIC_MESSAGES -> {
@@ -227,12 +227,12 @@ public final class AiModelConnectionTestService {
                 get(
                     AiCompletionHttpSupport.ensurePath(baseUrl, "/models"),
                     bearerHeaders(apiKey),
-                    "DeepSeek Models"
+                    "FIM Models"
                 ),
                 get(
                     AiCompletionHttpSupport.ensurePath(profile.getBaseUrl(), "/models"),
                     bearerHeaders(apiKey),
-                    "DeepSeek Beta Models"
+                    "FIM Beta Models"
                 )
             );
         }
@@ -338,7 +338,7 @@ public final class AiModelConnectionTestService {
         return GSON.toJson(body);
     }
 
-    private static String deepSeekFimBody(String model) {
+    private static String fimCompletionBody(String model) {
         JsonObject body = new JsonObject();
         body.addProperty("model", model);
         body.addProperty("prompt", "def ping():\n    ");

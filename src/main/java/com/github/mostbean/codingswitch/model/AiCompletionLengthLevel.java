@@ -1,14 +1,14 @@
 package com.github.mostbean.codingswitch.model;
 
 public enum AiCompletionLengthLevel {
-    SINGLE_LINE("单行", 48, """
+    SINGLE_LINE("单行", """
         Completion level: SINGLE_LINE.
         Token budget: up to 48 tokens.
         Return exactly one concise line.
         Prefer a complete statement or expression over using the full budget.
         Do not start a new block.
         """),
-    SHORT("较短", 128, """
+    SHORT("较短", """
         Completion level: LOW.
         Token budget: up to 128 tokens.
         Return a short completion.
@@ -16,7 +16,7 @@ public enum AiCompletionLengthLevel {
         Stop after a complete statement or balanced block.
         Do not start a new block unless you can close it.
         """),
-    MEDIUM("中等", 256, """
+    MEDIUM("中等", """
         Completion level: MEDIUM.
         Token budget: up to 256 tokens.
         Return a medium-length completion only when useful.
@@ -24,7 +24,7 @@ public enum AiCompletionLengthLevel {
         Stop after a complete statement group or balanced block.
         Do not leave unfinished conditions, calls, strings, tags, or braces.
         """),
-    LONG("较长", 512, """
+    LONG("较长", """
         Completion level: HIGH.
         Token budget: up to 512 tokens.
         Return a longer completion only when the surrounding context clearly needs it.
@@ -34,21 +34,15 @@ public enum AiCompletionLengthLevel {
         """);
 
     private final String displayName;
-    private final int maxTokens;
     private final String promptHint;
 
-    AiCompletionLengthLevel(String displayName, int maxTokens, String promptHint) {
+    AiCompletionLengthLevel(String displayName, String promptHint) {
         this.displayName = displayName;
-        this.maxTokens = maxTokens;
         this.promptHint = promptHint;
     }
 
     public String getDisplayName() {
         return displayName;
-    }
-
-    public int getMaxTokens() {
-        return maxTokens;
     }
 
     public String getPromptHint() {

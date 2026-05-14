@@ -70,11 +70,11 @@ public class AiModelProfile {
     }
 
     public AiModelFormat getFormat() {
-        return format == null ? AiModelFormat.OPENAI_RESPONSES : format;
+        return format == null ? AiModelFormat.FIM_COMPLETIONS : format;
     }
 
     public void setFormat(AiModelFormat format) {
-        this.format = format == null ? AiModelFormat.OPENAI_RESPONSES : format;
+        this.format = format == null ? AiModelFormat.FIM_COMPLETIONS : format;
     }
 
     public String getBaseUrl() {

@@ -57,7 +57,6 @@ final class AnthropicMessagesCompletionClient implements AiCompletionClient {
         JsonObject body = new JsonObject();
         body.addProperty("model", request.profile().getModel());
         body.addProperty("system", request.systemPrompt());
-        body.addProperty("max_tokens", request.maxTokens());
         body.addProperty("temperature", 0.2);
         if (stream) {
             body.addProperty("stream", true);
