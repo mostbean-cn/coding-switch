@@ -204,13 +204,8 @@ public final class AiCompletionService {
 
     public Optional<String> generateGitCommitText(String systemPrompt, String userPrompt, AiCompletionLengthLevel lengthLevel)
         throws IOException, InterruptedException {
-        return generateText(
-            systemPrompt,
-            userPrompt,
-            lengthLevel,
-            BuiltInGitCommitModel.profile(),
-            BuiltInGitCommitModel.apiKey()
-        );
+        AiFeatureSettings settings = AiFeatureSettings.getInstance();
+        return generateText(systemPrompt, userPrompt, lengthLevel, settings.getActiveGitCommitProfile());
     }
 
     private Optional<String> generateText(
@@ -221,10 +216,6 @@ public final class AiCompletionService {
     ) throws IOException, InterruptedException {
         AiFeatureSettings settings = AiFeatureSettings.getInstance();
         if (profile == null || profile.getModel().isBlank()) {
-            return Optional.empty();
-        }
-        if (profile.getFormat() == AiModelFormat.FIM_COMPLETIONS
-            || profile.getFormat() == AiModelFormat.FIM_CHAT_COMPLETIONS) {
             return Optional.empty();
         }
         String apiKey = settings.getApiKey(profile.getId());
@@ -241,14 +232,15 @@ public final class AiCompletionService {
         AiModelProfile profile,
         String apiKey
     ) throws IOException, InterruptedException {
+        boolean fimCompletion = profile.getFormat() == AiModelFormat.FIM_COMPLETIONS;
         AiCompletionRequest request = new AiCompletionRequest(
             profile,
             apiKey,
             systemPrompt,
-            userPrompt,
+            fimCompletion ? "" : userPrompt,
             lengthLevel,
             lengthLevel.getMaxTokens(),
-            "",
+            fimCompletion ? userPrompt : "",
             ""
         );
         String text = createClient(profile.getFormat()).complete(request);

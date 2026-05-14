@@ -32,7 +32,7 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
 
     public static class State {
         public boolean codeCompletionEnabled = false;
-        public boolean gitCommitMessageEnabled = true;
+        public boolean gitCommitMessageEnabled = false;
         public String gitCommitMessageLanguage = GitCommitMessageLanguage.CHINESE.name();
         public boolean autoCompletionEnabled = false;
         public int autoCompletionMaxTokens = 64;
@@ -94,6 +94,10 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
 
     public AiModelProfile getActiveCompletionProfile() {
         return getActiveProfile(getActiveState().activeCompletionProfileId);
+    }
+
+    public AiModelProfile getActiveGitCommitProfile() {
+        return getActiveProfile(getActiveState().activeGitCommitProfileId);
     }
 
     private AiModelProfile getActiveProfile(String profileId) {
@@ -270,7 +274,7 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
         copy.autoCompletionLengthLevel = safe.autoCompletionLengthLevel;
         copy.manualCompletionLengthLevel = safe.manualCompletionLengthLevel;
         copy.activeCompletionProfileId = safe.activeCompletionProfileId;
-        copy.activeGitCommitProfileId = "";
+        copy.activeGitCommitProfileId = safe.activeGitCommitProfileId;
         copy.manualCompletionShortcut = safe.manualCompletionShortcut;
         copy.timingConfig = safe.timingConfig != null ? safe.timingConfig.copy() : new CompletionTimingConfig();
         copy.profiles = new ArrayList<>();
@@ -326,9 +330,6 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
             if (copy.getFormat() == null) {
                 copy.setFormat(AiModelFormat.FIM_COMPLETIONS);
             }
-            if (!isConfigurableCompletionFormat(copy.getFormat())) {
-                continue;
-            }
             if (copy.getBaseUrl().isBlank()) {
                 copy.setBaseUrl(copy.getFormat().getDefaultBaseUrl());
             }
@@ -348,13 +349,21 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
                 ? ""
                 : normalized.profiles.get(0).getId();
         }
-        normalized.activeGitCommitProfileId = "";
+        boolean activeGitExists = normalized.profiles.stream()
+            .anyMatch(profile -> Objects.equals(profile.getId(), normalized.activeGitCommitProfileId));
+        if (!activeGitExists) {
+            normalized.activeGitCommitProfileId = defaultGitCommitProfileId(normalized.profiles);
+        }
         return normalized;
     }
 
-    public static boolean isConfigurableCompletionFormat(AiModelFormat format) {
+    public static boolean isNativeFimFormat(AiModelFormat format) {
         return format == AiModelFormat.FIM_COMPLETIONS
             || format == AiModelFormat.FIM_CHAT_COMPLETIONS;
+    }
+
+    public static boolean supportsGitCommitFormat(AiModelFormat format) {
+        return format != null;
     }
 
     public enum GitCommitMessageLanguage {
@@ -397,5 +406,17 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
             return auto ? AiCompletionLengthLevel.SHORT : AiCompletionLengthLevel.MEDIUM;
         }
         return AiCompletionLengthLevel.LONG;
+    }
+
+    private static String defaultGitCommitProfileId(List<AiModelProfile> profiles) {
+        if (profiles == null || profiles.isEmpty()) {
+            return "";
+        }
+        for (AiModelProfile profile : profiles) {
+            if (supportsGitCommitFormat(profile.getFormat())) {
+                return profile.getId();
+            }
+        }
+        return profiles.get(0).getId();
     }
 }

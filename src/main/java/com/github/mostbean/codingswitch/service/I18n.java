@@ -171,6 +171,7 @@ public final class I18n {
                 m.put("aiSettings.section.completion", "代码补全");
                 m.put("aiSettings.checkbox.autoCompletion", "启用自动触发补全");
                 m.put("aiSettings.label.completionProfile", "补全模型:");
+                m.put("aiSettings.label.gitCommitProfile", "Git 模型:");
                 m.put("aiSettings.option.noProfile", "未配置模型");
                 m.put("aiSettings.label.autoLength", "自动补全长度:");
                 m.put("aiSettings.label.manualLength", "手动补全长度:");
@@ -195,6 +196,7 @@ public final class I18n {
                 m.put("aiSettings.label.model", "模型:");
                 m.put("aiSettings.label.timeoutSeconds", "超时秒数:");
                 m.put("aiSettings.label.customHeaders", "自定义 Headers JSON:");
+                m.put("aiSettings.label.fimAdapterEnabled", "FIM格式适配:");
                 m.put("aiSettings.hint.fimModelRecommended", "代码补全推荐使用 FIM 专用模型");
                 m.put("aiSettings.hint.useFimModel", "建议使用 FIM 模型");
                 m.put("aiSettings.hint.useLlmModel", "建议使用 LLM 模型");
@@ -721,6 +723,7 @@ public final class I18n {
                 m.put("aiSettings.section.completion", "Code Completion");
                 m.put("aiSettings.checkbox.autoCompletion", "Enable automatic completion");
                 m.put("aiSettings.label.completionProfile", "Completion model:");
+                m.put("aiSettings.label.gitCommitProfile", "Git model:");
                 m.put("aiSettings.option.noProfile", "No model configured");
                 m.put("aiSettings.label.autoLength", "Auto completion length:");
                 m.put("aiSettings.label.manualLength", "Manual completion length:");
@@ -745,6 +748,7 @@ public final class I18n {
                 m.put("aiSettings.label.model", "Model:");
                 m.put("aiSettings.label.timeoutSeconds", "Timeout seconds:");
                 m.put("aiSettings.label.customHeaders", "Custom Headers JSON:");
+                m.put("aiSettings.label.fimAdapterEnabled", "FIM adaptation:");
                 m.put("aiSettings.hint.fimModelRecommended", "FIM-specific models are recommended for code completion");
                 m.put("aiSettings.hint.useFimModel", "FIM model recommended");
                 m.put("aiSettings.hint.useLlmModel", "LLM model recommended");
