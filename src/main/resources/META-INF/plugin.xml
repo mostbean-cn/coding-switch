@@ -260,6 +260,8 @@
                 displayName="Coding Switch"/>
 
         <!-- AI Inline Code Completion -->
+        <completion.confidence language="any"
+                               implementationClass="com.github.mostbean.codingswitch.completion.AiAutoPopupSuppressor"/>
         <typedHandler implementation="com.github.mostbean.codingswitch.completion.AiInlineCompletionTypedHandler"/>
         <postStartupActivity implementation="com.github.mostbean.codingswitch.service.AiInlineCompletionStartupActivity"/>
 
