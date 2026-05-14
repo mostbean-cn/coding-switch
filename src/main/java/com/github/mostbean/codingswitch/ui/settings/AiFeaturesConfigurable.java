@@ -540,6 +540,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         Map<String, String> editedApiKeysSnapshot = new HashMap<>(editedApiKeys);
         Set<String> removedProfileIdsSnapshot = new HashSet<>(removedProfileIds);
         Object activeSnapshot = activeProfileCombo.getSelectedItem();
+        Object activeGitSnapshot = activeGitCommitProfileCombo.getSelectedItem();
 
         ProfileManagerDialog dialog = new ProfileManagerDialog();
         if (!dialog.showAndGet()) {
@@ -552,6 +553,8 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             reloadProfiles();
             if (activeSnapshot instanceof AiModelProfile profile) {
                 selectProfile(activeProfileCombo, profile.getId());
+            }
+            if (activeGitSnapshot instanceof AiModelProfile profile) {
                 selectProfile(activeGitCommitProfileCombo, profile.getId());
             }
             updateFeatureAvailability();
