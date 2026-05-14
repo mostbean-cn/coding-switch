@@ -20,8 +20,8 @@ import java.util.regex.Pattern;
 @Service(Service.Level.APP)
 public final class AiCommitMessageService {
 
-    private static final int MAX_TOTAL_CHARS = 12000;
-    private static final int MAX_FILE_CONTENT_CHARS = 1800;
+    private static final int MAX_TOTAL_CHARS = 40000;
+    private static final int MAX_FILE_CONTENT_CHARS = 3600;
     private static final int DIFF_CONTEXT_LINES = 3;
     private static final int MAX_DIFF_MATRIX_CELLS = 2_000_000;
     private static final Pattern CONVENTIONAL_COMMIT_PATTERN = Pattern.compile(
@@ -44,41 +44,81 @@ public final class AiCommitMessageService {
             return Optional.empty();
         }
 
+        AiFeatureSettings.GitCommitMessageLanguage language =
+            AiFeatureSettings.getInstance().getGitCommitMessageLanguage();
+        CommitLanguagePrompt languagePrompt = commitLanguagePrompt(language);
         String systemPrompt = """
             你是 Git 提交信息生成器。
             你的输出必须是最终提交信息本身，不能包含任何对话、确认、解释、Markdown、代码块或引号。
             不能调用工具，不能输出 tool_call、Bash、git status、system、reminder 等工具调用或系统消息文本。
             不要说需要先查看代码变更；下面已经提供了当前选中文件的变更内容。
             禁止输出“明白”“好的”“我会”“下面是”“以下是”等前缀。
-            优先使用 Conventional Commits 格式：type(scope): 中文摘要。
-            第一行必须是提交标题，格式为 type(scope): 中文摘要。
+            输出语言必须是：%s。
+            优先使用 Conventional Commits 格式：type(scope): %s。
+            第一行必须是提交标题，格式为 type(scope): %s。
             标题和列表都要描述“用户可理解的功能变化或行为变化”，不要描述“改了哪些类”。
             除非类名、方法名、文件名本身就是用户需要关心的公开 API，否则不要在提交信息中出现类名、方法名或文件名。
             遇到 Java 类、服务、配置页、缓存等内部实现时，请概括成模块能力，例如“补全请求”“模型配置”“设置界面”。
-            如果涉及多个文件或多个功能点，标题后空一行，然后用中文短横线列表概括主要用户可见变化。
+            如果涉及多个文件或多个功能点，标题后空一行，然后用 %s 短横线列表概括主要用户可见变化。
             每条列表必须来自 diff 中的实际变更，不要编造未出现的功能，也不要逐个罗列内部类的改动。
-            列表不超过 5 条，每条不超过 40 个中文字符。
-            除非代码变更明显要求英文，否则使用简体中文。
-            """;
+            列表不超过 5 条，每条不超过 %s。
+            除非代码标识符、API 名称或文件名必须保留原文，否则不要混用其他自然语言。
+            """.formatted(
+            languagePrompt.languageName(),
+            languagePrompt.summaryName(),
+            languagePrompt.summaryName(),
+            languagePrompt.languageName(),
+            languagePrompt.itemLimit()
+        );
         String userPrompt = """
             请只根据下面的文件变更生成 Git 提交信息。
             直接输出提交信息，不要输出任何其他文字。
             请把内部实现名转换成更容易理解的模块描述，尽量少出现类名、方法名和文件名。
             推荐格式：
-            type(scope): 中文摘要
+            type(scope): %s
 
-            - 面向用户或维护者可理解的变化 1
-            - 面向用户或维护者可理解的变化 2
+            - %s
+            - %s
 
-            """ + buildChangesSummary(changeList, unversionedFileList);
+            """.formatted(
+            languagePrompt.summaryName(),
+            languagePrompt.bulletExample1(),
+            languagePrompt.bulletExample2()
+        ) + buildChangesSummary(changeList, unversionedFileList);
         return AiCompletionService.getInstance().generateGitCommitText(
             systemPrompt,
             userPrompt,
             AiCompletionLengthLevel.LONG
         ).map(this::sanitizeCommitMessage)
-            .map(this::simplifyImplementationNames)
-            .map(value -> value.isBlank() ? fallbackCommitMessage(changeList, unversionedFileList) : value)
+            .map(value -> simplifyImplementationNames(value, language))
+            .map(value -> value.isBlank() ? fallbackCommitMessage(changeList, unversionedFileList, language) : value)
             .filter(value -> !value.isBlank());
+    }
+
+    private CommitLanguagePrompt commitLanguagePrompt(AiFeatureSettings.GitCommitMessageLanguage language) {
+        return switch (language) {
+            case ENGLISH -> new CommitLanguagePrompt(
+                "English",
+                "English summary",
+                "user-facing or maintainer-facing change 1",
+                "user-facing or maintainer-facing change 2",
+                "80 English characters"
+            );
+            case JAPANESE -> new CommitLanguagePrompt(
+                "日本語",
+                "日本語の要約",
+                "ユーザーまたは保守者が理解できる変更 1",
+                "ユーザーまたは保守者が理解できる変更 2",
+                "50 Japanese characters"
+            );
+            case CHINESE -> new CommitLanguagePrompt(
+                "简体中文",
+                "中文摘要",
+                "面向用户或维护者可理解的变化 1",
+                "面向用户或维护者可理解的变化 2",
+                "40 个中文字符"
+            );
+        };
     }
 
     private List<Change> toList(Iterable<Change> changes) {
@@ -110,21 +150,103 @@ public final class AiCommitMessageService {
     private String buildChangesSummary(List<Change> changes, List<?> unversionedFiles) {
         StringBuilder out = new StringBuilder();
         out.append("下面是当前已选择提交文件的 VCS diff，包含具体代码变更内容：\n\n");
+        int omitted = 0;
+        boolean budgetReached = false;
         for (Change change : changes) {
-            if (out.length() >= MAX_TOTAL_CHARS) {
-                out.append("\n... truncated ...\n");
-                break;
+            if (budgetReached) {
+                omitted++;
+                continue;
             }
-            appendChangeDiff(out, change);
+            if (!appendWithinBudget(out, buildChangeDiff(change))) {
+                omitted++;
+                budgetReached = true;
+            }
         }
         for (Object filePath : unversionedFiles) {
-            if (out.length() >= MAX_TOTAL_CHARS) {
-                out.append("\n... truncated ...\n");
+            if (budgetReached) {
+                omitted++;
+                continue;
+            }
+            if (!appendWithinBudget(out, buildUnversionedFileDiff(filePath))) {
+                omitted++;
+                budgetReached = true;
+            }
+        }
+        if (omitted > 0) {
+            appendTruncationNotice(out, omitted);
+        }
+        return out.toString();
+    }
+
+    private boolean appendWithinBudget(StringBuilder out, String block) {
+        if (block == null || block.isBlank()) {
+            return true;
+        }
+        if (out.length() + block.length() <= MAX_TOTAL_CHARS) {
+            out.append(block);
+            return true;
+        }
+        String partial = trimDiffBlockToBudget(block, MAX_TOTAL_CHARS - out.length());
+        if (!partial.isBlank()) {
+            out.append(partial);
+        }
+        return false;
+    }
+
+    private void appendTruncationNotice(StringBuilder out, int omitted) {
+        String notice = "\n... omitted " + omitted + " file(s) because the diff budget was reached ...\n";
+        int remaining = MAX_TOTAL_CHARS - out.length();
+        if (remaining >= notice.length()) {
+            out.append(notice);
+        }
+    }
+
+    private String trimDiffBlockToBudget(String block, int budget) {
+        if (budget <= 0 || block == null || block.isBlank()) {
+            return "";
+        }
+        String[] lines = block.split("\\n", -1);
+        StringBuilder out = new StringBuilder();
+        int index = 0;
+        while (index < lines.length && !lines[index].startsWith("@@ ")) {
+            if (!appendLineWithinBudget(out, lines[index], budget)) {
+                return "";
+            }
+            index++;
+        }
+
+        boolean appendedHunk = false;
+        while (index < lines.length) {
+            StringBuilder hunk = new StringBuilder();
+            while (index < lines.length) {
+                String line = lines[index++];
+                hunk.append(line).append("\n");
+                if (index < lines.length && lines[index].startsWith("@@ ")) {
+                    break;
+                }
+            }
+            if (out.length() + hunk.length() > budget) {
                 break;
             }
-            appendUnversionedFileDiff(out, filePath);
+            out.append(hunk);
+            appendedHunk = true;
         }
-        return trimToLimit(out.toString(), MAX_TOTAL_CHARS);
+        if (!appendedHunk) {
+            String notice = "... file diff omitted because its first hunk exceeds the remaining budget ...\n\n";
+            if (out.length() + notice.length() <= budget) {
+                out.append(notice);
+            }
+        }
+        return out.toString();
+    }
+
+    private boolean appendLineWithinBudget(StringBuilder out, String line, int budget) {
+        int added = line.length() + 1;
+        if (out.length() + added > budget) {
+            return false;
+        }
+        out.append(line).append("\n");
+        return true;
     }
 
     private String resolvePath(Change change) {
@@ -139,7 +261,8 @@ public final class AiCommitMessageService {
         return change.toString();
     }
 
-    private void appendChangeDiff(StringBuilder out, Change change) {
+    private String buildChangeDiff(Change change) {
+        StringBuilder out = new StringBuilder();
         String path = resolvePath(change);
         String before = readRevisionContent(change.getBeforeRevision());
         String after = readRevisionContent(change.getAfterRevision());
@@ -158,9 +281,11 @@ public final class AiCommitMessageService {
             appendFocusedDiff(out, before, after);
         }
         out.append("\n");
+        return out.toString();
     }
 
-    private void appendUnversionedFileDiff(StringBuilder out, Object filePath) {
+    private String buildUnversionedFileDiff(Object filePath) {
+        StringBuilder out = new StringBuilder();
         String path = resolveFilePathText(filePath);
         String content = readFilePathContent(filePath);
         out.append("diff --git a/").append(path).append(" b/").append(path).append("\n");
@@ -169,6 +294,7 @@ public final class AiCommitMessageService {
         out.append("+++ b/").append(path).append("\n");
         appendPrefixedLines(out, "+", trimToLimit(content, MAX_FILE_CONTENT_CHARS));
         out.append("\n");
+        return out.toString();
     }
 
     private String resolveFilePathText(Object filePath) {
@@ -389,6 +515,15 @@ public final class AiCommitMessageService {
     private record DiffLine(DiffType type, String text, int oldLine, int newLine) {
     }
 
+    private record CommitLanguagePrompt(
+        String languageName,
+        String summaryName,
+        String bulletExample1,
+        String bulletExample2,
+        String itemLimit
+    ) {
+    }
+
     private void appendPrefixedLines(StringBuilder out, String prefix, String content) {
         if (content == null || content.isBlank()) {
             out.append(prefix).append("<empty>\n");
@@ -490,10 +625,18 @@ public final class AiCommitMessageService {
             || lower.contains("\\x1b[31m");
     }
 
-    private String simplifyImplementationNames(String message) {
+    private String simplifyImplementationNames(
+        String message,
+        AiFeatureSettings.GitCommitMessageLanguage language
+    ) {
         if (message == null || message.isBlank()) {
             return "";
         }
+        String replacement = switch (language) {
+            case ENGLISH -> "related module";
+            case JAPANESE -> "関連モジュール";
+            case CHINESE -> "相关模块";
+        };
         List<String> lines = new ArrayList<>();
         for (String line : message.split("\\n", -1)) {
             String normalized = line.replaceAll(
@@ -502,29 +645,45 @@ public final class AiCommitMessageService {
             );
             normalized = normalized.replaceAll(
                 "\\b[A-Z][A-Za-z0-9_]*(?:Service|Builder|Configurable|Manager|Collector|Stats|Cache|Client|Action|Settings|Profile|Index)\\b",
-                "相关模块"
+                replacement
             );
             lines.add(normalized);
         }
         return String.join("\n", lines).trim();
     }
 
-    private String fallbackCommitMessage(List<Change> changes, List<?> unversionedFiles) {
+    private String fallbackCommitMessage(
+        List<Change> changes,
+        List<?> unversionedFiles,
+        AiFeatureSettings.GitCommitMessageLanguage language
+    ) {
         if (changes.isEmpty() && unversionedFiles.isEmpty()) {
             return "";
         }
         boolean allNew = !unversionedFiles.isEmpty()
             && changes.stream().allMatch(change -> change.getType() == Change.Type.NEW);
         boolean allDeleted = changes.stream().allMatch(change -> change.getType() == Change.Type.DELETED);
-        String action = allNew ? "添加" : allDeleted ? "删除" : "更新";
+        String action = fallbackAction(language, allNew, allDeleted);
         String type = allNew ? "feat" : "chore";
 
         String scope = inferCommitScope(changes, unversionedFiles);
-        String target = inferFallbackTarget(scope);
+        String target = inferFallbackTarget(scope, language);
         if (changes.size() + unversionedFiles.size() > 1) {
-            target += "相关能力";
+            target += fallbackMultiFileSuffix(language);
         }
         return type + "(" + scope + "): " + action + target;
+    }
+
+    private String fallbackAction(
+        AiFeatureSettings.GitCommitMessageLanguage language,
+        boolean allNew,
+        boolean allDeleted
+    ) {
+        return switch (language) {
+            case ENGLISH -> allNew ? "add " : allDeleted ? "remove " : "update ";
+            case JAPANESE -> allNew ? "追加: " : allDeleted ? "削除: " : "更新: ";
+            case CHINESE -> allNew ? "添加" : allDeleted ? "删除" : "更新";
+        };
     }
 
     private String inferCommitScope(List<Change> changes, List<?> unversionedFiles) {
@@ -552,15 +711,43 @@ public final class AiCommitMessageService {
         return "project";
     }
 
-    private String inferFallbackTarget(String scope) {
-        return switch (scope) {
-            case "commit" -> "提交信息生成";
-            case "ai-completion" -> "AI 补全";
-            case "settings" -> "设置界面";
-            case "context" -> "上下文增强";
-            case "ui" -> "界面交互";
-            case "test" -> "测试覆盖";
-            default -> "项目";
+    private String inferFallbackTarget(String scope, AiFeatureSettings.GitCommitMessageLanguage language) {
+        return switch (language) {
+            case ENGLISH -> switch (scope) {
+                case "commit" -> "commit message generation";
+                case "ai-completion" -> "AI completion";
+                case "settings" -> "settings UI";
+                case "context" -> "context handling";
+                case "ui" -> "UI interaction";
+                case "test" -> "test coverage";
+                default -> "project";
+            };
+            case JAPANESE -> switch (scope) {
+                case "commit" -> "コミットメッセージ生成";
+                case "ai-completion" -> "AI補完";
+                case "settings" -> "設定画面";
+                case "context" -> "コンテキスト処理";
+                case "ui" -> "UI操作";
+                case "test" -> "テストカバレッジ";
+                default -> "プロジェクト";
+            };
+            case CHINESE -> switch (scope) {
+                case "commit" -> "提交信息生成";
+                case "ai-completion" -> "AI 补全";
+                case "settings" -> "设置界面";
+                case "context" -> "上下文增强";
+                case "ui" -> "界面交互";
+                case "test" -> "测试覆盖";
+                default -> "项目";
+            };
+        };
+    }
+
+    private String fallbackMultiFileSuffix(AiFeatureSettings.GitCommitMessageLanguage language) {
+        return switch (language) {
+            case ENGLISH -> " features";
+            case JAPANESE -> "関連機能";
+            case CHINESE -> "相关能力";
         };
     }
 

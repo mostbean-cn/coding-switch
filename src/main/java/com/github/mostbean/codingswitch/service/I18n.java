@@ -163,6 +163,10 @@ public final class I18n {
                 m.put("aiSettings.section.features", "功能开关");
                 m.put("aiSettings.checkbox.codeCompletion", "启用代码补全功能");
                 m.put("aiSettings.checkbox.gitCommitMessage", "启用 Git 提交信息生成功能");
+                m.put("aiSettings.label.gitCommitLanguage", "Git信息生成语言:");
+                m.put("aiSettings.gitCommitLanguage.chinese", "中文");
+                m.put("aiSettings.gitCommitLanguage.english", "英文");
+                m.put("aiSettings.gitCommitLanguage.japanese", "日语");
                 m.put("aiSettings.hint.globalPreferences", "这些偏好设置为全局配置，会同时影响侧边栏配置管理、会话、提示词、技能、MCP 等功能。");
                 m.put("aiSettings.section.completion", "代码补全");
                 m.put("aiSettings.checkbox.autoCompletion", "启用自动触发补全");
@@ -709,6 +713,10 @@ public final class I18n {
                 m.put("aiSettings.section.features", "Feature Switches");
                 m.put("aiSettings.checkbox.codeCompletion", "Enable code completion");
                 m.put("aiSettings.checkbox.gitCommitMessage", "Enable Git commit message generation");
+                m.put("aiSettings.label.gitCommitLanguage", "Git message language:");
+                m.put("aiSettings.gitCommitLanguage.chinese", "Chinese");
+                m.put("aiSettings.gitCommitLanguage.english", "English");
+                m.put("aiSettings.gitCommitLanguage.japanese", "Japanese");
                 m.put("aiSettings.hint.globalPreferences", "These preferences are global and also affect sidebar configuration management, sessions, prompts, skills, MCP, and related features.");
                 m.put("aiSettings.section.completion", "Code Completion");
                 m.put("aiSettings.checkbox.autoCompletion", "Enable automatic completion");

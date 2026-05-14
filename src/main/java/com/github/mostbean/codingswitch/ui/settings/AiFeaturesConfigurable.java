@@ -88,6 +88,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
     private JCheckBox codeCompletionEnabled;
     private JCheckBox gitCommitMessageEnabled;
+    private JComboBox<AiFeatureSettings.GitCommitMessageLanguage> gitCommitMessageLanguage;
     private JComboBox<PluginSettings.Language> uiLanguageCombo;
     private JComboBox<PluginSettings.DataStorageMode> storageModeCombo;
     private JCheckBox autoCompletionEnabled;
@@ -152,7 +153,41 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         gitCommitMessageEnabled.addActionListener(e -> updateFeatureAvailability());
         section.add(checkBoxRow(codeCompletionEnabled));
         section.add(checkBoxRow(gitCommitMessageEnabled));
+
+        JPanel gitLanguageRow = rowPanel();
+        gitLanguageRow.add(new JBLabel(I18n.t("aiSettings.label.gitCommitLanguage")));
+        gitCommitMessageLanguage = new JComboBox<>(AiFeatureSettings.GitCommitMessageLanguage.values());
+        configureGitCommitLanguageCombo();
+        gitLanguageRow.add(gitCommitMessageLanguage);
+        section.add(gitLanguageRow);
         return section;
+    }
+
+    private void configureGitCommitLanguageCombo() {
+        gitCommitMessageLanguage.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(
+                JList<?> list,
+                Object value,
+                int index,
+                boolean isSelected,
+                boolean cellHasFocus
+            ) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                if (value instanceof AiFeatureSettings.GitCommitMessageLanguage language) {
+                    setText(gitCommitLanguageDisplayName(language));
+                }
+                return this;
+            }
+        });
+    }
+
+    private String gitCommitLanguageDisplayName(AiFeatureSettings.GitCommitMessageLanguage language) {
+        return switch (language) {
+            case CHINESE -> I18n.t("aiSettings.gitCommitLanguage.chinese");
+            case ENGLISH -> I18n.t("aiSettings.gitCommitLanguage.english");
+            case JAPANESE -> I18n.t("aiSettings.gitCommitLanguage.japanese");
+        };
     }
 
     private JPanel buildPreferenceSection() {
@@ -648,6 +683,9 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         if (gitCommitMessageEnabled != null) {
             gitCommitMessageEnabled.setEnabled(true);
         }
+        if (gitCommitMessageLanguage != null) {
+            gitCommitMessageLanguage.setEnabled(gitCommitMessageEnabled == null || gitCommitMessageEnabled.isSelected());
+        }
         boolean completionEnabled = codeCompletionEnabled != null
             && codeCompletionEnabled.isEnabled()
             && codeCompletionEnabled.isSelected();
@@ -718,6 +756,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         AiFeatureSettings.State state = AiFeatureSettings.getInstance().snapshot();
         codeCompletionEnabled.setSelected(state.codeCompletionEnabled);
         gitCommitMessageEnabled.setSelected(state.gitCommitMessageEnabled);
+        gitCommitMessageLanguage.setSelectedItem(parseGitCommitLanguage(state.gitCommitMessageLanguage));
         autoCompletionEnabled.setSelected(state.autoCompletionEnabled);
         autoCompletionLengthLevel.setSelectedItem(parseLengthLevel(
             state.autoCompletionLengthLevel,
@@ -930,6 +969,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         AiFeatureSettings.State state = AiFeatureSettings.getInstance().snapshot();
         state.codeCompletionEnabled = codeCompletionEnabled != null && codeCompletionEnabled.isSelected();
         state.gitCommitMessageEnabled = gitCommitMessageEnabled != null && gitCommitMessageEnabled.isSelected();
+        state.gitCommitMessageLanguage = selectedGitCommitLanguageName();
         state.autoCompletionEnabled = autoCompletionEnabled != null && autoCompletionEnabled.isSelected();
         state.autoCompletionLengthLevel = selectedLengthName(
             autoCompletionLengthLevel,
@@ -957,6 +997,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         AiFeatureSettings.State b = AiFeatureSettings.normalize(AiFeatureSettings.copyState(right));
         return a.codeCompletionEnabled == b.codeCompletionEnabled
             && a.gitCommitMessageEnabled == b.gitCommitMessageEnabled
+            && Objects.equals(a.gitCommitMessageLanguage, b.gitCommitMessageLanguage)
             && a.autoCompletionEnabled == b.autoCompletionEnabled
             && Objects.equals(a.autoCompletionLengthLevel, b.autoCompletionLengthLevel)
             && Objects.equals(a.manualCompletionLengthLevel, b.manualCompletionLengthLevel)
@@ -972,6 +1013,21 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         }
         String value = normalizeShortcutText(manualShortcutField.getText());
         return value.isBlank() ? lastManualShortcut : value;
+    }
+
+    private AiFeatureSettings.GitCommitMessageLanguage parseGitCommitLanguage(String value) {
+        try {
+            return AiFeatureSettings.GitCommitMessageLanguage.valueOf(value);
+        } catch (Exception ignored) {
+            return AiFeatureSettings.GitCommitMessageLanguage.CHINESE;
+        }
+    }
+
+    private String selectedGitCommitLanguageName() {
+        Object selected = gitCommitMessageLanguage == null ? null : gitCommitMessageLanguage.getSelectedItem();
+        return selected instanceof AiFeatureSettings.GitCommitMessageLanguage language
+            ? language.name()
+            : AiFeatureSettings.GitCommitMessageLanguage.CHINESE.name();
     }
 
     private void showShortcutValue(String shortcut) {

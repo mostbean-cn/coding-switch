@@ -33,6 +33,7 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
     public static class State {
         public boolean codeCompletionEnabled = false;
         public boolean gitCommitMessageEnabled = true;
+        public String gitCommitMessageLanguage = GitCommitMessageLanguage.CHINESE.name();
         public boolean autoCompletionEnabled = false;
         public int autoCompletionMaxTokens = 64;
         public int manualCompletionMaxTokens = 160;
@@ -79,6 +80,10 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
 
     public boolean isGitCommitMessageEnabled() {
         return getActiveState().gitCommitMessageEnabled;
+    }
+
+    public GitCommitMessageLanguage getGitCommitMessageLanguage() {
+        return parseGitCommitMessageLanguage(getActiveState().gitCommitMessageLanguage);
     }
 
     public AiCompletionLengthLevel getCompletionLengthLevel(AiCompletionTriggerMode mode) {
@@ -258,6 +263,7 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
         State safe = source == null ? new State() : source;
         copy.codeCompletionEnabled = safe.codeCompletionEnabled;
         copy.gitCommitMessageEnabled = safe.gitCommitMessageEnabled;
+        copy.gitCommitMessageLanguage = safe.gitCommitMessageLanguage;
         copy.autoCompletionEnabled = safe.autoCompletionEnabled;
         copy.autoCompletionMaxTokens = safe.autoCompletionMaxTokens;
         copy.manualCompletionMaxTokens = safe.manualCompletionMaxTokens;
@@ -280,6 +286,9 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
 
     public static State normalize(State source) {
         State normalized = source == null ? new State() : source;
+        normalized.gitCommitMessageLanguage = parseGitCommitMessageLanguage(
+            normalized.gitCommitMessageLanguage
+        ).name();
         normalized.autoCompletionMaxTokens = clamp(normalized.autoCompletionMaxTokens, 16, 512, 64);
         normalized.manualCompletionMaxTokens = clamp(normalized.manualCompletionMaxTokens, 16, 1024, 160);
         normalized.timingConfig = normalized.timingConfig == null
@@ -348,6 +357,12 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
             || format == AiModelFormat.FIM_CHAT_COMPLETIONS;
     }
 
+    public enum GitCommitMessageLanguage {
+        CHINESE,
+        ENGLISH,
+        JAPANESE
+    }
+
     private static int clamp(int value, int min, int max, int fallback) {
         if (value <= 0) {
             return fallback;
@@ -360,6 +375,14 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
             return AiCompletionLengthLevel.valueOf(value);
         } catch (Exception ignored) {
             return fallback;
+        }
+    }
+
+    private static GitCommitMessageLanguage parseGitCommitMessageLanguage(String value) {
+        try {
+            return GitCommitMessageLanguage.valueOf(value);
+        } catch (Exception ignored) {
+            return GitCommitMessageLanguage.CHINESE;
         }
     }
 
