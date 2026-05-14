@@ -4,6 +4,7 @@ import com.intellij.ide.DataManager;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.actionSystem.IdeActions;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.editor.Caret;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.actionSystem.EditorActionHandler;
@@ -13,21 +14,32 @@ import com.intellij.openapi.actionSystem.Shortcut;
 import com.intellij.openapi.keymap.Keymap;
 import com.intellij.openapi.keymap.KeymapManager;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.startup.StartupActivity;
 import javax.swing.KeyStroke;
 import java.awt.Component;
 import java.awt.KeyboardFocusManager;
 import java.awt.event.KeyEvent;
 import java.util.concurrent.atomic.AtomicBoolean;
+import kotlin.Unit;
+import kotlin.coroutines.Continuation;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import com.intellij.openapi.startup.ProjectActivity;
 
-public class AiInlineCompletionStartupActivity implements StartupActivity.DumbAware {
+public class AiInlineCompletionStartupActivity implements ProjectActivity {
 
     private static final AtomicBoolean INSTALLED = new AtomicBoolean(false);
 
     @Override
-    public void runActivity(@NotNull Project project) {
+    public Object execute(@NotNull Project project, @NotNull Continuation<? super Unit> continuation) {
+        ApplicationManager.getApplication().invokeLater(() -> {
+            if (!project.isDisposed()) {
+                install(project);
+            }
+        });
+        return Unit.INSTANCE;
+    }
+
+    private void install(@NotNull Project project) {
         if (!INSTALLED.compareAndSet(false, true)) {
             return;
         }
