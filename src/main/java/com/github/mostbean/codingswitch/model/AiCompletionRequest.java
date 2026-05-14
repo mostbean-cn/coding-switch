@@ -5,6 +5,7 @@ public record AiCompletionRequest(
     String apiKey,
     String systemPrompt,
     String userPrompt,
+    int maxTokens,
     String fimPrefix,
     String fimSuffix
 ) {

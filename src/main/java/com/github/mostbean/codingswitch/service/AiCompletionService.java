@@ -156,6 +156,7 @@ public final class AiCompletionService {
                 apiKey,
                 snapshot.context().systemPrompt(),
                 snapshot.context().userPrompt(),
+                lengthLevel.getMaxTokens(),
                 snapshot.context().fimPrefix(),
                 snapshot.context().fimSuffix()
             );
@@ -223,6 +224,7 @@ public final class AiCompletionService {
             apiKey,
             systemPrompt,
             userPrompt,
+            lengthLevel.getMaxTokens(),
             "",
             ""
         );

@@ -60,6 +60,7 @@ final class FimChatCompletionClient implements AiCompletionClient {
             body.addProperty("suffix", request.fimSuffix());
         }
         body.addProperty("stream", stream);
+        body.addProperty("max_tokens", request.maxTokens());
         body.addProperty("temperature", 0.2);
         return body;
     }

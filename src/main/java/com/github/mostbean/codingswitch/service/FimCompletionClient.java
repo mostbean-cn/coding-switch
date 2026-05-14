@@ -53,6 +53,7 @@ final class FimCompletionClient implements AiCompletionClient {
         if (!request.fimSuffix().isBlank()) {
             body.addProperty("suffix", request.fimSuffix());
         }
+        body.addProperty("max_tokens", request.maxTokens());
         body.addProperty("temperature", 0.2);
         if (stream) {
             body.addProperty("stream", true);
@@ -67,7 +68,7 @@ final class FimCompletionClient implements AiCompletionClient {
             return prefix;
         }
         return "/*\n"
-            + "Coding Switch completion guidance:\n"
+            + "Complete the mandatory constraints:\n"
             + guidance.strip()
             + "\n*/\n\n"
             + prefix;
