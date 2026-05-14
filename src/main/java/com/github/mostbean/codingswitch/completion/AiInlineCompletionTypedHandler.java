@@ -20,6 +20,11 @@ public class AiInlineCompletionTypedHandler extends TypedHandlerDelegate {
         return Result.CONTINUE;
     }
 
+    @Override
+    public @NotNull Result checkAutoPopup(char c, @NotNull Project project, @NotNull Editor editor, @NotNull PsiFile file) {
+        return shouldSuppressIdeAutoPopup(project, editor) ? Result.STOP : Result.CONTINUE;
+    }
+
     private boolean shouldSchedule(char c) {
         if (!AiFeatureSettings.getInstance().isCodeCompletionEnabled()
             || !AiFeatureSettings.getInstance().isAutoCompletionEnabled()) {
@@ -37,5 +42,12 @@ public class AiInlineCompletionTypedHandler extends TypedHandlerDelegate {
             || c == '}'
             || c == ':'
             || c == ';';
+    }
+
+    private boolean shouldSuppressIdeAutoPopup(Project project, Editor editor) {
+        AiFeatureSettings settings = AiFeatureSettings.getInstance();
+        return settings.isCodeCompletionEnabled()
+            && settings.isAutoCompletionEnabled()
+            && AiCompletionEditorGuard.isEligible(project, editor);
     }
 }
