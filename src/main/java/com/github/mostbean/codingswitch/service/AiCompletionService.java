@@ -19,6 +19,8 @@ import java.util.function.Consumer;
 @Service(Service.Level.APP)
 public final class AiCompletionService {
 
+    private static final int SUFFIX_ECHO_GUARD_CHARS = 120;
+
     private final Map<String, Long> inFlightCompletionKeys = new ConcurrentHashMap<>();
     private long lastManualCompletionRequestMs = 0L;
 
@@ -38,11 +40,13 @@ public final class AiCompletionService {
         Optional<String> cached = cache.get(filePath, context.snapshot().caretOffset(), context.snapshot().documentStamp());
         if (cached.isPresent()) {
             inFlightCompletionKeys.remove(context.inFlightKey());
-            return cached;
+            return Optional.ofNullable(normalizeCompletion(context.request(), cached.get()))
+                .filter(value -> !value.isBlank());
         }
 
         try {
             String completion = createClient(context.profile().getFormat()).complete(context.request());
+            completion = normalizeCompletion(context.request(), completion);
             if (completion == null || completion.isBlank()) {
                 return Optional.empty();
             }
@@ -71,13 +75,17 @@ public final class AiCompletionService {
         String filePath = context.snapshot().context().filePath();
         Optional<String> cached = cache.get(filePath, context.snapshot().caretOffset(), context.snapshot().documentStamp());
         if (cached.isPresent()) {
-            onDelta.accept(cached.get());
+            String completion = normalizeCompletion(context.request(), cached.get());
+            if (completion != null && !completion.isBlank()) {
+                onDelta.accept(completion);
+            }
             inFlightCompletionKeys.remove(context.inFlightKey());
-            return true;
+            return completion != null && !completion.isBlank();
         }
 
         StringBuilder fullCompletion = new StringBuilder();
         AtomicBoolean hasText = new AtomicBoolean(false);
+        CompletionDeltaFilter deltaFilter = createDeltaFilter(context.request());
         try {
             AiCompletionClient client = createClient(context.profile().getFormat());
             try {
@@ -85,15 +93,28 @@ public final class AiCompletionService {
                     if (delta == null || delta.isEmpty() || !isStillValid(editor, context.snapshot())) {
                         return;
                     }
+                    String visibleDelta = deltaFilter == null ? delta : deltaFilter.append(delta);
+                    if (visibleDelta.isEmpty()) {
+                        return;
+                    }
                     hasText.set(true);
-                    fullCompletion.append(delta);
-                    onDelta.accept(delta);
+                    fullCompletion.append(visibleDelta);
+                    onDelta.accept(visibleDelta);
                 });
+                if (deltaFilter != null) {
+                    String remaining = deltaFilter.finish();
+                    if (!remaining.isEmpty() && isStillValid(editor, context.snapshot())) {
+                        hasText.set(true);
+                        fullCompletion.append(remaining);
+                        onDelta.accept(remaining);
+                    }
+                }
             } catch (IOException ex) {
                 if (hasText.get()) {
                     throw ex;
                 }
                 String completion = client.complete(context.request());
+                completion = normalizeCompletion(context.request(), completion);
                 if (completion != null && !completion.isBlank() && isStillValid(editor, context.snapshot())) {
                     hasText.set(true);
                     fullCompletion.append(completion);
@@ -156,6 +177,7 @@ public final class AiCompletionService {
                 apiKey,
                 snapshot.context().systemPrompt(),
                 snapshot.context().userPrompt(),
+                lengthLevel,
                 lengthLevel.getMaxTokens(),
                 snapshot.context().fimPrefix(),
                 snapshot.context().fimSuffix()
@@ -224,6 +246,7 @@ public final class AiCompletionService {
             apiKey,
             systemPrompt,
             userPrompt,
+            lengthLevel,
             lengthLevel.getMaxTokens(),
             "",
             ""
@@ -233,6 +256,92 @@ public final class AiCompletionService {
             return Optional.empty();
         }
         return Optional.of(text);
+    }
+
+    private String normalizeCompletion(AiCompletionRequest request, String completion) {
+        if (completion == null) {
+            return null;
+        }
+        if (request.lengthLevel() == AiCompletionLengthLevel.SINGLE_LINE) {
+            return firstEffectiveLine(completion);
+        }
+        return trimCompletionTail(trimSuffixEcho(request, completion));
+    }
+
+    private String firstEffectiveLine(String text) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+        String normalized = text.replace("\r\n", "\n").replace("\r", "\n");
+        for (String line : normalized.split("\n", -1)) {
+            if (!line.isBlank()) {
+                return line.stripTrailing();
+            }
+        }
+        return "";
+    }
+
+    private CompletionDeltaFilter createDeltaFilter(AiCompletionRequest request) {
+        if (request.lengthLevel() == AiCompletionLengthLevel.SINGLE_LINE) {
+            return new SingleLineDeltaFilter();
+        }
+        return new SuffixEchoDeltaFilter(request);
+    }
+
+    private String trimSuffixEcho(AiCompletionRequest request, String completion) {
+        if (completion == null || completion.isEmpty()) {
+            return completion;
+        }
+        String suffixLine = firstEffectiveLine(request.fimSuffix()).strip();
+        if (suffixLine.isEmpty()) {
+            return completion;
+        }
+        int echoStart = suffixEchoStart(completion, suffixLine);
+        if (echoStart < 0) {
+            return completion;
+        }
+        return completion.substring(0, echoStart).stripTrailing();
+    }
+
+    private String trimCompletionTail(String completion) {
+        return completion == null ? null : completion.stripTrailing();
+    }
+
+    private int suffixEchoStart(String completion, String suffixLine) {
+        int exactIndex = completion.indexOf(suffixLine);
+        if (exactIndex >= 0) {
+            return exactIndex;
+        }
+
+        String normalizedSuffixLine = removeWhitespace(suffixLine);
+        if (normalizedSuffixLine.isEmpty()) {
+            return -1;
+        }
+
+        int lineStart = 0;
+        while (lineStart < completion.length()) {
+            int lineEnd = completion.indexOf('\n', lineStart);
+            if (lineEnd < 0) {
+                lineEnd = completion.length();
+            }
+            String line = completion.substring(lineStart, lineEnd).strip();
+            if (removeWhitespace(line).equals(normalizedSuffixLine)) {
+                return lineStart;
+            }
+            lineStart = lineEnd + 1;
+        }
+        return -1;
+    }
+
+    private String removeWhitespace(String value) {
+        StringBuilder result = new StringBuilder(value.length());
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (!Character.isWhitespace(ch)) {
+                result.append(ch);
+            }
+        }
+        return result.toString();
     }
 
     private synchronized boolean shouldSkipManualRequest() {
@@ -282,5 +391,69 @@ public final class AiCompletionService {
         AiCompletionRequest request,
         CompletionSnapshot snapshot
     ) {
+    }
+
+    private interface CompletionDeltaFilter {
+        String append(String delta);
+
+        String finish();
+    }
+
+    private final class SingleLineDeltaFilter implements CompletionDeltaFilter {
+        private final StringBuilder raw = new StringBuilder();
+        private int emittedLength;
+
+        @Override
+        public String append(String delta) {
+            raw.append(delta);
+            String visible = firstEffectiveLine(raw.toString());
+            if (visible.length() <= emittedLength) {
+                return "";
+            }
+            String next = visible.substring(emittedLength);
+            emittedLength = visible.length();
+            return next;
+        }
+
+        @Override
+        public String finish() {
+            return "";
+        }
+    }
+
+    private final class SuffixEchoDeltaFilter implements CompletionDeltaFilter {
+        private final AiCompletionRequest request;
+        private final StringBuilder raw = new StringBuilder();
+        private int emittedLength;
+
+        private SuffixEchoDeltaFilter(AiCompletionRequest request) {
+            this.request = request;
+        }
+
+        @Override
+        public String append(String delta) {
+            raw.append(delta);
+            String visible = trimSuffixEcho(request, raw.toString());
+            boolean echoDetected = visible.length() < raw.length();
+            int flushUntil = echoDetected
+                ? visible.length()
+                : Math.max(0, visible.length() - SUFFIX_ECHO_GUARD_CHARS);
+            return emitUntil(visible, flushUntil);
+        }
+
+        @Override
+        public String finish() {
+            String visible = trimCompletionTail(trimSuffixEcho(request, raw.toString()));
+            return emitUntil(visible, visible.length());
+        }
+
+        private String emitUntil(String visible, int flushUntil) {
+            if (flushUntil <= emittedLength) {
+                return "";
+            }
+            String next = visible.substring(emittedLength, flushUntil);
+            emittedLength = flushUntil;
+            return next;
+        }
     }
 }

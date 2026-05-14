@@ -54,6 +54,7 @@ final class FimCompletionClient implements AiCompletionClient {
             body.addProperty("suffix", request.fimSuffix());
         }
         body.addProperty("max_tokens", request.maxTokens());
+        body.add("stop", FimStopSequences.create(request));
         body.addProperty("temperature", 0.2);
         if (stream) {
             body.addProperty("stream", true);
