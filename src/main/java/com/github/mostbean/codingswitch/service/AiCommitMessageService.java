@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 @Service(Service.Level.APP)
@@ -44,6 +45,46 @@ public final class AiCommitMessageService {
             return Optional.empty();
         }
 
+        CommitGenerationContext context = buildCommitGenerationContext(changeList, unversionedFileList);
+        return AiCompletionService.getInstance().generateGitCommitText(
+            context.systemPrompt(),
+            context.userPrompt(),
+            AiCompletionLengthLevel.LONG
+        ).map(value -> normalizeGeneratedMessage(value, changeList, unversionedFileList, context.language()))
+            .filter(value -> !value.isBlank());
+    }
+
+    public Optional<String> generateStreaming(
+        Iterable<Change> changes,
+        Iterable<?> unversionedFiles,
+        Consumer<String> onPartial
+    ) throws Exception {
+        List<Change> changeList = toList(changes);
+        List<?> unversionedFileList = toObjectList(unversionedFiles);
+        if (changeList.isEmpty() && unversionedFileList.isEmpty()) {
+            return Optional.empty();
+        }
+
+        CommitGenerationContext context = buildCommitGenerationContext(changeList, unversionedFileList);
+        StringBuilder raw = new StringBuilder();
+        return AiCompletionService.getInstance().streamGitCommitText(
+            context.systemPrompt(),
+            context.userPrompt(),
+            AiCompletionLengthLevel.LONG,
+            delta -> {
+                raw.append(delta);
+                if (onPartial != null) {
+                    onPartial.accept(raw.toString().stripLeading());
+                }
+            }
+        ).map(value -> normalizeGeneratedMessage(value, changeList, unversionedFileList, context.language()))
+            .filter(value -> !value.isBlank());
+    }
+
+    private CommitGenerationContext buildCommitGenerationContext(
+        List<Change> changeList,
+        List<?> unversionedFileList
+    ) throws IOException, VcsException {
         AiFeatureSettings.GitCommitMessageLanguage language =
             AiFeatureSettings.getInstance().getGitCommitMessageLanguage();
         CommitLanguagePrompt languagePrompt = commitLanguagePrompt(language);
@@ -85,14 +126,20 @@ public final class AiCommitMessageService {
             languagePrompt.bulletExample1(),
             languagePrompt.bulletExample2()
         ) + buildChangesSummary(changeList, unversionedFileList);
-        return AiCompletionService.getInstance().generateGitCommitText(
-            systemPrompt,
-            userPrompt,
-            AiCompletionLengthLevel.LONG
-        ).map(this::sanitizeCommitMessage)
+        return new CommitGenerationContext(language, systemPrompt, userPrompt);
+    }
+
+    private String normalizeGeneratedMessage(
+        String rawMessage,
+        List<Change> changeList,
+        List<?> unversionedFileList,
+        AiFeatureSettings.GitCommitMessageLanguage language
+    ) {
+        return Optional.ofNullable(rawMessage)
+            .map(this::sanitizeCommitMessage)
             .map(value -> simplifyImplementationNames(value, language))
             .map(value -> value.isBlank() ? fallbackCommitMessage(changeList, unversionedFileList, language) : value)
-            .filter(value -> !value.isBlank());
+            .orElse("");
     }
 
     private CommitLanguagePrompt commitLanguagePrompt(AiFeatureSettings.GitCommitMessageLanguage language) {
@@ -521,6 +568,13 @@ public final class AiCommitMessageService {
         String bulletExample1,
         String bulletExample2,
         String itemLimit
+    ) {
+    }
+
+    private record CommitGenerationContext(
+        AiFeatureSettings.GitCommitMessageLanguage language,
+        String systemPrompt,
+        String userPrompt
     ) {
     }
 

@@ -208,6 +208,16 @@ public final class AiCompletionService {
         return generateText(systemPrompt, userPrompt, lengthLevel, settings.getActiveGitCommitProfile());
     }
 
+    public Optional<String> streamGitCommitText(
+        String systemPrompt,
+        String userPrompt,
+        AiCompletionLengthLevel lengthLevel,
+        Consumer<String> onDelta
+    ) throws IOException, InterruptedException {
+        AiFeatureSettings settings = AiFeatureSettings.getInstance();
+        return streamText(systemPrompt, userPrompt, lengthLevel, settings.getActiveGitCommitProfile(), onDelta);
+    }
+
     private Optional<String> generateText(
         String systemPrompt,
         String userPrompt,
@@ -232,8 +242,52 @@ public final class AiCompletionService {
         AiModelProfile profile,
         String apiKey
     ) throws IOException, InterruptedException {
+        AiCompletionRequest request = createTextRequest(systemPrompt, userPrompt, lengthLevel, profile, apiKey);
+        String text = createClient(profile.getFormat()).complete(request);
+        if (text == null || text.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.of(text);
+    }
+
+    private Optional<String> streamText(
+        String systemPrompt,
+        String userPrompt,
+        AiCompletionLengthLevel lengthLevel,
+        AiModelProfile profile,
+        Consumer<String> onDelta
+    ) throws IOException, InterruptedException {
+        AiFeatureSettings settings = AiFeatureSettings.getInstance();
+        if (profile == null || profile.getModel().isBlank()) {
+            return Optional.empty();
+        }
+        String apiKey = settings.getApiKey(profile.getId());
+        if (apiKey.isBlank()) {
+            return Optional.empty();
+        }
+        AiCompletionRequest request = createTextRequest(systemPrompt, userPrompt, lengthLevel, profile, apiKey);
+        StringBuilder text = new StringBuilder();
+        createClient(profile.getFormat()).streamComplete(request, delta -> {
+            if (delta == null || delta.isEmpty()) {
+                return;
+            }
+            text.append(delta);
+            if (onDelta != null) {
+                onDelta.accept(delta);
+            }
+        });
+        return text.isEmpty() ? Optional.empty() : Optional.of(text.toString());
+    }
+
+    private AiCompletionRequest createTextRequest(
+        String systemPrompt,
+        String userPrompt,
+        AiCompletionLengthLevel lengthLevel,
+        AiModelProfile profile,
+        String apiKey
+    ) {
         boolean fimCompletion = profile.getFormat() == AiModelFormat.FIM_COMPLETIONS;
-        AiCompletionRequest request = new AiCompletionRequest(
+        return new AiCompletionRequest(
             profile,
             apiKey,
             systemPrompt,
@@ -243,11 +297,6 @@ public final class AiCompletionService {
             fimCompletion ? userPrompt : "",
             ""
         );
-        String text = createClient(profile.getFormat()).complete(request);
-        if (text == null || text.isBlank()) {
-            return Optional.empty();
-        }
-        return Optional.of(text);
     }
 
     private String normalizeCompletion(AiCompletionRequest request, String completion) {

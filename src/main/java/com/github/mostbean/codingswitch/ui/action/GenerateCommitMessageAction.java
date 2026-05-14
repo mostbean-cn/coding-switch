@@ -23,6 +23,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.jetbrains.annotations.NotNull;
 
@@ -63,7 +65,37 @@ public class GenerateCommitMessageAction extends DumbAwareAction {
                 indicator.setIndeterminate(true);
                 boolean clearOnExit = true;
                 try {
-                    Optional<String> message = AiCommitMessageService.getInstance().generate(changes, unversionedFiles);
+                    AtomicReference<String> latestPartial = new AtomicReference<>("");
+                    AtomicBoolean updateScheduled = new AtomicBoolean(false);
+                    Consumer<String> partialConsumer = partial -> {
+                        if (partial == null || partial.isBlank()) {
+                            return;
+                        }
+                        latestPartial.set(partial);
+                        if (!updateScheduled.compareAndSet(false, true)) {
+                            return;
+                        }
+                        com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater(
+                            () -> {
+                                updateScheduled.set(false);
+                                String value = latestPartial.get();
+                                if (value.isBlank() || !isCommitGenerationInProgress(project)) {
+                                    return;
+                                }
+                                applyCommitMessage(
+                                    project,
+                                    commitMessagePanel,
+                                    commitMessageControl,
+                                    commitWorkflowUi,
+                                    commitMessageDocument,
+                                    fallbackEditor,
+                                    value
+                                );
+                            }
+                        );
+                    };
+                    Optional<String> message = AiCommitMessageService.getInstance()
+                        .generateStreaming(changes, unversionedFiles, partialConsumer);
                     if (message.isEmpty()) {
                         showNotification(project, "未生成提交信息，请检查当前变更后重试。", NotificationType.WARNING);
                         return;
