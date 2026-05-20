@@ -846,11 +846,7 @@ public final class SessionScannerService {
     private List<SessionMeta> scanAntigravitySessions() {
         List<SessionMeta> sessions = new ArrayList<>();
         
-        // 1. 扫描 App 目录 (IDE 官方目录)
-        Path appBrainDir = Path.of(System.getProperty("user.home"), ".gemini", "antigravity", "brain");
-        scanAntigravityDir(appBrainDir, "App", sessions);
-        
-        // 2. 扫描 CLI 目录
+        // 只扫描 CLI 目录
         Path cliBrainDir = Path.of(System.getProperty("user.home"), ".gemini", "antigravity-cli", "brain");
         scanAntigravityDir(cliBrainDir, "CLI", sessions);
         
