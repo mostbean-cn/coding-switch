@@ -49,7 +49,6 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
     private State myState = new State();
     private final List<Runnable> changeListeners = new ArrayList<>();
     private CodexActivationResult lastCodexActivationResult = CodexActivationResult.notApplicable();
-    private GeminiActivationResult lastGeminiActivationResult = GeminiActivationResult.notApplicable();
 
     public static ProviderService getInstance() {
         return ApplicationManager.getApplication().getService(ProviderService.class);
@@ -139,10 +138,8 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
                 .orElse(null);
         if (existing != null) {
             CodexAuthSnapshotService.getInstance().clearSnapshot(existing);
-            GeminiAuthSnapshotService.getInstance().clearSnapshot(existing);
         } else {
             CodexAuthSnapshotService.getInstance().clearSnapshot(providerId);
-            GeminiAuthSnapshotService.getInstance().clearSnapshot(providerId);
         }
         providers.removeIf(p -> p.getId().equals(providerId));
         saveProviders(providers);
@@ -163,7 +160,6 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         List<Provider> providers = new ArrayList<>(getProviders());
         Provider target = null;
         Provider activeCodex = findActiveProvider(providers, CliType.CODEX);
-        Provider activeGemini = findActiveProvider(providers, CliType.GEMINI);
 
         for (Provider p : providers) {
             if (p.getId().equals(providerId)) {
@@ -175,7 +171,6 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             throw new IllegalArgumentException("Provider not found: " + providerId);
         }
         captureCurrentCodexSnapshot(target, activeCodex);
-        captureCurrentGeminiSnapshot(target, activeGemini);
 
         // 同一 CLI 类型下只能有一个 active（OpenCode 除外，它是 additive 模式）
         for (Provider p : providers) {
@@ -189,15 +184,10 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         saveProviders(providers);
         writeToLiveConfig(target);
         lastCodexActivationResult = switchCodexAuthStateIfNeeded(target);
-        lastGeminiActivationResult = switchGeminiAuthStateIfNeeded(target);
     }
 
     public CodexActivationResult getLastCodexActivationResult() {
         return lastCodexActivationResult;
-    }
-
-    public GeminiActivationResult getLastGeminiActivationResult() {
-        return lastGeminiActivationResult;
     }
 
     /**
@@ -218,7 +208,6 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
                     writeCodexLive(svc, config);
                 }
             }
-            case GEMINI -> writeGeminiLive(svc, config);
             case OPENCODE -> writeOpenCodeLive(svc, config, provider.getName());
         }
     }
@@ -338,59 +327,6 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         svc.writeFile(tomlPath, finalContent);
     }
 
-    /**
-     * Gemini: 将 settingsConfig.env 写入 ~/.gemini/.env（KEY=VALUE 格式）
-     * cc-switch 格式: { "env": { "GEMINI_API_KEY": "...", "GOOGLE_GEMINI_BASE_URL":
-     * "...", ... } }
-     */
-    private void writeGeminiLive(ConfigFileService svc, JsonObject config) throws IOException {
-        Path path = svc.getProviderConfigPath(CliType.GEMINI);
-
-        if (config.has("env")) {
-            JsonObject newEnv = config.getAsJsonObject("env");
-            String existing = svc.readFile(path);
-
-            // 插件管理的字段列表，写入前先移除已存在的
-            Set<String> managedKeys = Set.of(
-                    "GEMINI_API_KEY",
-                    "GOOGLE_GEMINI_BASE_URL",
-                    "GEMINI_MODEL");
-
-            // 解析现有文件，保留非托管字段
-            Map<String, String> existingEnv = new LinkedHashMap<>();
-            if (existing != null && !existing.isBlank()) {
-                for (String line : existing.split("\n")) {
-                    String trimmed = line.trim();
-                    if (trimmed.isEmpty() || trimmed.startsWith("#")) {
-                        continue;
-                    }
-                    int eq = trimmed.indexOf('=');
-                    if (eq > 0) {
-                        String key = trimmed.substring(0, eq).trim();
-                        String value = trimmed.substring(eq + 1).trim();
-                        // 保留非托管字段
-                        if (!managedKeys.contains(key)) {
-                            existingEnv.put(key, value);
-                        }
-                    }
-                }
-            }
-
-            // 写入新值（合并）
-            StringBuilder sb = new StringBuilder();
-            for (String key : newEnv.keySet()) {
-                sb.append(key).append("=").append(newEnv.get(key).getAsString()).append("\n");
-            }
-            // 追加保留的非托管字段
-            for (Map.Entry<String, String> entry : existingEnv.entrySet()) {
-                sb.append(entry.getKey()).append("=").append(entry.getValue()).append("\n");
-            }
-
-            svc.writeFile(path, sb.toString());
-        }
-
-        syncGeminiSelectedAuthType(svc, config);
-    }
 
     /**
      * OpenCode: 将 Provider 配置写入 ~/.config/opencode/opencode.json 的 provider 段
@@ -514,21 +450,6 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         return !auth.get("OPENAI_API_KEY").getAsString().isBlank();
     }
 
-    private static boolean hasGeminiApiKey(JsonObject config) {
-        if (config == null || !config.has("env") || !config.get("env").isJsonObject()) {
-            return false;
-        }
-        JsonObject env = config.getAsJsonObject("env");
-        if (!env.has("GEMINI_API_KEY") || env.get("GEMINI_API_KEY").isJsonNull()) {
-            return false;
-        }
-        return !env.get("GEMINI_API_KEY").getAsString().isBlank();
-    }
-
-    private void syncGeminiSelectedAuthType(ConfigFileService svc, JsonObject config) throws IOException {
-        String selectedAuthType = hasGeminiApiKey(config) ? "gemini-api-key" : "oauth-personal";
-        svc.writeGeminiSelectedAuthType(selectedAuthType);
-    }
 
     private Provider findActiveProvider(List<Provider> providers, CliType cliType) {
         if (providers == null || cliType == null) {
@@ -565,29 +486,6 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         };
     }
 
-    private void captureCurrentGeminiSnapshot(Provider target, Provider activeGemini) {
-        if (target == null || target.getCliType() != CliType.GEMINI) {
-            return;
-        }
-        if (activeGemini == null || activeGemini.getAuthMode() != AuthMode.OFFICIAL_LOGIN) {
-            return;
-        }
-        GeminiAuthSnapshotService.getInstance().captureFromLive(activeGemini);
-    }
-
-    private GeminiActivationResult switchGeminiAuthStateIfNeeded(Provider target) throws IOException {
-        if (target.getCliType() != CliType.GEMINI || target.getAuthMode() != AuthMode.OFFICIAL_LOGIN) {
-            return GeminiActivationResult.notApplicable();
-        }
-
-        GeminiAuthSnapshotService.RestoreResult restoreResult = GeminiAuthSnapshotService.getInstance()
-                .restoreToLive(target);
-        return switch (restoreResult) {
-            case RESTORED -> GeminiActivationResult.snapshotRestored();
-            case NO_SNAPSHOT -> GeminiActivationResult.loginRequired();
-            case INVALID_SNAPSHOT -> GeminiActivationResult.snapshotInvalid();
-        };
-    }
 
     private static String removeManagedBlock(String existing, String startMarker, String endMarker) {
         String safeExisting = existing == null ? "" : existing;

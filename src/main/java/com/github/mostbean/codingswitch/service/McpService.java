@@ -126,7 +126,6 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
         ConfigFileService configService = ConfigFileService.getInstance();
         switch (cliType) {
             case CLAUDE -> syncClaudeMcp(configService, enabledServers);
-            case GEMINI -> syncGeminiMcp(configService, enabledServers);
             case OPENCODE -> syncOpenCodeMcp(configService, enabledServers);
             case CODEX -> syncCodexMcp(configService, enabledServers);
         }
@@ -149,16 +148,6 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
         svc.writeJsonFile(path, root);
     }
 
-    private void syncGeminiMcp(ConfigFileService svc, List<McpServer> servers) throws IOException {
-        Path path = svc.getMcpConfigPath(CliType.GEMINI);
-        JsonObject root = svc.readJsonFile(path);
-        if (servers.isEmpty()) {
-            root.remove("mcpServers");
-        } else {
-            root.add("mcpServers", buildMcpServersJson(servers));
-        }
-        svc.writeJsonFile(path, root);
-    }
 
     private void syncOpenCodeMcp(ConfigFileService svc, List<McpServer> servers) throws IOException {
         Path path = svc.getMcpConfigPath(CliType.OPENCODE);
@@ -300,7 +289,6 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
         ImportReport report = new ImportReport();
 
         importFromClaudeScopes(configService, existing, currentProjectRoot, opts, report);
-        importFromJsonMcpServers(configService, existing, CliType.GEMINI, report);
         importFromOpenCodeConfig(configService, existing, report);
         importFromCodexToml(existing, report);
 

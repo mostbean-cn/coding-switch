@@ -28,7 +28,7 @@ import java.util.stream.Stream;
 
 /**
  * 会话扫描服务。
- * 扫描本地各 AI CLI 工具（Claude / Codex / Gemini / OpenCode）的会话文件，
+ * 扫描本地各 AI CLI 工具（Claude / Codex / OpenCode）的会话文件，
  * 并提供会话列表和消息加载功能。
  */
 @Service(Service.Level.APP)
@@ -49,7 +49,6 @@ public final class SessionScannerService {
             List<Future<List<SessionMeta>>> futures = new ArrayList<>();
             futures.add(executor.submit(this::scanClaudeSessions));
             futures.add(executor.submit(this::scanCodexSessions));
-            futures.add(executor.submit(this::scanGeminiSessions));
             futures.add(executor.submit(this::scanOpenCodeSessions));
 
             List<SessionMeta> allSessions = new ArrayList<>();
@@ -76,7 +75,6 @@ public final class SessionScannerService {
             return switch (providerId) {
                 case "claude" -> loadClaudeMessages(Path.of(sourcePath));
                 case "codex" -> loadCodexMessages(Path.of(sourcePath));
-                case "gemini" -> loadGeminiMessages(Path.of(sourcePath));
                 case "opencode" -> loadOpenCodeMessages(Path.of(sourcePath));
                 default -> {
                     LOG.warn("Unsupported provider: " + providerId);
@@ -97,7 +95,7 @@ public final class SessionScannerService {
             return false;
         }
         return switch (session.getProviderId()) {
-            case "claude", "codex", "gemini", "opencode" -> true;
+            case "claude", "codex", "opencode" -> true;
             default -> false;
         };
     }
@@ -113,7 +111,7 @@ public final class SessionScannerService {
             throw new UnsupportedOperationException("当前 CLI 暂不支持删除会话");
         }
         switch (session.getProviderId()) {
-            case "claude", "codex", "gemini" -> {
+            case "claude", "codex" -> {
                 String sourcePath = session.getSourcePath();
                 if (sourcePath == null || sourcePath.isBlank()) {
                     throw new IOException("缺少会话源路径");
@@ -361,110 +359,6 @@ public final class SessionScannerService {
         return messages;
     }
 
-    // =====================================================================
-    // Gemini 会话扫描
-    // =====================================================================
-
-    private List<SessionMeta> scanGeminiSessions() {
-        ConfigFileService cfs = ConfigFileService.getInstance();
-        Path tmpDir = cfs.getConfigDir(CliType.GEMINI).resolve("tmp");
-        if (!Files.isDirectory(tmpDir))
-            return Collections.emptyList();
-
-        List<SessionMeta> sessions = new ArrayList<>();
-        try (DirectoryStream<Path> projectDirs = Files.newDirectoryStream(tmpDir)) {
-            for (Path projDir : projectDirs) {
-                Path chatsDir = projDir.resolve("chats");
-                if (!Files.isDirectory(chatsDir))
-                    continue;
-
-                List<Path> jsonFiles = collectFiles(chatsDir, "json");
-                for (Path file : jsonFiles) {
-                    SessionMeta meta = parseGeminiSession(file);
-                    if (meta != null)
-                        sessions.add(meta);
-                }
-            }
-        } catch (IOException e) {
-            LOG.debug("Failed to scan Gemini sessions", e);
-        }
-        return sessions;
-    }
-
-    private SessionMeta parseGeminiSession(Path file) {
-        try {
-            String data = Files.readString(file, StandardCharsets.UTF_8);
-            JsonObject root = JsonParser.parseString(data).getAsJsonObject();
-
-            String sessionId = getStr(root, "sessionId", null);
-            if (sessionId == null)
-                return null;
-
-            Long createdAt = root.has("startTime") ? parseTimestamp(root.get("startTime")) : null;
-            Long lastActiveAt = root.has("lastUpdated") ? parseTimestamp(root.get("lastUpdated")) : null;
-            if (lastActiveAt == null)
-                lastActiveAt = createdAt;
-
-            // 从第一条用户消息中提取标题
-            String title = null;
-            if (root.has("messages") && root.get("messages").isJsonArray()) {
-                for (JsonElement elem : root.getAsJsonArray("messages")) {
-                    JsonObject msg = elem.getAsJsonObject();
-                    if ("user".equals(getStr(msg, "type", ""))) {
-                        String content = getStr(msg, "content", "");
-                        if (!content.isBlank()) {
-                            title = truncate(content, 160);
-                            break;
-                        }
-                    }
-                }
-            }
-
-            SessionMeta meta = new SessionMeta("gemini", sessionId);
-            meta.setTitle(title);
-            meta.setSummary(title);
-            meta.setCreatedAt(createdAt);
-            meta.setLastActiveAt(lastActiveAt);
-            meta.setSourcePath(file.toAbsolutePath().toString());
-            meta.setDeletePath(file.toAbsolutePath().toString());
-            meta.setResumeCommand("gemini --resume " + sessionId);
-            return meta;
-        } catch (Exception e) {
-            LOG.debug("Failed to parse Gemini session: " + file, e);
-            return null;
-        }
-    }
-
-    private List<SessionMessage> loadGeminiMessages(Path file) {
-        List<SessionMessage> messages = new ArrayList<>();
-        try {
-            String data = Files.readString(file, StandardCharsets.UTF_8);
-            JsonObject root = JsonParser.parseString(data).getAsJsonObject();
-
-            if (!root.has("messages") || !root.get("messages").isJsonArray())
-                return messages;
-
-            for (JsonElement elem : root.getAsJsonArray("messages")) {
-                JsonObject msg = elem.getAsJsonObject();
-                String content = getStr(msg, "content", "");
-                if (content.isBlank())
-                    continue;
-
-                String type = getStr(msg, "type", "");
-                String role = switch (type) {
-                    case "gemini" -> "assistant";
-                    case "user" -> "user";
-                    default -> type;
-                };
-
-                Long ts = msg.has("timestamp") ? parseTimestamp(msg.get("timestamp")) : null;
-                messages.add(new SessionMessage(role, content, ts));
-            }
-        } catch (Exception e) {
-            LOG.warn("Failed to load Gemini messages: " + file, e);
-        }
-        return messages;
-    }
 
     // =====================================================================
     // OpenCode 会话扫描

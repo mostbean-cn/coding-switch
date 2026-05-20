@@ -220,7 +220,7 @@ public final class I18n {
                 m.put("session.loading.scanning", "正在扫描会话...");
                 m.put("session.empty.noMessages", "暂无消息记录");
                 m.put("session.empty.noSessions",
-                                "<html><center>未发现任何会话<br><br><font size='2' color='gray'>请确保已安装并使用过 Claude Code、Codex、<br>Gemini CLI 或 OpenCode 中的至少一个工具。</font></center></html>");
+                                "<html><center>未发现任何会话<br><br><font size='2' color='gray'>请确保已安装并使用过 Claude Code、Codex<br>或 OpenCode 中的至少一个工具。</font></center></html>");
                 m.put("session.button.batchDelete", "批量删除");
                 m.put("session.button.continueConversation", "继续对话");
                 m.put("session.button.delete", "删除会话");
@@ -288,7 +288,7 @@ public final class I18n {
                 m.put("mcp.import.newlyImported", "新增导入: {0}");
                 m.put("mcp.import.mergedExisting", "合并已有: {0}");
                 m.put("mcp.import.skippedInvalid", "跳过无效/冲突: {0}");
-                m.put("mcp.import.nextStep", "下一步：勾选目标 CLI 列（如 OpenCode/Codex/Gemini）后点击保存更改即可同步安装。");
+                m.put("mcp.import.nextStep", "下一步：勾选目标 CLI 列（如 OpenCode/Codex）后点击保存更改即可同步安装。");
                 m.put("mcp.import.warnings", "告警：");
                 m.put("mcp.import.moreWarnings", "- ... 其余 {0} 条未展示");
                 m.put("mcp.import.batchDone", "已导入 {0} 个 MCP 服务器");
@@ -526,7 +526,7 @@ public final class I18n {
                 m.put("providerDialog.label.fastMode", "快速模式");
                 m.put("providerDialog.border.claude", "Claude Code 配置");
                 m.put("providerDialog.border.codex", "Codex 配置");
-                m.put("providerDialog.border.gemini", "Gemini CLI 配置");
+
                 m.put("providerDialog.border.opencode", "OpenCode 配置");
                 m.put("providerDialog.validate.nameRequired", "请填写配置名称");
                 m.put("providerDialog.validate.cliTypeRequired", "请选择 CLI 类型");
@@ -772,7 +772,7 @@ public final class I18n {
                 m.put("session.loading.scanning", "Scanning sessions...");
                 m.put("session.empty.noMessages", "No messages");
                 m.put("session.empty.noSessions",
-                                "<html><center>No sessions found<br><br><font size='2' color='gray'>Make sure you have installed and used at least one of<br>Claude Code, Codex, Gemini CLI or OpenCode.</font></center></html>");
+                                "<html><center>No sessions found<br><br><font size='2' color='gray'>Make sure you have installed and used at least one of<br>Claude Code, Codex or OpenCode.</font></center></html>");
                 m.put("session.button.batchDelete", "Batch Delete");
                 m.put("session.button.continueConversation", "Continue Conversation");
                 m.put("session.button.delete", "Delete Session");
@@ -842,7 +842,7 @@ public final class I18n {
                 m.put("mcp.import.mergedExisting", "Merged existing: {0}");
                 m.put("mcp.import.skippedInvalid", "Skipped invalid/conflict: {0}");
                 m.put("mcp.import.nextStep",
-                                "Next: Check target CLI columns (e.g. OpenCode/Codex/Gemini) then click Save to sync.");
+                                "Next: Check target CLI columns (e.g. OpenCode/Codex) then click Save to sync.");
                 m.put("mcp.import.warnings", "Warnings:");
                 m.put("mcp.import.moreWarnings", "- ... {0} more not shown");
                 m.put("mcp.import.batchDone", "Imported {0} MCP servers");
@@ -1094,7 +1094,7 @@ public final class I18n {
                 m.put("providerDialog.label.fastMode", "Fast Mode");
                 m.put("providerDialog.border.claude", "Claude Code Config");
                 m.put("providerDialog.border.codex", "Codex Config");
-                m.put("providerDialog.border.gemini", "Gemini CLI Config");
+
                 m.put("providerDialog.border.opencode", "OpenCode Config");
                 m.put("providerDialog.validate.nameRequired", "Config name is required");
                 m.put("providerDialog.validate.cliTypeRequired", "CLI type is required");

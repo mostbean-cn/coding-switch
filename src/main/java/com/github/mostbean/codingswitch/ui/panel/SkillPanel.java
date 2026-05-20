@@ -525,7 +525,7 @@ public class SkillPanel extends JPanel {
             }
         }
 
-        // 列定义: 名称 | 状态 | Claude | Codex | Gemini | OpenCode | 描述
+        // 列定义: 名称 | 状态 | Claude | Codex | OpenCode | 描述
         private static final int COL_NAME = 0;
         private static final int COL_STATUS = 1;
         private static final int COL_CLI_START = 2;

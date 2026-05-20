@@ -33,7 +33,6 @@ public final class ProviderPresets {
                 // ===== Official 预设（恢复 CLI 官方认证） =====
                 presets.add(claudeOfficial());
                 presets.add(codexOfficial());
-                presets.add(geminiOfficial());
 
                 // ===== Claude Code 国产供应商预设 =====
                 presets.add(claudePreset("DeepSeek",
@@ -182,9 +181,4 @@ public final class ProviderPresets {
                 return new Preset("Official Login", CliType.CODEX, config, AuthMode.OFFICIAL_LOGIN);
         }
 
-        private static Preset geminiOfficial() {
-                JsonObject config = new JsonObject();
-                config.add("env", new JsonObject()); // 空 env → 清除第三方变量，回退到 Google OAuth
-                return new Preset("Official Login", CliType.GEMINI, config, AuthMode.OFFICIAL_LOGIN);
-        }
 }

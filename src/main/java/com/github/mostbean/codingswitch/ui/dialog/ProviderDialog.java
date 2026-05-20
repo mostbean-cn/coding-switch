@@ -102,12 +102,6 @@ public class ProviderDialog extends DialogWrapper {
     private final JCheckBox codexFastMode = new JCheckBox();
     private static final String CODEX_PROVIDER_SLUG = "custom";
 
-    private final JTextField geminiApiKey = new JTextField(30);
-    private final JTextField geminiBaseUrl = new JTextField(30);
-    private final JTextField geminiModel = new JTextField(30);
-    private final JBLabel geminiApiKeyLabel = requiredLabel("API Key:");
-    private final JBLabel geminiBaseUrlLabel = requiredLabel("Base URL:");
-    private final JBLabel geminiModelLabel = requiredLabel(I18n.t("providerDialog.label.model"));
 
     private final JTextField opencodeApiKey = new JTextField(30);
     private final JTextField opencodeBaseUrl = new JTextField(30);
@@ -199,7 +193,6 @@ public class ProviderDialog extends DialogWrapper {
 
         dynamicPanel.add(buildClaudePanel(), CliType.CLAUDE.name());
         dynamicPanel.add(buildCodexPanel(), CliType.CODEX.name());
-        dynamicPanel.add(buildGeminiPanel(), CliType.GEMINI.name());
         dynamicPanel.add(buildOpenCodePanel(), CliType.OPENCODE.name());
 
         cliTypeCombo.addActionListener(e -> {
@@ -454,9 +447,6 @@ public class ProviderDialog extends DialogWrapper {
             if (!updatingFromPreview) updatePreview();
         });
 
-        addTextFieldListener(geminiApiKey);
-        addTextFieldListener(geminiBaseUrl);
-        addTextFieldListener(geminiModel);
 
         addTextFieldListener(opencodeApiKey);
         addTextFieldListener(opencodeBaseUrl);
@@ -619,7 +609,6 @@ public class ProviderDialog extends DialogWrapper {
             switch (cliType) {
                 case CLAUDE -> applyClaudePreviewToForm();
                 case CODEX -> applyCodexPreviewToForm();
-                case GEMINI -> applyGeminiPreviewToForm();
                 case OPENCODE -> applyOpenCodePreviewToForm();
             }
 
@@ -710,38 +699,6 @@ public class ProviderDialog extends DialogWrapper {
         rememberRawSettings(CliType.CODEX, rawCodex);
     }
 
-    private void applyGeminiPreviewToForm() {
-        String text = previewTextArea.getText().trim();
-        if (text.isEmpty()) {
-            return;
-        }
-
-        JsonObject rawGemini = rawSettingsByCli.containsKey(CliType.GEMINI)
-                ? rawSettingsByCli.get(CliType.GEMINI).deepCopy()
-                : new JsonObject();
-        JsonObject env = new JsonObject();
-
-        for (String line : text.split("\n")) {
-            String trimmed = line.trim();
-            if (trimmed.isEmpty() || trimmed.startsWith("#")) {
-                continue;
-            }
-            int eqIndex = trimmed.indexOf('=');
-            if (eqIndex > 0) {
-                String key = trimmed.substring(0, eqIndex).trim();
-                String value = trimmed.substring(eqIndex + 1).trim();
-                env.addProperty(key, value);
-                switch (key) {
-                    case "GEMINI_API_KEY" -> geminiApiKey.setText(value);
-                    case "GOOGLE_GEMINI_BASE_URL" -> geminiBaseUrl.setText(value);
-                    case "GEMINI_MODEL" -> geminiModel.setText(value);
-                }
-            }
-        }
-
-        rawGemini.add("env", env);
-        rememberRawSettings(CliType.GEMINI, rawGemini);
-    }
 
     private void applyOpenCodePreviewToForm() {
         String text = previewTextArea.getText().trim();
@@ -767,7 +724,6 @@ public class ProviderDialog extends DialogWrapper {
     private String formatPreviewContent(CliType cliType, JsonObject config) {
         return switch (cliType) {
             case CLAUDE -> formatClaudePreview(config);
-            case GEMINI -> formatGeminiPreview(config);
             case OPENCODE -> formatOpenCodePreview(config);
             case CODEX -> "";
         };
@@ -777,20 +733,6 @@ public class ProviderDialog extends DialogWrapper {
         StringBuilder sb = new StringBuilder();
         sb.append("// ").append(I18n.t("providerDialog.preview.settingsJson")).append("\n");
         sb.append(PREVIEW_GSON.toJson(config != null ? config : new JsonObject())).append("\n");
-        return sb.toString();
-    }
-    private String formatGeminiPreview(JsonObject config) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("# ").append(I18n.t("providerDialog.preview.envFile")).append("\n");
-
-        if (config != null && config.has("env") && config.get("env").isJsonObject()) {
-            JsonObject env = config.getAsJsonObject("env");
-            for (String key : env.keySet()) {
-                if (env.get(key) != null && !env.get(key).isJsonNull()) {
-                    sb.append(key).append("=").append(env.get(key).getAsString()).append("\n");
-                }
-            }
-        }
         return sb.toString();
     }
 
@@ -967,14 +909,6 @@ public class ProviderDialog extends DialogWrapper {
                 setRequiredState(codexBaseUrlLabel, !officialLogin);
                 setRequiredState(codexModelLabel, !officialLogin);
             }
-            case GEMINI -> {
-                geminiApiKey.setEnabled(!officialLogin);
-                geminiBaseUrl.setEnabled(!officialLogin);
-                geminiModel.setEnabled(!officialLogin);
-                setRequiredState(geminiApiKeyLabel, !officialLogin);
-                setRequiredState(geminiBaseUrlLabel, !officialLogin);
-                setRequiredState(geminiModelLabel, !officialLogin);
-            }
             case OPENCODE -> {
             }
         }
@@ -1009,11 +943,6 @@ public class ProviderDialog extends DialogWrapper {
                 updateCodexAutoCompactWindowVisibility();
                 codexMultiAgent.setSelected(false);
                 codexFastMode.setSelected(false);
-            }
-            case GEMINI -> {
-                geminiApiKey.setText("");
-                geminiBaseUrl.setText("");
-                geminiModel.setText("");
             }
             case OPENCODE -> {
                 opencodeApiKey.setText("");
@@ -1195,14 +1124,6 @@ public class ProviderDialog extends DialogWrapper {
         return panel;
     }
 
-    private JPanel buildGeminiPanel() {
-        JPanel form = FormBuilder.createFormBuilder()
-                .addLabeledComponent(geminiApiKeyLabel, geminiApiKey)
-                .addLabeledComponent(geminiBaseUrlLabel, geminiBaseUrl)
-                .addLabeledComponent(geminiModelLabel, geminiModel)
-                .getPanel();
-        return wrapWithTitledBorder(form, I18n.t("providerDialog.border.gemini"));
-    }
 
     private JPanel buildOpenCodePanel() {
         opencodeModelsPanel.setLayout(new BoxLayout(opencodeModelsPanel, BoxLayout.Y_AXIS));
@@ -1315,7 +1236,6 @@ public class ProviderDialog extends DialogWrapper {
         switch (cliType) {
             case CLAUDE -> loadClaudeConfig(safeConfig);
             case CODEX -> loadCodexConfig(safeConfig);
-            case GEMINI -> loadGeminiConfig(safeConfig);
             case OPENCODE -> loadOpenCodeConfig(safeConfig);
         }
     }
@@ -1453,15 +1373,6 @@ public class ProviderDialog extends DialogWrapper {
         return SecurityPolicy.DEFAULT;
     }
 
-    private void loadGeminiConfig(JsonObject config) {
-        if (!config.has("env"))
-            return;
-        JsonObject env = config.getAsJsonObject("env");
-        setFieldFromJson(env, "GEMINI_API_KEY", geminiApiKey);
-        setFieldFromJson(env, "GOOGLE_GEMINI_BASE_URL", geminiBaseUrl);
-        setFieldFromJson(env, "GEMINI_MODEL", geminiModel);
-    }
-
     private void loadOpenCodeConfig(JsonObject config) {
         if (config.has("npm")) {
             opencodeNpm.setSelectedItem(config.get("npm").getAsString());
@@ -1500,7 +1411,6 @@ public class ProviderDialog extends DialogWrapper {
         JsonObject structured = switch (cliType) {
             case CLAUDE -> authMode == AuthMode.OFFICIAL_LOGIN ? buildClaudeOfficialConfig() : buildClaudeConfig();
             case CODEX -> authMode == AuthMode.OFFICIAL_LOGIN ? buildCodexOfficialConfig() : buildCodexConfig();
-            case GEMINI -> authMode == AuthMode.OFFICIAL_LOGIN ? buildGeminiOfficialConfig() : buildGeminiConfig();
             case OPENCODE -> buildOpenCodeConfig();
         };
         JsonObject merged = mergeWithRawSettings(cliType, structured);
@@ -1646,22 +1556,6 @@ public class ProviderDialog extends DialogWrapper {
         return config;
     }
 
-    private JsonObject buildGeminiConfig() {
-        JsonObject config = new JsonObject();
-        JsonObject env = new JsonObject();
-        addIfNotBlank(env, "GEMINI_API_KEY", geminiApiKey);
-        addIfNotBlank(env, "GOOGLE_GEMINI_BASE_URL", geminiBaseUrl);
-        addIfNotBlank(env, "GEMINI_MODEL", geminiModel);
-        config.add("env", env);
-        return config;
-    }
-
-    private JsonObject buildGeminiOfficialConfig() {
-        JsonObject config = new JsonObject();
-        config.add("env", new JsonObject());
-        return config;
-    }
-
     private JsonObject buildOpenCodeConfig() {
         JsonObject config = new JsonObject();
         String npm = ((String) opencodeNpm.getSelectedItem());
@@ -1744,7 +1638,6 @@ public class ProviderDialog extends DialogWrapper {
         switch (cliType) {
             case CLAUDE -> mergeClaudeRaw(raw, merged);
             case CODEX -> mergeCodexRaw(raw, merged);
-            case GEMINI -> mergeGeminiRaw(raw, merged);
             case OPENCODE -> mergeOpenCodeRaw(raw, merged);
         }
 
@@ -1790,22 +1683,6 @@ public class ProviderDialog extends DialogWrapper {
                 : null;
         mergeObjectUnknownFields(rawAuth, mergedAuth, List.of("OPENAI_API_KEY"));
         merged.add("auth", mergedAuth);
-    }
-
-    private void mergeGeminiRaw(JsonObject raw, JsonObject merged) {
-        mergeRootUnknownFields(raw, merged, List.of("env"));
-
-        JsonObject mergedEnv = merged.has("env") && merged.get("env").isJsonObject()
-                ? merged.getAsJsonObject("env")
-                : new JsonObject();
-        JsonObject rawEnv = raw.has("env") && raw.get("env").isJsonObject()
-                ? raw.getAsJsonObject("env")
-                : null;
-        mergeObjectUnknownFields(rawEnv, mergedEnv, List.of(
-                "GEMINI_API_KEY",
-                "GOOGLE_GEMINI_BASE_URL",
-                "GEMINI_MODEL"));
-        merged.add("env", mergedEnv);
     }
 
     private void mergeOpenCodeRaw(JsonObject raw, JsonObject merged) {
@@ -1919,7 +1796,6 @@ public class ProviderDialog extends DialogWrapper {
         return switch (cli) {
             case CLAUDE -> validateClaude();
             case CODEX -> validateCodex();
-            case GEMINI -> validateGemini();
             case OPENCODE -> validateOpenCode();
         };
     }
@@ -1950,19 +1826,6 @@ public class ProviderDialog extends DialogWrapper {
         }
         if (codexModel.getText().isBlank()) {
             return new ValidationInfo(I18n.t("providerDialog.validate.modelRequired"), codexModel);
-        }
-        return null;
-    }
-
-    private ValidationInfo validateGemini() {
-        if (geminiApiKey.getText().isBlank()) {
-            return new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), geminiApiKey);
-        }
-        if (geminiBaseUrl.getText().isBlank()) {
-            return new ValidationInfo(I18n.t("providerDialog.validate.baseUrlRequired"), geminiBaseUrl);
-        }
-        if (geminiModel.getText().isBlank()) {
-            return new ValidationInfo(I18n.t("providerDialog.validate.modelRequired"), geminiModel);
         }
         return null;
     }
@@ -2116,15 +1979,6 @@ public class ProviderDialog extends DialogWrapper {
                 }
                 yield null;
             }
-            case GEMINI -> {
-                if (geminiApiKey.getText().isBlank()) {
-                    yield new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), geminiApiKey);
-                }
-                if (geminiBaseUrl.getText().isBlank()) {
-                    yield new ValidationInfo(I18n.t("providerDialog.validate.baseUrlRequired"), geminiBaseUrl);
-                }
-                yield null;
-            }
             case OPENCODE -> {
                 if (opencodeApiKey.getText().isBlank()) {
                     yield new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), opencodeApiKey);
@@ -2175,7 +2029,6 @@ public class ProviderDialog extends DialogWrapper {
         return switch (cliType) {
             case CLAUDE -> svc.getConfigDir(cliType).resolve("settings.json");
             case CODEX -> svc.getConfigDir(cliType).resolve("config.toml");
-            case GEMINI -> svc.getConfigDir(cliType).resolve(".env");
             case OPENCODE -> svc.getConfigDir(cliType).resolve("opencode.json");
         };
     }

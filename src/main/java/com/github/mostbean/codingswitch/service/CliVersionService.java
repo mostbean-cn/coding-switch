@@ -25,7 +25,6 @@ public final class CliVersionService {
     private static final Pattern VERSION_PATTERN = Pattern.compile("(\\d+\\.\\d+[.\\d]*)");
     private static final long COMMAND_CHECK_TIMEOUT_SECONDS = 3;
     private static final long VERSION_TIMEOUT_SECONDS = 10;
-    private static final long GEMINI_VERSION_TIMEOUT_SECONDS = 30;
     private static final long LATEST_TIMEOUT_SECONDS = 15;
     private static final String OFFICIAL_NPM_REGISTRY = "https://registry.npmjs.org/";
 
@@ -259,7 +258,6 @@ public final class CliVersionService {
         return switch (cliType) {
             case CLAUDE -> "claude update";
             case CODEX -> "npm i -g @openai/codex@latest";
-            case GEMINI -> "npm i -g @google/gemini-cli@latest";
             case OPENCODE -> "npm i -g opencode-ai@latest";
             case CODEBUDDY -> "npm i -g @tencent-ai/codebuddy-code@latest";
             case QWEN -> "npm i -g @qwen-code/qwen-code@latest";
@@ -280,7 +278,6 @@ public final class CliVersionService {
         return switch (cliType) {
             case CLAUDE -> "claude update";
             case CODEX -> "npm i -g @openai/codex@latest";
-            case GEMINI -> "npm i -g @google/gemini-cli@latest";
             case OPENCODE -> "npm i -g opencode-ai@latest";
         };
     }
@@ -310,7 +307,6 @@ public final class CliVersionService {
         return switch (cliType) {
             case CLAUDE -> new String[]{"claude --version", "claude -v"};
             case CODEX -> new String[]{"codex --version", "codex -v"};
-            case GEMINI -> new String[]{"gemini --version", "gemini -v"};
             case OPENCODE -> new String[]{"opencode --version", "opencode -v"};
             case CODEBUDDY -> new String[]{"codebuddy --version"};
             case QWEN -> new String[]{"qwen --version"};
@@ -324,28 +320,22 @@ public final class CliVersionService {
         return switch (cliType) {
             case CLAUDE -> new String[]{"claude --version", "claude -v"};
             case CODEX -> new String[]{"codex --version", "codex -v"};
-            case GEMINI -> new String[]{"gemini --version", "gemini -v"};
             case OPENCODE -> new String[]{"opencode --version", "opencode -v"};
         };
     }
 
     private long getVersionTimeoutSeconds(SettingsCli cliType) {
-        return cliType == SettingsCli.GEMINI
-            ? GEMINI_VERSION_TIMEOUT_SECONDS
-            : VERSION_TIMEOUT_SECONDS;
+        return VERSION_TIMEOUT_SECONDS;
     }
 
     private long getVersionTimeoutSeconds(CliType cliType) {
-        return cliType == CliType.GEMINI
-            ? GEMINI_VERSION_TIMEOUT_SECONDS
-            : VERSION_TIMEOUT_SECONDS;
+        return VERSION_TIMEOUT_SECONDS;
     }
 
     private String getCommandName(SettingsCli cliType) {
         return switch (cliType) {
             case CLAUDE -> "claude";
             case CODEX -> "codex";
-            case GEMINI -> "gemini";
             case OPENCODE -> "opencode";
             case CODEBUDDY -> "codebuddy";
             case QWEN -> "qwen";
@@ -359,7 +349,6 @@ public final class CliVersionService {
         return switch (cliType) {
             case CLAUDE -> "claude";
             case CODEX -> "codex";
-            case GEMINI -> "gemini";
             case OPENCODE -> "opencode";
         };
     }
@@ -368,7 +357,6 @@ public final class CliVersionService {
         return switch (cliType) {
             case CLAUDE -> "@anthropic-ai/claude-code";
             case CODEX -> "@openai/codex";
-            case GEMINI -> "@google/gemini-cli";
             case OPENCODE -> "opencode-ai";
             case CODEBUDDY -> "@tencent-ai/codebuddy-code";
             case QWEN -> "@qwen-code/qwen-code";
@@ -382,7 +370,6 @@ public final class CliVersionService {
         return switch (cliType) {
             case CLAUDE -> "@anthropic-ai/claude-code";
             case CODEX -> "@openai/codex";
-            case GEMINI -> "@google/gemini-cli";
             case OPENCODE -> "opencode-ai";
         };
     }

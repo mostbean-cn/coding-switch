@@ -245,7 +245,6 @@ public class Skill {
         // 默认均不启用，用户手动勾选后生效
         targets.put(CliType.CLAUDE, false);
         targets.put(CliType.CODEX, false);
-        targets.put(CliType.GEMINI, false);
         targets.put(CliType.OPENCODE, false);
         return targets;
     }

@@ -183,7 +183,6 @@ public final class ProviderConnectionTestService {
         return switch (cliType) {
             case CLAUDE -> buildClaudeProbes(config);
             case CODEX -> buildCodexProbes(config);
-            case GEMINI -> buildGeminiProbes(config);
             case OPENCODE -> buildOpenCodeProbes(config);
         };
     }
@@ -192,7 +191,6 @@ public final class ProviderConnectionTestService {
         return switch (cliType) {
             case CLAUDE -> buildClaudeModelListRequests(config);
             case CODEX -> buildCodexModelListRequests(config);
-            case GEMINI -> buildGeminiModelListRequests(config);
             case OPENCODE -> buildOpenCodeModelListRequests(config);
         };
     }
@@ -244,24 +242,6 @@ public final class ProviderConnectionTestService {
                 "Codex Models"));
     }
 
-    private List<ProbeRequest> buildGeminiModelListRequests(JsonObject config) {
-        JsonObject env = config != null && config.has("env") && config.get("env").isJsonObject()
-                ? config.getAsJsonObject("env")
-                : new JsonObject();
-        String apiKey = getString(env, "GEMINI_API_KEY");
-        if (apiKey == null) {
-            throw new IllegalArgumentException("Missing Gemini API key");
-        }
-
-        String baseUrl = trimTrailingSlash(getString(env, "GOOGLE_GEMINI_BASE_URL"));
-        if (baseUrl == null) {
-            baseUrl = "https://generativelanguage.googleapis.com/v1beta";
-        }
-
-        String modelsUrl = ensurePath(baseUrl, "/models")
-                + "?key=" + URLEncoder.encode(apiKey, StandardCharsets.UTF_8);
-        return List.of(get(modelsUrl, List.of(), "Gemini Models"));
-    }
 
     private List<ProbeRequest> buildOpenCodeModelListRequests(JsonObject config) {
         JsonObject options = config != null && config.has("options") && config.get("options").isJsonObject()
@@ -290,11 +270,6 @@ public final class ProviderConnectionTestService {
                             ensurePath(baseUrl, "/models"),
                             List.of(new Header("Authorization", "Bearer " + apiKey)),
                             "OpenCode Anthropic Models"));
-        }
-        if ("@ai-sdk/google".equals(npm) || "@ai-sdk/google-vertex".equals(npm)) {
-            String modelsUrl = ensurePath(baseUrl, "/models")
-                    + "?key=" + URLEncoder.encode(apiKey, StandardCharsets.UTF_8);
-            return List.of(get(modelsUrl, List.of(), "OpenCode Gemini Models"));
         }
 
         return List.of(get(
@@ -376,32 +351,6 @@ public final class ProviderConnectionTestService {
                 "Codex Responses"));
     }
 
-    private List<ProbeRequest> buildGeminiProbes(JsonObject config) {
-        JsonObject env = config != null && config.has("env") && config.get("env").isJsonObject()
-                ? config.getAsJsonObject("env")
-                : new JsonObject();
-        String apiKey = getString(env, "GEMINI_API_KEY");
-        if (apiKey == null) {
-            throw new IllegalArgumentException("Missing Gemini API key");
-        }
-
-        String baseUrl = trimTrailingSlash(getString(env, "GOOGLE_GEMINI_BASE_URL"));
-        if (baseUrl == null) {
-            baseUrl = "https://generativelanguage.googleapis.com/v1beta";
-        }
-        String model = getString(env, "GEMINI_MODEL");
-        if (model == null) {
-            throw new IllegalArgumentException("Missing Gemini model");
-        }
-
-        String generateUrl = ensurePath(baseUrl, "/" + normalizeGeminiModelPath(model) + ":generateContent")
-                + "?key=" + URLEncoder.encode(apiKey, StandardCharsets.UTF_8);
-        return List.of(postJson(
-                generateUrl,
-                List.of(),
-                geminiGenerateContentBody(),
-                "Gemini generateContent"));
-    }
 
     private List<ProbeRequest> buildOpenCodeProbes(JsonObject config) {
         JsonObject options = config != null && config.has("options") && config.get("options").isJsonObject()
@@ -440,15 +389,6 @@ public final class ProviderConnectionTestService {
                                     new Header("anthropic-version", "2023-06-01")),
                             body,
                             "OpenCode Anthropic Messages"));
-        }
-        if ("@ai-sdk/google".equals(npm) || "@ai-sdk/google-vertex".equals(npm)) {
-            String generateUrl = ensurePath(baseUrl, "/" + normalizeGeminiModelPath(model) + ":generateContent")
-                    + "?key=" + URLEncoder.encode(apiKey, StandardCharsets.UTF_8);
-            return List.of(postJson(
-                    generateUrl,
-                    List.of(),
-                    geminiGenerateContentBody(),
-                    "OpenCode Gemini generateContent"));
         }
 
         return List.of(postJson(
@@ -566,25 +506,6 @@ public final class ProviderConnectionTestService {
         return GSON.toJson(body);
     }
 
-    private static String geminiGenerateContentBody() {
-        JsonObject textPart = new JsonObject();
-        textPart.addProperty("text", "ping");
-        JsonArray parts = new JsonArray();
-        parts.add(textPart);
-
-        JsonObject content = new JsonObject();
-        content.add("parts", parts);
-        JsonArray contents = new JsonArray();
-        contents.add(content);
-
-        JsonObject generationConfig = new JsonObject();
-        generationConfig.addProperty("maxOutputTokens", 1);
-
-        JsonObject body = new JsonObject();
-        body.add("contents", contents);
-        body.add("generationConfig", generationConfig);
-        return GSON.toJson(body);
-    }
 
     private static String resolveClaudeProbeModel(JsonObject env) {
         String model = getString(env, "ANTHROPIC_MODEL");
@@ -628,13 +549,6 @@ public final class ProviderConnectionTestService {
         return null;
     }
 
-    private static String normalizeGeminiModelPath(String model) {
-        String value = model.trim();
-        if (value.startsWith("models/")) {
-            return value;
-        }
-        return "models/" + value;
-    }
 
     private static String stripQuotes(String value) {
         if (value == null) {

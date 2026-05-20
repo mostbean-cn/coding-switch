@@ -14,8 +14,6 @@ import java.util.UUID;
  * {@code { "env": { "ANTHROPIC_BASE_URL": "...", "ANTHROPIC_AUTH_TOKEN": "...", ... } }}</li>
  * <li>Codex:
  * {@code { "auth": { "OPENAI_API_KEY": "..." }, "config": "toml content..." }}</li>
- * <li>Gemini:
- * {@code { "env": { "GEMINI_API_KEY": "...", "GOOGLE_GEMINI_BASE_URL": "...", ... } }}</li>
  * <li>OpenCode:
  * {@code { "npm": "...", "options": { "baseURL": "...", "apiKey": "..." }, "models": {...} }}</li>
  * </ul>
@@ -168,15 +166,6 @@ public class Provider {
                         ? safeConfig.getAsJsonObject("env")
                         : null;
                 yield env == null || env.keySet().isEmpty() ? AuthMode.OFFICIAL_LOGIN : AuthMode.API_KEY;
-            }
-            case GEMINI -> {
-                JsonObject env = safeConfig.has("env") && safeConfig.get("env").isJsonObject()
-                        ? safeConfig.getAsJsonObject("env")
-                        : null;
-                boolean hasApiKey = env != null && env.has("GEMINI_API_KEY")
-                        && !env.get("GEMINI_API_KEY").isJsonNull()
-                        && !env.get("GEMINI_API_KEY").getAsString().isBlank();
-                yield hasApiKey ? AuthMode.API_KEY : AuthMode.OFFICIAL_LOGIN;
             }
             case CODEX -> {
                 JsonObject auth = safeConfig.has("auth") && safeConfig.get("auth").isJsonObject()

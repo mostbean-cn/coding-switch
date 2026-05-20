@@ -9,7 +9,6 @@ import java.util.List;
 public enum SettingsCli {
     CLAUDE("Claude Code", "claude"),
     CODEX("Codex", "codex"),
-    GEMINI("Gemini CLI", "gemini"),
     OPENCODE("OpenCode", "opencode"),
     CODEBUDDY("CodeBuddy", "codebuddy"),
     QWEN("Qwen Code", "qwen"),
@@ -34,7 +33,7 @@ public enum SettingsCli {
     }
 
     public boolean supportsManagedFeatures() {
-        return this == CLAUDE || this == CODEX || this == GEMINI || this == OPENCODE;
+        return this == CLAUDE || this == CODEX || this == OPENCODE;
     }
 
     public static SettingsCli fromId(String id) {
@@ -48,6 +47,6 @@ public enum SettingsCli {
     }
 
     public static List<SettingsCli> defaultVisibleValues() {
-        return List.of(CLAUDE, CODEX, GEMINI, OPENCODE);
+        return List.of(CLAUDE, CODEX, OPENCODE);
     }
 }

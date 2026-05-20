@@ -4,7 +4,6 @@ import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.Provider;
 import com.github.mostbean.codingswitch.service.CodexActivationResult;
 import com.github.mostbean.codingswitch.service.ClaudeTemporaryLaunchService;
-import com.github.mostbean.codingswitch.service.GeminiActivationResult;
 import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.ProviderService;
@@ -263,10 +262,9 @@ public class ProviderPanel extends JPanel {
         try {
             ProviderService.getInstance().activateProvider(selected.getId());
             CodexActivationResult codexResult = ProviderService.getInstance().getLastCodexActivationResult();
-            GeminiActivationResult geminiResult = ProviderService.getInstance().getLastGeminiActivationResult();
             Messages.showInfoMessage(
-                    buildActivationMessage(selected, codexResult, geminiResult),
-                    I18n.t("provider.dialog.activateTitle"));
+                    buildActivationMessage(selected, codexResult),
+                    I18n.t("provider.status.active"));
         } catch (IOException ex) {
             Messages.showErrorDialog(I18n.t("provider.dialog.activateFailed", ex.getMessage()),
                     I18n.t("provider.dialog.error"));
@@ -358,8 +356,7 @@ public class ProviderPanel extends JPanel {
         }
     }
 
-    private String buildActivationMessage(Provider provider, CodexActivationResult codexResult,
-            GeminiActivationResult geminiResult) {
+    private String buildActivationMessage(Provider provider, CodexActivationResult codexResult) {
         String base = I18n.t("provider.dialog.activateSuccess", provider.getName(),
                 provider.getCliType().getDisplayName());
 
@@ -371,21 +368,6 @@ public class ProviderPanel extends JPanel {
                 case SNAPSHOT_RESTORED -> I18n.t("provider.dialog.codexAuth.restored");
                 case LOGIN_REQUIRED -> I18n.t("provider.dialog.codexAuth.loginRequired");
                 case SNAPSHOT_INVALID -> I18n.t("provider.dialog.codexAuth.snapshotInvalid");
-                case NOT_APPLICABLE -> "";
-            };
-            if (!extra.isBlank()) {
-                return base + "\n" + extra;
-            }
-        }
-
-        // 处理 Gemini 激活结果
-        if (provider.getCliType() == CliType.GEMINI
-                && provider.getAuthMode() == Provider.AuthMode.OFFICIAL_LOGIN
-                && geminiResult != null) {
-            String extra = switch (geminiResult.getActivationState()) {
-                case SNAPSHOT_RESTORED -> "✅ 已恢复之前的登录状态，无需重新登录";
-                case LOGIN_REQUIRED -> "🔐 首次使用或无登录快照，请运行 CLI 完成官方登录";
-                case SNAPSHOT_INVALID -> "⚠️ 历史登录已失效，请重新登录";
                 case NOT_APPLICABLE -> "";
             };
             if (!extra.isBlank()) {
@@ -457,9 +439,6 @@ public class ProviderPanel extends JPanel {
                             : "N/A";
                     case CODEX -> config.has("config") && config.get("config").getAsString().contains("model =")
                             ? extractTomlModel(config.get("config").getAsString())
-                            : "N/A";
-                    case GEMINI -> config.has("env") && config.getAsJsonObject("env").has("GEMINI_MODEL")
-                            ? config.getAsJsonObject("env").get("GEMINI_MODEL").getAsString()
                             : "N/A";
                     case OPENCODE -> config.has("models") && !config.getAsJsonObject("models").keySet().isEmpty()
                             ? String.join(", ", config.getAsJsonObject("models").keySet())

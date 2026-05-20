@@ -42,7 +42,6 @@ public final class ConfigFileService {
         return switch (cliType) {
             case CLAUDE -> userHome().resolve(".claude");
             case CODEX -> userHome().resolve(".codex");
-            case GEMINI -> userHome().resolve(".gemini");
             case OPENCODE -> userHome().resolve(".config").resolve("opencode");
         };
     }
@@ -51,14 +50,12 @@ public final class ConfigFileService {
      * 获取 Provider 配置文件路径。
      * Claude → ~/.claude/settings.json
      * Codex → ~/.codex/auth.json
-     * Gemini → ~/.gemini/.env
      * OpenCode → ~/.config/opencode/opencode.json
      */
     public Path getProviderConfigPath(CliType cliType) {
         return switch (cliType) {
             case CLAUDE -> getConfigDir(cliType).resolve("settings.json");
             case CODEX -> getConfigDir(cliType).resolve("auth.json");
-            case GEMINI -> getConfigDir(cliType).resolve(".env");
             case OPENCODE -> getConfigDir(cliType).resolve("opencode.json");
         };
     }
@@ -67,14 +64,12 @@ public final class ConfigFileService {
      * 获取 MCP 配置文件路径。
      * Claude → ~/.claude.json
      * Codex → ~/.codex/config.toml
-     * Gemini → ~/.gemini/settings.json
      * OpenCode → ~/.config/opencode/opencode.json
      */
     public Path getMcpConfigPath(CliType cliType) {
         return switch (cliType) {
             case CLAUDE -> userHome().resolve(".claude.json");
             case CODEX -> getConfigDir(cliType).resolve("config.toml");
-            case GEMINI -> getConfigDir(cliType).resolve("settings.json");
             case OPENCODE -> getConfigDir(cliType).resolve("opencode.json");
         };
     }
@@ -83,14 +78,12 @@ public final class ConfigFileService {
      * 获取提示词文件路径。
      * Claude → ~/.claude/CLAUDE.md
      * Codex → ~/.codex/AGENTS.md
-     * Gemini → ~/.gemini/GEMINI.md
      * OpenCode → ~/.config/opencode/agents/ (目录)
      */
     public Path getPromptFilePath(CliType cliType) {
         return switch (cliType) {
             case CLAUDE -> getConfigDir(cliType).resolve("CLAUDE.md");
             case CODEX -> getConfigDir(cliType).resolve("AGENTS.md");
-            case GEMINI -> getConfigDir(cliType).resolve("GEMINI.md");
             case OPENCODE -> getConfigDir(cliType).resolve("agents");
         };
     }
@@ -111,18 +104,6 @@ public final class ConfigFileService {
 
     public Path getCodexAuthFilePath() {
         return getProviderConfigPath(CliType.CODEX);
-    }
-
-    public Path getGeminiSkillsDir() {
-        return getConfigDir(CliType.GEMINI).resolve("skills");
-    }
-
-    public Path getGeminiOAuthFilePath() {
-        return getConfigDir(CliType.GEMINI).resolve("oauth_creds.json");
-    }
-
-    public Path getGeminiGoogleAccountsFilePath() {
-        return getConfigDir(CliType.GEMINI).resolve("google_accounts.json");
     }
 
     // =====================================================================
@@ -206,61 +187,6 @@ public final class ConfigFileService {
 
     public void deleteCodexAuthFile() throws IOException {
         Files.deleteIfExists(getCodexAuthFilePath());
-    }
-
-    public String readGeminiOAuthRaw() {
-        return readFile(getGeminiOAuthFilePath());
-    }
-
-    public void writeGeminiOAuthRaw(String rawOAuthJson) throws IOException {
-        writeFile(getGeminiOAuthFilePath(), rawOAuthJson);
-    }
-
-    public void deleteGeminiOAuthFile() throws IOException {
-        Files.deleteIfExists(getGeminiOAuthFilePath());
-    }
-
-    public String readGeminiGoogleAccountsRaw() {
-        return readFile(getGeminiGoogleAccountsFilePath());
-    }
-
-    public void writeGeminiGoogleAccountsRaw(String rawGoogleAccountsJson) throws IOException {
-        writeFile(getGeminiGoogleAccountsFilePath(), rawGoogleAccountsJson);
-    }
-
-    public void deleteGeminiGoogleAccountsFile() throws IOException {
-        Files.deleteIfExists(getGeminiGoogleAccountsFilePath());
-    }
-
-    public void writeGeminiSelectedAuthType(String selectedType) throws IOException {
-        Path path = getMcpConfigPath(CliType.GEMINI);
-        JsonObject root = readJsonFile(path);
-        JsonObject security = root.has("security") && root.get("security").isJsonObject()
-                ? root.getAsJsonObject("security")
-                : new JsonObject();
-        JsonObject auth = security.has("auth") && security.get("auth").isJsonObject()
-                ? security.getAsJsonObject("auth")
-                : new JsonObject();
-
-        if (selectedType == null || selectedType.isBlank()) {
-            auth.remove("selectedType");
-        } else {
-            auth.addProperty("selectedType", selectedType);
-        }
-
-        if (auth.keySet().isEmpty()) {
-            security.remove("auth");
-        } else {
-            security.add("auth", auth);
-        }
-
-        if (security.keySet().isEmpty()) {
-            root.remove("security");
-        } else {
-            root.add("security", security);
-        }
-
-        writeJsonFile(path, root);
     }
 
     public CodexAuthSupport.CodexAuthState detectCodexAuthState() {
