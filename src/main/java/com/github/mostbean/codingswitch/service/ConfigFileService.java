@@ -107,8 +107,12 @@ public final class ConfigFileService {
         return getConfigDir(CliType.CODEX).resolve("skills");
     }
 
-    /** Antigravity/Gemini CLI 的专用 Skills 全局目录 */
+    /** Antigravity 的专用 Skills 全局目录 */
     public Path getAntigravitySkillsDir() {
+        return userHome().resolve(".gemini").resolve("antigravity").resolve("skills");
+    }
+
+    public Path getLegacyAntigravitySkillsDir() {
         return userHome().resolve(".gemini").resolve("skills");
     }
 

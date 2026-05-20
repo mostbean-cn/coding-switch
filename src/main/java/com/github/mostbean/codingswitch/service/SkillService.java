@@ -1921,6 +1921,10 @@ public final class SkillService implements PersistentStateComponent<SkillService
     private void syncAntigravitySkillsDirectory(ConfigFileService configService, List<Skill> selectedSkills)
             throws IOException {
         syncManagedSkillsDirectory(configService, configService.getAntigravitySkillsDir(), selectedSkills);
+        Path legacyDir = configService.getLegacyAntigravitySkillsDir();
+        if (Files.exists(legacyDir.resolve(SKILL_BRIDGE_MANIFEST))) {
+            syncManagedSkillsDirectory(configService, legacyDir, List.of());
+        }
     }
 
     private void syncCodexSkillsDirectory(ConfigFileService configService, List<Skill> selectedSkills)
