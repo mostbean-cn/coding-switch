@@ -270,6 +270,8 @@ public final class I18n {
                 m.put("session.role.system", "系统");
                 m.put("session.role.tool", "工具");
                 m.put("session.role.unknown", "未知");
+                m.put("antigravity.source.app", "App");
+                m.put("antigravity.source.cli", "CLI");
 
                 // ── MCP 面板 ──
                 m.put("mcp.table.empty", "暂无 MCP 服务器，点击 + 新增或从 CLI 导入");
@@ -824,6 +826,8 @@ public final class I18n {
                 m.put("session.role.system", "System");
                 m.put("session.role.tool", "Tool");
                 m.put("session.role.unknown", "Unknown");
+                m.put("antigravity.source.app", "App");
+                m.put("antigravity.source.cli", "CLI");
 
                 // ── MCP Panel ──
                 m.put("mcp.table.empty", "No MCP servers. Click + to add or import from CLI");

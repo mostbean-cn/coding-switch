@@ -844,12 +844,24 @@ public final class SessionScannerService {
     // =====================================================================
 
     private List<SessionMeta> scanAntigravitySessions() {
-        Path brainDir = Path.of(System.getProperty("user.home"), ".gemini", "antigravity", "brain");
+        List<SessionMeta> sessions = new ArrayList<>();
+        
+        // 1. 扫描 App 目录 (IDE 官方目录)
+        Path appBrainDir = Path.of(System.getProperty("user.home"), ".gemini", "antigravity", "brain");
+        scanAntigravityDir(appBrainDir, "App", sessions);
+        
+        // 2. 扫描 CLI 目录
+        Path cliBrainDir = Path.of(System.getProperty("user.home"), ".gemini", "antigravity-cli", "brain");
+        scanAntigravityDir(cliBrainDir, "CLI", sessions);
+        
+        return sessions;
+    }
+
+    private void scanAntigravityDir(Path brainDir, String sourceLabel, List<SessionMeta> resultList) {
         if (!Files.isDirectory(brainDir)) {
-            return Collections.emptyList();
+            return;
         }
 
-        List<SessionMeta> sessions = new ArrayList<>();
         try (Stream<Path> subDirs = Files.list(brainDir)) {
             List<Path> paths = subDirs.filter(Files::isDirectory).toList();
             for (Path path : paths) {
@@ -862,18 +874,17 @@ public final class SessionScannerService {
                     continue;
                 }
 
-                SessionMeta meta = parseAntigravitySession(dirName, path, logFile);
+                SessionMeta meta = parseAntigravitySession(dirName, path, logFile, sourceLabel);
                 if (meta != null) {
-                    sessions.add(meta);
+                    resultList.add(meta);
                 }
             }
         } catch (IOException e) {
-            LOG.warn("Failed to scan Antigravity sessions", e);
+            LOG.warn("Failed to scan Antigravity sessions in: " + brainDir, e);
         }
-        return sessions;
     }
 
-    private SessionMeta parseAntigravitySession(String sessionId, Path sessionDir, Path logFile) {
+    private SessionMeta parseAntigravitySession(String sessionId, Path sessionDir, Path logFile, String sourceLabel) {
         try {
             List<String> headLines = readHeadLines(logFile, 15);
             List<String> tailLines = readTailLines(logFile, 30);
@@ -929,7 +940,11 @@ public final class SessionScannerService {
             }
 
             if (summary == null || summary.isBlank()) {
-                summary = "Antigravity Session: " + sessionId;
+                if (headLines.isEmpty() && tailLines.isEmpty()) {
+                    summary = "Antigravity Session (Native CLI - No transcript available)";
+                } else {
+                    summary = "Antigravity Session: " + sessionId;
+                }
             }
 
             SessionMeta meta = new SessionMeta("antigravity", sessionId);
@@ -940,7 +955,8 @@ public final class SessionScannerService {
             meta.setLastActiveAt(lastActiveAt != null ? lastActiveAt : createdAt);
             meta.setSourcePath(logFile.toAbsolutePath().toString());
             meta.setDeletePath(sessionDir.toAbsolutePath().toString());
-            meta.setResumeCommand("antigravity --session " + sessionId);
+            meta.setResumeCommand("agy --conversation " + sessionId);
+            meta.setClientSource(sourceLabel);
             return meta;
         } catch (Exception e) {
             LOG.debug("Failed to parse Antigravity session: " + logFile, e);
@@ -1101,6 +1117,19 @@ public final class SessionScannerService {
         } catch (IOException e) {
             LOG.warn("Failed to load Antigravity messages: " + file, e);
         }
+
+        if (messages.isEmpty()) {
+            boolean isCliSource = file.toAbsolutePath().toString().contains("antigravity-cli");
+            String sessionId = "unknown";
+            try {
+                sessionId = file.getParent().getParent().getParent().getFileName().toString();
+            } catch (Exception ignored) {}
+            String tip = isCliSource
+                    ? "该会话为 Antigravity CLI 本地运行的 Native 会话，其详细内容保存在本地加密/二进制文件中。\n\n您可以在终端中运行以下命令继续对话：\n\n`agy --conversation " + sessionId + "`"
+                    : "未找到对话内容（可能由于会话正在进行中，或者日志文件尚未刷写）。";
+            messages.add(new SessionMessage("system", tip, System.currentTimeMillis()));
+        }
+
         return messages;
     }
 

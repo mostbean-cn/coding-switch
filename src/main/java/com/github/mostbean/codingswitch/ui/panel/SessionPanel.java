@@ -245,9 +245,14 @@ public class SessionPanel extends JPanel {
         panel.add(titleLabel);
         panel.add(Box.createVerticalStrut(4));
 
-        // CLI 类型 + 会话 ID
+        // CLI 类型 + 来源 + 会话 ID
         String cliName = getCliDisplayName(session.getProviderId());
-        JBLabel cliLabel = new JBLabel(cliName + "  ·  " + truncateId(session.getSessionId()));
+        String sourceLabel = "";
+        if ("antigravity".equals(session.getProviderId()) && session.getClientSource() != null) {
+            String sourceKey = "antigravity.source." + session.getClientSource().toLowerCase();
+            sourceLabel = " (" + I18n.t(sourceKey) + ")";
+        }
+        JBLabel cliLabel = new JBLabel(cliName + sourceLabel + "  ·  " + truncateId(session.getSessionId()));
         cliLabel.setFont(cliLabel.getFont().deriveFont(11f));
         cliLabel.setForeground(UIUtil.getInactiveTextColor());
         cliLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -733,7 +738,12 @@ public class SessionPanel extends JPanel {
         public Component getListCellRendererComponent(JList<? extends SessionMeta> list,
                 SessionMeta value, int index,
                 boolean isSelected, boolean cellHasFocus) {
-            String cliTag = "[" + getCliDisplayName(value.getProviderId()) + "]";
+            String cliName = getCliDisplayName(value.getProviderId());
+            if ("antigravity".equals(value.getProviderId()) && value.getClientSource() != null) {
+                String sourceKey = "antigravity.source." + value.getClientSource().toLowerCase();
+                cliName += "-" + I18n.t(sourceKey);
+            }
+            String cliTag = "[" + cliName + "]";
             providerLabel.setText(cliTag);
             providerLabel.setForeground(getRoleColor("assistant"));
 

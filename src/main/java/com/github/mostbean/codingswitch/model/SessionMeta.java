@@ -16,6 +16,7 @@ public class SessionMeta {
     private String sourcePath;
     private String deletePath;
     private String resumeCommand;
+    private String clientSource; // App or CLI
 
     public SessionMeta() {
     }
@@ -105,6 +106,14 @@ public class SessionMeta {
 
     public void setResumeCommand(String resumeCommand) {
         this.resumeCommand = resumeCommand;
+    }
+
+    public String getClientSource() {
+        return clientSource;
+    }
+
+    public void setClientSource(String clientSource) {
+        this.clientSource = clientSource;
     }
 
     /**
