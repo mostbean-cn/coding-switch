@@ -102,16 +102,6 @@ public class ProviderDialog extends DialogWrapper {
     private final JCheckBox codexFastMode = new JCheckBox();
     private static final String CODEX_PROVIDER_SLUG = "custom";
 
-    private final JTextField antigravityApiKey = new JTextField(30);
-    private final JTextField antigravityBaseUrl = new JTextField(30);
-    private final JComboBox<String> antigravityModel = createEditableCombo(
-            "gemini-2.5-flash",
-            "gemini-2.5-pro",
-            "deepseek-chat");
-    private final JBLabel antigravityApiKeyLabel = requiredLabel("API Key:");
-    private final JBLabel antigravityBaseUrlLabel = requiredLabel("Base URL:");
-    private final JBLabel antigravityModelLabel = requiredLabel(I18n.t("providerDialog.label.mainModel"));
-
     private final JTextField opencodeApiKey = new JTextField(30);
     private final JTextField opencodeBaseUrl = new JTextField(30);
     private final JPanel opencodeModelsPanel = new JPanel();
@@ -464,15 +454,6 @@ public class ProviderDialog extends DialogWrapper {
             if (!updatingFromPreview) updatePreview();
         });
 
-        addTextFieldListener(antigravityApiKey);
-        addTextFieldListener(antigravityBaseUrl);
-        antigravityModel.addActionListener(e -> {
-            if (!updatingFromPreview) {
-                updatePreview();
-                scheduleValidation();
-            }
-        });
-        addTextFieldListenerWithValidation((JTextField) antigravityModel.getEditor().getEditorComponent());
     }
 
     private void addTextFieldListener(JTextField field) {
@@ -800,8 +781,10 @@ public class ProviderDialog extends DialogWrapper {
         presetButtonsPanel.removeAll();
         currentPresets = ProviderPresets.forCli(cliType);
 
-        JButton customBtn = createPresetButton(PRESET_NONE, true);
-        presetButtonsPanel.add(customBtn);
+        if (cliType != CliType.ANTIGRAVITY) {
+            JButton customBtn = createPresetButton(PRESET_NONE, true);
+            presetButtonsPanel.add(customBtn);
+        }
 
         for (ProviderPresets.Preset preset : currentPresets) {
             JButton btn = createPresetButton(preset.name(), false);
@@ -838,6 +821,10 @@ public class ProviderDialog extends DialogWrapper {
         }
 
         if (PRESET_NONE.equals(presetName)) {
+            if (cliType == CliType.ANTIGRAVITY) {
+                selectOfficialPreset(cliType);
+                return;
+            }
             setAuthMode(cliType, AuthMode.API_KEY);
             presetHintLabel.setText(" ");
             testStatusLabel.setText(" ");
@@ -867,6 +854,24 @@ public class ProviderDialog extends DialogWrapper {
         }
     }
 
+    private void selectOfficialPreset(CliType cliType) {
+        if (cliType == null) {
+            return;
+        }
+        selectedPreset = currentPresets.stream()
+                .filter(preset -> preset.authMode() == AuthMode.OFFICIAL_LOGIN)
+                .map(ProviderPresets.Preset::name)
+                .findFirst()
+                .orElse(PRESET_NONE);
+        updatePresetButtonStyles();
+        setAuthMode(cliType, AuthMode.OFFICIAL_LOGIN);
+        presetHintLabel.setText(OFFICIAL_HINT);
+        testStatusLabel.setText(" ");
+        setTestFailureDetails(null);
+        updatePreview();
+        scheduleValidation();
+    }
+
     private void updatePresetButtonStyles() {
         for (Component comp : presetButtonsPanel.getComponents()) {
             if (comp instanceof JButton btn) {
@@ -889,7 +894,9 @@ public class ProviderDialog extends DialogWrapper {
 
     private void initializeAuthModes() {
         for (CliType cliType : CliType.values()) {
-            AuthMode authMode = cliType == provider.getCliType() ? provider.getAuthMode() : AuthMode.API_KEY;
+            AuthMode authMode = cliType == CliType.ANTIGRAVITY
+                    ? AuthMode.OFFICIAL_LOGIN
+                    : cliType == provider.getCliType() ? provider.getAuthMode() : AuthMode.API_KEY;
             authModeByCli.put(cliType, cliType == CliType.OPENCODE ? AuthMode.API_KEY : authMode);
         }
     }
@@ -898,11 +905,14 @@ public class ProviderDialog extends DialogWrapper {
         if (cliType == null || cliType == CliType.OPENCODE) {
             return AuthMode.API_KEY;
         }
+        if (cliType == CliType.ANTIGRAVITY) {
+            return AuthMode.OFFICIAL_LOGIN;
+        }
         return authModeByCli.getOrDefault(cliType, AuthMode.API_KEY);
     }
 
     private void setAuthMode(CliType cliType, AuthMode authMode) {
-        if (cliType == null || cliType == CliType.OPENCODE) {
+        if (cliType == null || cliType == CliType.OPENCODE || cliType == CliType.ANTIGRAVITY) {
             return;
         }
         authModeByCli.put(cliType, authMode != null ? authMode : AuthMode.API_KEY);
@@ -957,18 +967,6 @@ public class ProviderDialog extends DialogWrapper {
                 setRequiredState(codexModelLabel, !officialLogin);
             }
             case ANTIGRAVITY -> {
-                antigravityApiKey.setEnabled(!officialLogin);
-                antigravityBaseUrl.setEnabled(!officialLogin);
-                antigravityModel.setEnabled(!officialLogin);
-                if (antigravityModel.isEditable()) {
-                    Component editorComponent = antigravityModel.getEditor().getEditorComponent();
-                    if (editorComponent != null) {
-                        editorComponent.setEnabled(!officialLogin);
-                    }
-                }
-                setRequiredState(antigravityApiKeyLabel, !officialLogin);
-                setRequiredState(antigravityBaseUrlLabel, !officialLogin);
-                setRequiredState(antigravityModelLabel, !officialLogin);
             }
             case OPENCODE -> {
             }
@@ -1006,9 +1004,6 @@ public class ProviderDialog extends DialogWrapper {
                 codexFastMode.setSelected(false);
             }
             case ANTIGRAVITY -> {
-                antigravityApiKey.setText("");
-                antigravityBaseUrl.setText("");
-                antigravityModel.setSelectedItem("");
             }
             case OPENCODE -> {
                 opencodeApiKey.setText("");
@@ -1193,10 +1188,7 @@ public class ProviderDialog extends DialogWrapper {
 
     private JPanel buildAntigravityPanel() {
         JPanel form = FormBuilder.createFormBuilder()
-                .addLabeledComponent(antigravityApiKeyLabel, antigravityApiKey)
-                .addLabeledComponent(antigravityBaseUrlLabel, antigravityBaseUrl)
-                .addSeparator(8)
-                .addLabeledComponent(antigravityModelLabel, antigravityModel)
+                .addComponent(new JBLabel(OFFICIAL_HINT))
                 .getPanel();
         return wrapWithTitledBorder(form, I18n.t("providerDialog.border.antigravity"));
     }
@@ -1318,10 +1310,7 @@ public class ProviderDialog extends DialogWrapper {
     }
 
     private void loadAntigravityConfig(JsonObject config) {
-        JsonObject env = config.has("env") ? config.getAsJsonObject("env") : new JsonObject();
-        setFieldFromJson(env, "GEMINI_API_KEY", antigravityApiKey);
-        setFieldFromJson(env, "GEMINI_BASE_URL", antigravityBaseUrl);
-        setComboFromJson(env, "GEMINI_MODEL", antigravityModel);
+        rememberRawSettings(CliType.ANTIGRAVITY, buildAntigravityOfficialConfig());
     }
 
     private void loadClaudeConfig(JsonObject config) {
@@ -1494,7 +1483,7 @@ public class ProviderDialog extends DialogWrapper {
         AuthMode authMode = getCurrentAuthMode(cliType);
         JsonObject structured = switch (cliType) {
             case CLAUDE -> authMode == AuthMode.OFFICIAL_LOGIN ? buildClaudeOfficialConfig() : buildClaudeConfig();
-            case ANTIGRAVITY -> authMode == AuthMode.OFFICIAL_LOGIN ? buildAntigravityOfficialConfig() : buildAntigravityConfig();
+            case ANTIGRAVITY -> buildAntigravityOfficialConfig();
             case CODEX -> authMode == AuthMode.OFFICIAL_LOGIN ? buildCodexOfficialConfig() : buildCodexConfig();
             case OPENCODE -> buildOpenCodeConfig();
         };
@@ -1509,15 +1498,6 @@ public class ProviderDialog extends DialogWrapper {
         return config;
     }
 
-    private JsonObject buildAntigravityConfig() {
-        JsonObject config = new JsonObject();
-        JsonObject env = new JsonObject();
-        addIfNotBlank(env, "GEMINI_API_KEY", antigravityApiKey);
-        addIfNotBlank(env, "GEMINI_BASE_URL", antigravityBaseUrl);
-        addIfNotBlank(env, "GEMINI_MODEL", getComboText(antigravityModel));
-        config.add("env", env);
-        return config;
-    }
 
     private JsonObject buildClaudeOfficialConfig() {
         JsonObject config = new JsonObject();
@@ -1748,18 +1728,6 @@ public class ProviderDialog extends DialogWrapper {
 
     private void mergeAntigravityRaw(JsonObject raw, JsonObject merged) {
         mergeRootUnknownFields(raw, merged, List.of("env"));
-
-        JsonObject mergedEnv = merged.has("env") && merged.get("env").isJsonObject()
-                ? merged.getAsJsonObject("env")
-                : new JsonObject();
-        JsonObject rawEnv = raw.has("env") && raw.get("env").isJsonObject()
-                ? raw.getAsJsonObject("env")
-                : null;
-        mergeObjectUnknownFields(rawEnv, mergedEnv, List.of(
-                "GEMINI_API_KEY",
-                "GEMINI_BASE_URL",
-                "GEMINI_MODEL"));
-        merged.add("env", mergedEnv);
     }
 
     private void mergeClaudeRaw(JsonObject raw, JsonObject merged) {
@@ -1920,15 +1888,6 @@ public class ProviderDialog extends DialogWrapper {
     }
 
     private ValidationInfo validateAntigravity() {
-        if (antigravityApiKey.getText().isBlank()) {
-            return new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), antigravityApiKey);
-        }
-        if (antigravityBaseUrl.getText().isBlank()) {
-            return new ValidationInfo(I18n.t("providerDialog.validate.baseUrlRequired"), antigravityBaseUrl);
-        }
-        if (getComboText(antigravityModel).isBlank()) {
-            return new ValidationInfo(I18n.t("providerDialog.validate.modelRequired"), antigravityModel);
-        }
         return null;
     }
 
@@ -2102,15 +2061,7 @@ public class ProviderDialog extends DialogWrapper {
                 }
                 yield null;
             }
-            case ANTIGRAVITY -> {
-                if (antigravityApiKey.getText().isBlank()) {
-                    yield new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), antigravityApiKey);
-                }
-                if (antigravityBaseUrl.getText().isBlank()) {
-                    yield new ValidationInfo(I18n.t("providerDialog.validate.baseUrlRequired"), antigravityBaseUrl);
-                }
-                yield null;
-            }
+            case ANTIGRAVITY -> null;
             case CODEX -> {
                 if (codexApiKey.getText().isBlank()) {
                     yield new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), codexApiKey);

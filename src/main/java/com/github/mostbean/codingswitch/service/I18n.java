@@ -303,6 +303,7 @@ public final class I18n {
                 m.put("provider.table.col.cli", "CLI");
                 m.put("provider.table.col.status", "状态");
                 m.put("provider.table.col.model", "模型");
+                m.put("provider.table.officialLogin", "官方登录");
                 m.put("provider.status.active", "已激活");
                 m.put("provider.status.pendingActivation", "待激活");
                 m.put("provider.action.duplicate", "复制");
@@ -578,6 +579,12 @@ public final class I18n {
                                 "\u5f53\u524d\u914d\u7f6e\u5c1a\u65e0\u5df2\u7ed1\u5b9a\u767b\u5f55\u72b6\u6001\uff0c\u4e0b\u6b21\u8fdb\u5165 Codex \u9700\u8981\u91cd\u65b0\u767b\u5f55\u3002");
                 m.put("provider.dialog.codexAuth.snapshotInvalid",
                                 "\u5386\u53f2\u767b\u5f55\u5feb\u7167\u5df2\u5931\u6548\uff0c\u5df2\u6e05\u7a7a\u4e3a\u672a\u767b\u5f55\u72b6\u6001\uff0c\u4e0b\u6b21\u8fdb\u5165 Codex \u9700\u8981\u91cd\u65b0\u767b\u5f55\u3002");
+                m.put("provider.dialog.antigravityAuth.restored",
+                                "已恢复该 Antigravity 官方登录配置的登录状态。");
+                m.put("provider.dialog.antigravityAuth.loginRequired",
+                                "当前配置尚无已绑定登录状态，下次进入 Antigravity 需要重新登录。");
+                m.put("provider.dialog.antigravityAuth.snapshotInvalid",
+                                "历史登录快照已失效，已清空为未登录状态，下次进入 Antigravity 需要重新登录。");
 
                 // ── CLI Quick Launch ──
                 m.put("settings.section.cliQuickLaunch", "CLI 快速启动");
@@ -860,6 +867,7 @@ public final class I18n {
                 m.put("provider.table.col.cli", "CLI");
                 m.put("provider.table.col.status", "Status");
                 m.put("provider.table.col.model", "Model");
+                m.put("provider.table.officialLogin", "Official Login");
                 m.put("provider.status.active", "Active");
                 m.put("provider.status.pendingActivation", "Pending Activation");
                 m.put("provider.action.duplicate", "Duplicate");
@@ -1152,6 +1160,12 @@ public final class I18n {
                                 "This config has no saved login state yet. Codex will ask you to sign in the next time it starts.");
                 m.put("provider.dialog.codexAuth.snapshotInvalid",
                                 "The saved login snapshot is no longer valid. It was cleared, and Codex will ask you to sign in next time.");
+                m.put("provider.dialog.antigravityAuth.restored",
+                                "Restored the saved login state for this Antigravity official login config.");
+                m.put("provider.dialog.antigravityAuth.loginRequired",
+                                "This config has no saved login state yet. Antigravity will ask you to sign in the next time it starts.");
+                m.put("provider.dialog.antigravityAuth.snapshotInvalid",
+                                "The saved login snapshot is no longer valid. It was cleared, and Antigravity will ask you to sign in next time.");
 
                 // ── CLI Quick Launch ──
                 m.put("settings.section.cliQuickLaunch", "CLI Quick Launch");

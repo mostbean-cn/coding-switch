@@ -51,13 +51,12 @@ public final class AntigravityAuthSnapshotService {
             return;
         }
         ConfigFileService cfs = ConfigFileService.getInstance();
-        JsonObject oauthCreds = cfs.readJsonFile(cfs.getAntigravityOAuthCredsFilePath());
-        JsonObject googleAccounts = cfs.readJsonFile(cfs.getAntigravityGoogleAccountsFilePath());
+        AuthFiles authFiles = readLiveAuthFiles(cfs);
 
-        if (isValidOfficialLoginAuth(oauthCreds, googleAccounts)) {
+        if (authFiles != null) {
             JsonObject snapshot = new JsonObject();
-            snapshot.add("oauth_creds", oauthCreds);
-            snapshot.add("google_accounts", googleAccounts);
+            snapshot.add("oauth_creds", authFiles.oauthCreds());
+            snapshot.add("google_accounts", authFiles.googleAccounts());
             String rawJson = snapshot.toString();
 
             PasswordSafe.getInstance().set(
@@ -112,8 +111,7 @@ public final class AntigravityAuthSnapshotService {
         }
 
         ConfigFileService cfs = ConfigFileService.getInstance();
-        cfs.writeJsonFile(cfs.getAntigravityOAuthCredsFilePath(), oauthCreds);
-        cfs.writeJsonFile(cfs.getAntigravityGoogleAccountsFilePath(), googleAccounts);
+        writeLiveAuthFiles(cfs, oauthCreds, googleAccounts);
         return RestoreResult.RESTORED;
     }
 
@@ -183,24 +181,68 @@ public final class AntigravityAuthSnapshotService {
 
     private void deleteLiveAuthFiles() throws IOException {
         ConfigFileService cfs = ConfigFileService.getInstance();
-        Path oauthPath = cfs.getAntigravityOAuthCredsFilePath();
-        Path googlePath = cfs.getAntigravityGoogleAccountsFilePath();
+        Set<Path> paths = new LinkedHashSet<>();
+        paths.addAll(cfs.getAntigravityOAuthCredsFilePaths());
+        paths.addAll(cfs.getAntigravityGoogleAccountsFilePaths());
 
-        // Windows 下文件可能被 CLI 占用，尝试重试或忽略
+        for (Path path : paths) {
+            deleteIfExistsWithRetry(path);
+        }
+    }
+
+    private void deleteIfExistsWithRetry(Path path) throws IOException {
+        IOException failure = null;
         for (int i = 0; i < 3; i++) {
             try {
-                Files.deleteIfExists(oauthPath);
-                Files.deleteIfExists(googlePath);
+                Files.deleteIfExists(path);
                 return;
             } catch (IOException e) {
-                if (i == 2) {
-                    LOG.warn("Failed to delete Antigravity auth files after retries: " + e.getMessage());
-                }
+                failure = e;
                 try {
                     Thread.sleep(100);
-                } catch (InterruptedException ignored) {}
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
             }
         }
+        LOG.warn("Failed to delete Antigravity auth file after retries: " + path, failure);
+        throw failure;
+    }
+
+    private AuthFiles readLiveAuthFiles(ConfigFileService cfs) {
+        AuthFiles cliAuthFiles = readAuthFiles(
+                cfs,
+                cfs.getAntigravityCliOAuthCredsFilePath(),
+                cfs.getAntigravityCliGoogleAccountsFilePath());
+        if (cliAuthFiles != null) {
+            return cliAuthFiles;
+        }
+        return readAuthFiles(
+                cfs,
+                cfs.getAntigravityOAuthCredsFilePath(),
+                cfs.getAntigravityGoogleAccountsFilePath());
+    }
+
+    private AuthFiles readAuthFiles(ConfigFileService cfs, Path oauthPath, Path googlePath) {
+        JsonObject oauthCreds = cfs.readJsonFile(oauthPath);
+        JsonObject googleAccounts = cfs.readJsonFile(googlePath);
+        if (!isValidOfficialLoginAuth(oauthCreds, googleAccounts)) {
+            return null;
+        }
+        return new AuthFiles(oauthCreds, googleAccounts);
+    }
+
+    private void writeLiveAuthFiles(ConfigFileService cfs, JsonObject oauthCreds, JsonObject googleAccounts) throws IOException {
+        for (Path path : cfs.getAntigravityOAuthCredsFilePaths()) {
+            cfs.writeJsonFile(path, oauthCreds);
+        }
+        for (Path path : cfs.getAntigravityGoogleAccountsFilePaths()) {
+            cfs.writeJsonFile(path, googleAccounts);
+        }
+    }
+
+    private record AuthFiles(JsonObject oauthCreds, JsonObject googleAccounts) {
     }
 
     private static boolean isValidOfficialLoginAuth(JsonObject oauthCreds, JsonObject googleAccounts) {

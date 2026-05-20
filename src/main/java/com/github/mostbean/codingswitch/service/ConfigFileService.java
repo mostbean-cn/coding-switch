@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.List;
 
 /**
  * 各 AI CLI 工具配置文件的读写服务。
@@ -202,8 +203,24 @@ public final class ConfigFileService {
         return userHome().resolve(".gemini").resolve("oauth_creds.json");
     }
 
+    public Path getAntigravityCliOAuthCredsFilePath() {
+        return getConfigDir(CliType.ANTIGRAVITY).resolve("oauth_creds.json");
+    }
+
+    public List<Path> getAntigravityOAuthCredsFilePaths() {
+        return List.of(getAntigravityCliOAuthCredsFilePath(), getAntigravityOAuthCredsFilePath());
+    }
+
     public Path getAntigravityGoogleAccountsFilePath() {
         return userHome().resolve(".gemini").resolve("google_accounts.json");
+    }
+
+    public Path getAntigravityCliGoogleAccountsFilePath() {
+        return getConfigDir(CliType.ANTIGRAVITY).resolve("google_accounts.json");
+    }
+
+    public List<Path> getAntigravityGoogleAccountsFilePaths() {
+        return List.of(getAntigravityCliGoogleAccountsFilePath(), getAntigravityGoogleAccountsFilePath());
     }
 
     public CodexAuthSupport.CodexAuthState detectCodexAuthState() {

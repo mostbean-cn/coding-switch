@@ -2,6 +2,7 @@ package com.github.mostbean.codingswitch.ui.panel;
 
 import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.Provider;
+import com.github.mostbean.codingswitch.service.AntigravityAuthSnapshotService;
 import com.github.mostbean.codingswitch.service.CodexActivationResult;
 import com.github.mostbean.codingswitch.service.ClaudeTemporaryLaunchService;
 import com.github.mostbean.codingswitch.service.I18n;
@@ -262,8 +263,10 @@ public class ProviderPanel extends JPanel {
         try {
             ProviderService.getInstance().activateProvider(selected.getId());
             CodexActivationResult codexResult = ProviderService.getInstance().getLastCodexActivationResult();
+            AntigravityAuthSnapshotService.RestoreResult antigravityResult =
+                    ProviderService.getInstance().getLastAntigravityActivationResult();
             Messages.showInfoMessage(
-                    buildActivationMessage(selected, codexResult),
+                    buildActivationMessage(selected, codexResult, antigravityResult),
                     I18n.t("provider.status.active"));
         } catch (IOException ex) {
             Messages.showErrorDialog(I18n.t("provider.dialog.activateFailed", ex.getMessage()),
@@ -356,11 +359,13 @@ public class ProviderPanel extends JPanel {
         }
     }
 
-    private String buildActivationMessage(Provider provider, CodexActivationResult codexResult) {
+    private String buildActivationMessage(
+            Provider provider,
+            CodexActivationResult codexResult,
+            AntigravityAuthSnapshotService.RestoreResult antigravityResult) {
         String base = I18n.t("provider.dialog.activateSuccess", provider.getName(),
                 provider.getCliType().getDisplayName());
 
-        // 处理 Codex 激活结果
         if (provider.getCliType() == CliType.CODEX
                 && provider.getAuthMode() == Provider.AuthMode.OFFICIAL_LOGIN
                 && codexResult != null) {
@@ -369,6 +374,19 @@ public class ProviderPanel extends JPanel {
                 case LOGIN_REQUIRED -> I18n.t("provider.dialog.codexAuth.loginRequired");
                 case SNAPSHOT_INVALID -> I18n.t("provider.dialog.codexAuth.snapshotInvalid");
                 case NOT_APPLICABLE -> "";
+            };
+            if (!extra.isBlank()) {
+                return base + "\n" + extra;
+            }
+        }
+
+        if (provider.getCliType() == CliType.ANTIGRAVITY
+                && provider.getAuthMode() == Provider.AuthMode.OFFICIAL_LOGIN
+                && antigravityResult != null) {
+            String extra = switch (antigravityResult) {
+                case RESTORED -> I18n.t("provider.dialog.antigravityAuth.restored");
+                case NO_SNAPSHOT -> I18n.t("provider.dialog.antigravityAuth.loginRequired");
+                case INVALID_SNAPSHOT -> I18n.t("provider.dialog.antigravityAuth.snapshotInvalid");
             };
             if (!extra.isBlank()) {
                 return base + "\n" + extra;
@@ -437,9 +455,7 @@ public class ProviderPanel extends JPanel {
                     case CLAUDE -> config.has("env") && config.getAsJsonObject("env").has("ANTHROPIC_MODEL")
                             ? config.getAsJsonObject("env").get("ANTHROPIC_MODEL").getAsString()
                             : "N/A";
-                    case ANTIGRAVITY -> config.has("env") && config.getAsJsonObject("env").has("GEMINI_MODEL")
-                            ? config.getAsJsonObject("env").get("GEMINI_MODEL").getAsString()
-                            : "N/A";
+                    case ANTIGRAVITY -> I18n.t("provider.table.officialLogin");
                     case CODEX -> config.has("config") && config.get("config").getAsString().contains("model =")
                             ? extractTomlModel(config.get("config").getAsString())
                             : "N/A";

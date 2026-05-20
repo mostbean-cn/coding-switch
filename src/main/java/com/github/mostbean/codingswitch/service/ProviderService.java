@@ -49,6 +49,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
     private State myState = new State();
     private final List<Runnable> changeListeners = new ArrayList<>();
     private CodexActivationResult lastCodexActivationResult = CodexActivationResult.notApplicable();
+    private AntigravityAuthSnapshotService.RestoreResult lastAntigravityActivationResult;
 
     public static ProviderService getInstance() {
         return ApplicationManager.getApplication().getService(ProviderService.class);
@@ -188,11 +189,15 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         saveProviders(providers);
         writeToLiveConfig(target);
         lastCodexActivationResult = switchCodexAuthStateIfNeeded(target);
-        switchAntigravityAuthStateIfNeeded(target);
+        lastAntigravityActivationResult = switchAntigravityAuthStateIfNeeded(target);
     }
 
     public CodexActivationResult getLastCodexActivationResult() {
         return lastCodexActivationResult;
+    }
+
+    public AntigravityAuthSnapshotService.RestoreResult getLastAntigravityActivationResult() {
+        return lastAntigravityActivationResult;
     }
 
     /**
@@ -226,19 +231,21 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         JsonObject existing = svc.readJsonFile(path);
 
         if (config.has("env")) {
-            JsonObject env = existing.has("env") ? existing.getAsJsonObject("env") : new JsonObject();
             JsonObject newEnv = config.getAsJsonObject("env");
+            if (newEnv.keySet().isEmpty()) {
+                existing.remove("env");
+            } else {
+                JsonObject env = existing.has("env") ? existing.getAsJsonObject("env") : new JsonObject();
 
-            // 清除旧的 Provider 相关字段
-            env.remove("GEMINI_API_KEY");
-            env.remove("GEMINI_BASE_URL");
-            env.remove("GEMINI_MODEL");
+                env.remove("GEMINI_API_KEY");
+                env.remove("GEMINI_BASE_URL");
+                env.remove("GEMINI_MODEL");
 
-            // 写入新值
-            for (String key : newEnv.keySet()) {
-                env.add(key, newEnv.get(key));
+                for (String key : newEnv.keySet()) {
+                    env.add(key, newEnv.get(key));
+                }
+                existing.add("env", env);
             }
-            existing.add("env", env);
         }
 
         svc.writeJsonFile(path, existing);
@@ -463,7 +470,9 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         if (provider == null) {
             return;
         }
-        if (provider.getStoredAuthMode() == null) {
+        if (provider.getCliType() == CliType.ANTIGRAVITY) {
+            provider.setAuthMode(Provider.AuthMode.OFFICIAL_LOGIN);
+        } else if (provider.getStoredAuthMode() == null) {
             provider.setAuthMode(Provider.inferAuthMode(provider.getCliType(), provider.getSettingsConfig()));
         }
         if (provider.getAuthBindingKey() == null || provider.getAuthBindingKey().isBlank()) {
@@ -528,11 +537,11 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         };
     }
 
-    private void switchAntigravityAuthStateIfNeeded(Provider target) throws IOException {
+    private AntigravityAuthSnapshotService.RestoreResult switchAntigravityAuthStateIfNeeded(Provider target) throws IOException {
         if (target.getCliType() != CliType.ANTIGRAVITY || target.getAuthMode() != AuthMode.OFFICIAL_LOGIN) {
-            return;
+            return null;
         }
-        AntigravityAuthSnapshotService.getInstance().restoreToLive(target);
+        return AntigravityAuthSnapshotService.getInstance().restoreToLive(target);
     }
 
 

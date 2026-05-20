@@ -84,6 +84,9 @@ public class Provider {
     }
 
     public AuthMode getAuthMode() {
+        if (cliType == CliType.ANTIGRAVITY) {
+            return AuthMode.OFFICIAL_LOGIN;
+        }
         return authMode != null ? authMode : inferAuthMode(cliType, settingsConfig);
     }
 
@@ -167,12 +170,7 @@ public class Provider {
                         : null;
                 yield env == null || env.keySet().isEmpty() ? AuthMode.OFFICIAL_LOGIN : AuthMode.API_KEY;
             }
-            case ANTIGRAVITY -> {
-                JsonObject env = safeConfig.has("env") && safeConfig.get("env").isJsonObject()
-                        ? safeConfig.getAsJsonObject("env")
-                        : null;
-                yield env == null || env.keySet().isEmpty() ? AuthMode.OFFICIAL_LOGIN : AuthMode.API_KEY;
-            }
+            case ANTIGRAVITY -> AuthMode.OFFICIAL_LOGIN;
             case CODEX -> {
                 JsonObject auth = safeConfig.has("auth") && safeConfig.get("auth").isJsonObject()
                         ? safeConfig.getAsJsonObject("auth")
