@@ -75,7 +75,7 @@ public final class SkillService implements PersistentStateComponent<SkillService
     private static final String SKILL_BRIDGE_MANIFEST = ".coding-switch-managed.json";
     private static final String SKILL_TEMP_ROOT_DIR = ".coding-switch-tmp";
     private static final String REPOSITORY_PACKAGE_PATH_MARKER = "#coding-switch-repository-package=";
-    private static final List<CliType> SKILL_SYNC_TARGET_CLIS = List.of(CliType.CLAUDE, CliType.CODEX, CliType.OPENCODE);
+    private static final List<CliType> SKILL_SYNC_TARGET_CLIS = List.of(CliType.CLAUDE, CliType.CODEX, CliType.OPENCODE, CliType.ANTIGRAVITY);
 
     /** 内置推荐的 Skills 仓库列表 */
     public static final List<String> DEFAULT_REPOS = List.of(
@@ -1907,6 +1907,7 @@ public final class SkillService implements PersistentStateComponent<SkillService
             throws IOException {
         switch (cliType) {
             case CLAUDE -> syncClaudeCodeSkillsDirectory(configService, selectedSkills);
+            case ANTIGRAVITY -> syncAntigravitySkillsDirectory(configService, selectedSkills);
             case CODEX -> syncCodexSkillsDirectory(configService, selectedSkills);
             case OPENCODE -> syncOpenCodeSkillBridge(configService, selectedSkills);
         }
@@ -1915,6 +1916,11 @@ public final class SkillService implements PersistentStateComponent<SkillService
     private void syncClaudeCodeSkillsDirectory(ConfigFileService configService, List<Skill> selectedSkills)
             throws IOException {
         syncManagedSkillsDirectory(configService, configService.getClaudeSkillsDir(), selectedSkills);
+    }
+
+    private void syncAntigravitySkillsDirectory(ConfigFileService configService, List<Skill> selectedSkills)
+            throws IOException {
+        syncManagedSkillsDirectory(configService, configService.getAntigravitySkillsDir(), selectedSkills);
     }
 
     private void syncCodexSkillsDirectory(ConfigFileService configService, List<Skill> selectedSkills)

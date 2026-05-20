@@ -528,6 +528,7 @@ public final class I18n {
                 m.put("providerDialog.border.codex", "Codex 配置");
 
                 m.put("providerDialog.border.opencode", "OpenCode 配置");
+                m.put("providerDialog.border.antigravity", "Antigravity 配置");
                 m.put("providerDialog.validate.nameRequired", "请填写配置名称");
                 m.put("providerDialog.validate.cliTypeRequired", "请选择 CLI 类型");
                 m.put("providerDialog.validate.apiKeyRequired", "请填写 API Key");
@@ -1096,6 +1097,7 @@ public final class I18n {
                 m.put("providerDialog.border.codex", "Codex Config");
 
                 m.put("providerDialog.border.opencode", "OpenCode Config");
+                m.put("providerDialog.border.antigravity", "Antigravity Config");
                 m.put("providerDialog.validate.nameRequired", "Config name is required");
                 m.put("providerDialog.validate.cliTypeRequired", "CLI type is required");
                 m.put("providerDialog.validate.apiKeyRequired", "API Key is required");

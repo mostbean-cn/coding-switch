@@ -246,6 +246,7 @@ public class Skill {
         targets.put(CliType.CLAUDE, false);
         targets.put(CliType.CODEX, false);
         targets.put(CliType.OPENCODE, false);
+        targets.put(CliType.ANTIGRAVITY, false);
         return targets;
     }
 

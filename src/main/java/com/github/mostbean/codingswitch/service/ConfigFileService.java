@@ -43,6 +43,7 @@ public final class ConfigFileService {
             case CLAUDE -> userHome().resolve(".claude");
             case CODEX -> userHome().resolve(".codex");
             case OPENCODE -> userHome().resolve(".config").resolve("opencode");
+            case ANTIGRAVITY -> userHome().resolve(".gemini").resolve("antigravity-cli");
         };
     }
 
@@ -57,6 +58,7 @@ public final class ConfigFileService {
             case CLAUDE -> getConfigDir(cliType).resolve("settings.json");
             case CODEX -> getConfigDir(cliType).resolve("auth.json");
             case OPENCODE -> getConfigDir(cliType).resolve("opencode.json");
+            case ANTIGRAVITY -> getConfigDir(cliType).resolve("settings.json");
         };
     }
 
@@ -71,6 +73,7 @@ public final class ConfigFileService {
             case CLAUDE -> userHome().resolve(".claude.json");
             case CODEX -> getConfigDir(cliType).resolve("config.toml");
             case OPENCODE -> getConfigDir(cliType).resolve("opencode.json");
+            case ANTIGRAVITY -> userHome().resolve(".gemini").resolve("antigravity").resolve("mcp_config.json");
         };
     }
 
@@ -85,6 +88,7 @@ public final class ConfigFileService {
             case CLAUDE -> getConfigDir(cliType).resolve("CLAUDE.md");
             case CODEX -> getConfigDir(cliType).resolve("AGENTS.md");
             case OPENCODE -> getConfigDir(cliType).resolve("agents");
+            case ANTIGRAVITY -> getConfigDir(cliType).resolve("ANTIGRAVITY.md");
         };
     }
 
@@ -100,6 +104,11 @@ public final class ConfigFileService {
 
     public Path getCodexSkillsDir() {
         return getConfigDir(CliType.CODEX).resolve("skills");
+    }
+
+    /** Antigravity/Gemini CLI 的专用 Skills 全局目录 */
+    public Path getAntigravitySkillsDir() {
+        return userHome().resolve(".gemini").resolve("skills");
     }
 
     public Path getCodexAuthFilePath() {
@@ -187,6 +196,14 @@ public final class ConfigFileService {
 
     public void deleteCodexAuthFile() throws IOException {
         Files.deleteIfExists(getCodexAuthFilePath());
+    }
+
+    public Path getAntigravityOAuthCredsFilePath() {
+        return userHome().resolve(".gemini").resolve("oauth_creds.json");
+    }
+
+    public Path getAntigravityGoogleAccountsFilePath() {
+        return userHome().resolve(".gemini").resolve("google_accounts.json");
     }
 
     public CodexAuthSupport.CodexAuthState detectCodexAuthState() {

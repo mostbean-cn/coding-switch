@@ -33,6 +33,11 @@ public final class ProviderPresets {
                 // ===== Official 预设（恢复 CLI 官方认证） =====
                 presets.add(claudeOfficial());
                 presets.add(codexOfficial());
+                presets.add(antigravityOfficial());
+
+                // ===== Antigravity 预设 =====
+                presets.add(antigravityPreset("Google AI Studio (Gemini)", "https://generativelanguage.googleapis.com", "gemini-2.5-flash"));
+                presets.add(antigravityPreset("DeepSeek", "https://api.deepseek.com/v1", "deepseek-chat"));
 
                 // ===== Claude Code 国产供应商预设 =====
                 presets.add(claudePreset("DeepSeek",
@@ -179,6 +184,22 @@ public final class ProviderPresets {
                 config.add("auth", new JsonObject()); // 空 auth → 清除 OPENAI_API_KEY
                 config.addProperty("config", ""); // 空 config → 清除 config.toml 内容
                 return new Preset("Official Login", CliType.CODEX, config, AuthMode.OFFICIAL_LOGIN);
+        }
+
+        private static Preset antigravityOfficial() {
+                JsonObject config = new JsonObject();
+                config.add("env", new JsonObject());
+                return new Preset("Official Login", CliType.ANTIGRAVITY, config, AuthMode.OFFICIAL_LOGIN);
+        }
+
+        private static Preset antigravityPreset(String name, String baseUrl, String model) {
+                JsonObject config = new JsonObject();
+                JsonObject env = new JsonObject();
+                env.addProperty("GEMINI_BASE_URL", baseUrl);
+                env.addProperty("GEMINI_API_KEY", ""); // 占位
+                env.addProperty("GEMINI_MODEL", model);
+                config.add("env", env);
+                return new Preset(name, CliType.ANTIGRAVITY, config, AuthMode.API_KEY);
         }
 
 }

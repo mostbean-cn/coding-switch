@@ -14,7 +14,8 @@ public enum SettingsCli {
     QWEN("Qwen Code", "qwen"),
     MMX("MMX", "mmx"),
     QODER("Qoder CLI", "qodercli"),
-    AUGGIE("Auggie CLI", "auggie");
+    AUGGIE("Auggie CLI", "auggie"),
+    ANTIGRAVITY("Antigravity", "antigravity");
 
     private final String displayName;
     private final String id;
@@ -33,7 +34,7 @@ public enum SettingsCli {
     }
 
     public boolean supportsManagedFeatures() {
-        return this == CLAUDE || this == CODEX || this == OPENCODE;
+        return this == CLAUDE || this == CODEX || this == OPENCODE || this == ANTIGRAVITY;
     }
 
     public static SettingsCli fromId(String id) {
@@ -47,6 +48,6 @@ public enum SettingsCli {
     }
 
     public static List<SettingsCli> defaultVisibleValues() {
-        return List.of(CLAUDE, CODEX, OPENCODE);
+        return List.of(CLAUDE, CODEX, OPENCODE, ANTIGRAVITY);
     }
 }

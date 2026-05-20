@@ -14,7 +14,9 @@ public enum CliType {
     @SerializedName(value = "CODEX", alternate = { "Codex", "Codex CLI", "Codex (OpenAI)", "OpenAI Codex", "codex" })
     CODEX("Codex", "codex"),
     @SerializedName(value = "OPENCODE", alternate = { "OpenCode", "opencode" })
-    OPENCODE("OpenCode", "opencode");
+    OPENCODE("OpenCode", "opencode"),
+    @SerializedName(value = "ANTIGRAVITY", alternate = { "Antigravity", "antigravity" })
+    ANTIGRAVITY("Antigravity", "antigravity");
 
     private final String displayName;
     private final String id;

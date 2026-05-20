@@ -126,6 +126,7 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
         ConfigFileService configService = ConfigFileService.getInstance();
         switch (cliType) {
             case CLAUDE -> syncClaudeMcp(configService, enabledServers);
+            case ANTIGRAVITY -> syncAntigravityMcp(configService, enabledServers);
             case OPENCODE -> syncOpenCodeMcp(configService, enabledServers);
             case CODEX -> syncCodexMcp(configService, enabledServers);
         }
@@ -146,6 +147,28 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
             root.add("mcpServers", buildMcpServersJson(servers));
         }
         svc.writeJsonFile(path, root);
+    }
+
+    private void syncAntigravityMcp(ConfigFileService svc, List<McpServer> servers) throws IOException {
+        // 1. 同步到 Antigravity IDE 独占配置文件 (mcp_config.json)
+        Path path = svc.getMcpConfigPath(CliType.ANTIGRAVITY);
+        JsonObject root = svc.readJsonFile(path);
+        if (servers.isEmpty()) {
+            root.remove("mcpServers");
+        } else {
+            root.add("mcpServers", buildMcpServersJson(servers));
+        }
+        svc.writeJsonFile(path, root);
+
+        // 2. 同步到 Antigravity/Gemini CLI 独占配置文件 (settings.json 中的 mcpServers 字段)
+        Path cliPath = svc.getProviderConfigPath(CliType.ANTIGRAVITY);
+        JsonObject cliRoot = svc.readJsonFile(cliPath);
+        if (servers.isEmpty()) {
+            cliRoot.remove("mcpServers");
+        } else {
+            cliRoot.add("mcpServers", buildMcpServersJson(servers));
+        }
+        svc.writeJsonFile(cliPath, cliRoot);
     }
 
 
@@ -291,12 +314,40 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
         importFromClaudeScopes(configService, existing, currentProjectRoot, opts, report);
         importFromOpenCodeConfig(configService, existing, report);
         importFromCodexToml(existing, report);
+        importFromAntigravityConfig(configService, existing, report);
 
         boolean changed = !beforeState.equals(GSON.toJson(existing));
         if (changed) {
             saveServers(existing);
         }
         return report;
+    }
+
+    private void importFromAntigravityConfig(ConfigFileService configService, List<McpServer> existing, ImportReport report) {
+        try {
+            // 优先从 settings.json 读取 (CLI 格式)
+            Path cliPath = configService.getProviderConfigPath(CliType.ANTIGRAVITY);
+            JsonObject cliRoot = configService.readJsonFile(cliPath);
+            if (cliRoot.has("mcpServers") && cliRoot.get("mcpServers").isJsonObject()
+                    && !cliRoot.getAsJsonObject("mcpServers").keySet().isEmpty()) {
+                importFromJsonServerObject(
+                        cliRoot.getAsJsonObject("mcpServers"),
+                        existing, CliType.ANTIGRAVITY, "Antigravity", report);
+                return;
+            }
+
+            // 兜底从 mcp_config.json 读取 (IDE 格式)
+            Path idePath = configService.getMcpConfigPath(CliType.ANTIGRAVITY);
+            JsonObject ideRoot = configService.readJsonFile(idePath);
+            if (ideRoot.has("mcpServers") && ideRoot.get("mcpServers").isJsonObject()) {
+                importFromJsonServerObject(
+                        ideRoot.getAsJsonObject("mcpServers"),
+                        existing, CliType.ANTIGRAVITY, "Antigravity", report);
+            }
+        } catch (Exception e) {
+            LOG.info("Failed to import MCP from Antigravity: " + e.getMessage());
+            report.warnings.add("Antigravity 导入失败: " + e.getMessage());
+        }
     }
 
     private void importFromClaudeScopes(ConfigFileService configService, List<McpServer> existing,

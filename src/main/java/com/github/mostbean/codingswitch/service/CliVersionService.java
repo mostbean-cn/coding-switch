@@ -264,6 +264,7 @@ public final class CliVersionService {
             case MMX -> "npm i -g mmx-cli@latest";
             case QODER -> "npm i -g @qoder-ai/qodercli@latest";
             case AUGGIE -> "npm i -g @augmentcode/auggie@latest";
+            case ANTIGRAVITY -> "npm i -g antigravity-kit@latest";
         };
     }
 
@@ -279,6 +280,7 @@ public final class CliVersionService {
             case CLAUDE -> "claude update";
             case CODEX -> "npm i -g @openai/codex@latest";
             case OPENCODE -> "npm i -g opencode-ai@latest";
+            case ANTIGRAVITY -> "npm i -g antigravity-kit@latest";
         };
     }
 
@@ -313,6 +315,7 @@ public final class CliVersionService {
             case MMX -> new String[]{"mmx --version"};
             case QODER -> new String[]{"qodercli --version"};
             case AUGGIE -> new String[]{"auggie --version"};
+            case ANTIGRAVITY -> new String[]{"antigravity --version", "antigravity -v"};
         };
     }
 
@@ -321,6 +324,7 @@ public final class CliVersionService {
             case CLAUDE -> new String[]{"claude --version", "claude -v"};
             case CODEX -> new String[]{"codex --version", "codex -v"};
             case OPENCODE -> new String[]{"opencode --version", "opencode -v"};
+            case ANTIGRAVITY -> new String[]{"antigravity --version", "antigravity -v"};
         };
     }
 
@@ -342,6 +346,7 @@ public final class CliVersionService {
             case MMX -> "mmx";
             case QODER -> "qodercli";
             case AUGGIE -> "auggie";
+            case ANTIGRAVITY -> "antigravity";
         };
     }
 
@@ -350,6 +355,7 @@ public final class CliVersionService {
             case CLAUDE -> "claude";
             case CODEX -> "codex";
             case OPENCODE -> "opencode";
+            case ANTIGRAVITY -> "antigravity";
         };
     }
 
@@ -363,6 +369,7 @@ public final class CliVersionService {
             case MMX -> "mmx-cli";
             case QODER -> "@qoder-ai/qodercli";
             case AUGGIE -> "@augmentcode/auggie";
+            case ANTIGRAVITY -> "antigravity-kit";
         };
     }
 
@@ -371,6 +378,7 @@ public final class CliVersionService {
             case CLAUDE -> "@anthropic-ai/claude-code";
             case CODEX -> "@openai/codex";
             case OPENCODE -> "opencode-ai";
+            case ANTIGRAVITY -> "antigravity-kit";
         };
     }
 

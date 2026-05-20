@@ -138,8 +138,10 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
                 .orElse(null);
         if (existing != null) {
             CodexAuthSnapshotService.getInstance().clearSnapshot(existing);
+            AntigravityAuthSnapshotService.getInstance().clearSnapshot(existing);
         } else {
             CodexAuthSnapshotService.getInstance().clearSnapshot(providerId);
+            AntigravityAuthSnapshotService.getInstance().clearSnapshot(providerId);
         }
         providers.removeIf(p -> p.getId().equals(providerId));
         saveProviders(providers);
@@ -160,6 +162,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         List<Provider> providers = new ArrayList<>(getProviders());
         Provider target = null;
         Provider activeCodex = findActiveProvider(providers, CliType.CODEX);
+        Provider activeAntigravity = findActiveProvider(providers, CliType.ANTIGRAVITY);
 
         for (Provider p : providers) {
             if (p.getId().equals(providerId)) {
@@ -171,6 +174,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             throw new IllegalArgumentException("Provider not found: " + providerId);
         }
         captureCurrentCodexSnapshot(target, activeCodex);
+        captureCurrentAntigravitySnapshot(target, activeAntigravity);
 
         // 同一 CLI 类型下只能有一个 active（OpenCode 除外，它是 additive 模式）
         for (Provider p : providers) {
@@ -184,6 +188,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         saveProviders(providers);
         writeToLiveConfig(target);
         lastCodexActivationResult = switchCodexAuthStateIfNeeded(target);
+        switchAntigravityAuthStateIfNeeded(target);
     }
 
     public CodexActivationResult getLastCodexActivationResult() {
@@ -201,6 +206,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
 
         switch (cliType) {
             case CLAUDE -> writeClaudeLive(svc, config);
+            case ANTIGRAVITY -> writeAntigravityLive(svc, config);
             case CODEX -> {
                 if (provider.getAuthMode() == AuthMode.OFFICIAL_LOGIN) {
                     writeCodexOfficialLive(svc, config);
@@ -210,6 +216,32 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             }
             case OPENCODE -> writeOpenCodeLive(svc, config, provider.getName());
         }
+    }
+
+    /**
+     * Antigravity: 将 settingsConfig.env 合并写入 ~/.gemini/antigravity-cli/settings.json
+     */
+    private void writeAntigravityLive(ConfigFileService svc, JsonObject config) throws IOException {
+        Path path = svc.getProviderConfigPath(CliType.ANTIGRAVITY);
+        JsonObject existing = svc.readJsonFile(path);
+
+        if (config.has("env")) {
+            JsonObject env = existing.has("env") ? existing.getAsJsonObject("env") : new JsonObject();
+            JsonObject newEnv = config.getAsJsonObject("env");
+
+            // 清除旧的 Provider 相关字段
+            env.remove("GEMINI_API_KEY");
+            env.remove("GEMINI_BASE_URL");
+            env.remove("GEMINI_MODEL");
+
+            // 写入新值
+            for (String key : newEnv.keySet()) {
+                env.add(key, newEnv.get(key));
+            }
+            existing.add("env", env);
+        }
+
+        svc.writeJsonFile(path, existing);
     }
 
     /**
@@ -472,6 +504,16 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         CodexAuthSnapshotService.getInstance().captureFromLive(activeCodex);
     }
 
+    private void captureCurrentAntigravitySnapshot(Provider target, Provider activeAntigravity) {
+        if (target == null || target.getCliType() != CliType.ANTIGRAVITY) {
+            return;
+        }
+        if (activeAntigravity == null || activeAntigravity.getAuthMode() != AuthMode.OFFICIAL_LOGIN) {
+            return;
+        }
+        AntigravityAuthSnapshotService.getInstance().captureFromLive(activeAntigravity);
+    }
+
     private CodexActivationResult switchCodexAuthStateIfNeeded(Provider target) throws IOException {
         if (target.getCliType() != CliType.CODEX || target.getAuthMode() != AuthMode.OFFICIAL_LOGIN) {
             return CodexActivationResult.notApplicable();
@@ -484,6 +526,13 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             case NO_SNAPSHOT -> CodexActivationResult.loginRequired();
             case INVALID_SNAPSHOT -> CodexActivationResult.snapshotInvalid();
         };
+    }
+
+    private void switchAntigravityAuthStateIfNeeded(Provider target) throws IOException {
+        if (target.getCliType() != CliType.ANTIGRAVITY || target.getAuthMode() != AuthMode.OFFICIAL_LOGIN) {
+            return;
+        }
+        AntigravityAuthSnapshotService.getInstance().restoreToLive(target);
     }
 
 

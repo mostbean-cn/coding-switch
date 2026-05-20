@@ -167,6 +167,12 @@ public class Provider {
                         : null;
                 yield env == null || env.keySet().isEmpty() ? AuthMode.OFFICIAL_LOGIN : AuthMode.API_KEY;
             }
+            case ANTIGRAVITY -> {
+                JsonObject env = safeConfig.has("env") && safeConfig.get("env").isJsonObject()
+                        ? safeConfig.getAsJsonObject("env")
+                        : null;
+                yield env == null || env.keySet().isEmpty() ? AuthMode.OFFICIAL_LOGIN : AuthMode.API_KEY;
+            }
             case CODEX -> {
                 JsonObject auth = safeConfig.has("auth") && safeConfig.get("auth").isJsonObject()
                         ? safeConfig.getAsJsonObject("auth")

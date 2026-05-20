@@ -25,6 +25,8 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 会话扫描服务。
@@ -44,12 +46,13 @@ public final class SessionScannerService {
      * 并行扫描所有已安装 CLI 的会话，按 lastActiveAt 倒序排列。
      */
     public List<SessionMeta> scanAllSessions() {
-        ExecutorService executor = Executors.newFixedThreadPool(4);
+        ExecutorService executor = Executors.newFixedThreadPool(5);
         try {
             List<Future<List<SessionMeta>>> futures = new ArrayList<>();
             futures.add(executor.submit(this::scanClaudeSessions));
             futures.add(executor.submit(this::scanCodexSessions));
             futures.add(executor.submit(this::scanOpenCodeSessions));
+            futures.add(executor.submit(this::scanAntigravitySessions));
 
             List<SessionMeta> allSessions = new ArrayList<>();
             for (Future<List<SessionMeta>> future : futures) {
@@ -76,6 +79,7 @@ public final class SessionScannerService {
                 case "claude" -> loadClaudeMessages(Path.of(sourcePath));
                 case "codex" -> loadCodexMessages(Path.of(sourcePath));
                 case "opencode" -> loadOpenCodeMessages(Path.of(sourcePath));
+                case "antigravity" -> loadAntigravityMessages(Path.of(sourcePath));
                 default -> {
                     LOG.warn("Unsupported provider: " + providerId);
                     yield Collections.emptyList();
@@ -95,7 +99,7 @@ public final class SessionScannerService {
             return false;
         }
         return switch (session.getProviderId()) {
-            case "claude", "codex", "opencode" -> true;
+            case "claude", "codex", "opencode", "antigravity" -> true;
             default -> false;
         };
     }
@@ -111,12 +115,12 @@ public final class SessionScannerService {
             throw new UnsupportedOperationException("当前 CLI 暂不支持删除会话");
         }
         switch (session.getProviderId()) {
-            case "claude", "codex" -> {
-                String sourcePath = session.getSourcePath();
-                if (sourcePath == null || sourcePath.isBlank()) {
-                    throw new IOException("缺少会话源路径");
+            case "claude", "codex", "antigravity" -> {
+                String deletePath = session.getDeletePath();
+                if (deletePath == null || deletePath.isBlank()) {
+                    throw new IOException("缺少会话删除路径");
                 }
-                deleteRecursively(Path.of(sourcePath));
+                deleteRecursively(Path.of(deletePath));
             }
             case "opencode" -> deleteOpenCodeSession(session);
             default -> throw new UnsupportedOperationException("当前 CLI 暂不支持删除会话");
@@ -833,5 +837,283 @@ public final class SessionScannerService {
         if (trimmed.length() <= maxChars)
             return trimmed;
         return trimmed.substring(0, maxChars) + "...";
+    }
+
+    // =====================================================================
+    // Antigravity 会话扫描与解析
+    // =====================================================================
+
+    private List<SessionMeta> scanAntigravitySessions() {
+        Path brainDir = Path.of(System.getProperty("user.home"), ".gemini", "antigravity", "brain");
+        if (!Files.isDirectory(brainDir)) {
+            return Collections.emptyList();
+        }
+
+        List<SessionMeta> sessions = new ArrayList<>();
+        try (Stream<Path> subDirs = Files.list(brainDir)) {
+            List<Path> paths = subDirs.filter(Files::isDirectory).toList();
+            for (Path path : paths) {
+                String dirName = path.getFileName().toString();
+                Path logFile = path.resolve(".system_generated").resolve("logs").resolve("transcript.jsonl");
+                if (!Files.exists(logFile)) {
+                    logFile = path.resolve("transcript.jsonl");
+                }
+                if (!Files.exists(logFile)) {
+                    continue;
+                }
+
+                SessionMeta meta = parseAntigravitySession(dirName, path, logFile);
+                if (meta != null) {
+                    sessions.add(meta);
+                }
+            }
+        } catch (IOException e) {
+            LOG.warn("Failed to scan Antigravity sessions", e);
+        }
+        return sessions;
+    }
+
+    private SessionMeta parseAntigravitySession(String sessionId, Path sessionDir, Path logFile) {
+        try {
+            List<String> headLines = readHeadLines(logFile, 15);
+            List<String> tailLines = readTailLines(logFile, 30);
+
+            String projectDir = null;
+            Long createdAt = null;
+
+            for (String line : headLines) {
+                JsonObject obj = parseJsonLine(line);
+                if (obj == null) continue;
+                if (createdAt == null && obj.has("created_at")) {
+                    createdAt = parseTimestamp(obj.get("created_at"));
+                }
+                if (projectDir == null) {
+                    projectDir = findProjectDirInJson(obj);
+                }
+            }
+
+            Long lastActiveAt = null;
+            String summary = null;
+            for (int i = tailLines.size() - 1; i >= 0; i--) {
+                JsonObject obj = parseJsonLine(tailLines.get(i));
+                if (obj == null) continue;
+                if (lastActiveAt == null && obj.has("created_at")) {
+                    lastActiveAt = parseTimestamp(obj.get("created_at"));
+                }
+                if (summary == null && obj.has("content")) {
+                    String content = obj.get("content").getAsString();
+                    String text = cleanAntigravityText(content);
+                    if (text != null && !text.isBlank()) {
+                        summary = truncate(text, 160);
+                    }
+                }
+                if (projectDir == null) {
+                    projectDir = findProjectDirInJson(obj);
+                }
+            }
+
+            if (createdAt == null || lastActiveAt == null) {
+                try {
+                    BasicFileAttributes attrs = Files.readAttributes(logFile, BasicFileAttributes.class);
+                    if (createdAt == null) {
+                        createdAt = attrs.creationTime().toMillis();
+                    }
+                    if (lastActiveAt == null) {
+                        lastActiveAt = attrs.lastModifiedTime().toMillis();
+                    }
+                } catch (IOException ignored) {}
+            }
+
+            if (projectDir == null) {
+                projectDir = inferProjectDirFromArtifacts(sessionDir);
+            }
+
+            if (summary == null || summary.isBlank()) {
+                summary = "Antigravity Session: " + sessionId;
+            }
+
+            SessionMeta meta = new SessionMeta("antigravity", sessionId);
+            meta.setTitle(pathBasename(projectDir != null ? projectDir : sessionId));
+            meta.setSummary(summary);
+            meta.setProjectDir(projectDir);
+            meta.setCreatedAt(createdAt);
+            meta.setLastActiveAt(lastActiveAt != null ? lastActiveAt : createdAt);
+            meta.setSourcePath(logFile.toAbsolutePath().toString());
+            meta.setDeletePath(sessionDir.toAbsolutePath().toString());
+            meta.setResumeCommand("antigravity --session " + sessionId);
+            return meta;
+        } catch (Exception e) {
+            LOG.debug("Failed to parse Antigravity session: " + logFile, e);
+            return null;
+        }
+    }
+
+    private String findProjectDirInJson(JsonObject obj) {
+        if (obj == null) return null;
+        if (obj.has("tool_calls") && obj.get("tool_calls").isJsonArray()) {
+            for (JsonElement tcElem : obj.getAsJsonArray("tool_calls")) {
+                if (!tcElem.isJsonObject()) continue;
+                JsonObject tc = tcElem.getAsJsonObject();
+                if (tc.has("args") && tc.get("args").isJsonObject()) {
+                    JsonObject args = tc.getAsJsonObject("args");
+                    if (args.has("DirectoryPath")) {
+                        String pathVal = cleanJsonStringQuotes(args.get("DirectoryPath").getAsString());
+                        if (isValidProjectDirectory(pathVal)) {
+                            return pathVal;
+                        }
+                    }
+                    if (args.has("AbsolutePath")) {
+                        String pathVal = cleanJsonStringQuotes(args.get("AbsolutePath").getAsString());
+                        try {
+                            Path parent = Path.of(pathVal).getParent();
+                            if (parent != null && isValidProjectDirectory(parent.toString())) {
+                                return parent.toString();
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                }
+            }
+        }
+        if (obj.has("content")) {
+            String content = obj.get("content").getAsString();
+            String pathVal = findPathInText(content);
+            if (pathVal != null) {
+                return pathVal;
+            }
+        }
+        return null;
+    }
+
+    private String cleanJsonStringQuotes(String val) {
+        if (val == null) return "";
+        String trimmed = val.trim();
+        if (trimmed.startsWith("\"") && trimmed.endsWith("\"")) {
+            trimmed = trimmed.substring(1, trimmed.length() - 1);
+        }
+        return trimmed.replace("\\\\", "\\").replace("\\", "/");
+    }
+
+    private boolean isValidProjectDirectory(String path) {
+        if (path == null || path.isBlank()) return false;
+        try {
+            Path p = Path.of(path);
+            return Files.isDirectory(p);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private String findPathInText(String text) {
+        if (text == null || text.isBlank()) return null;
+
+        // 优先匹配带双引号的路径（处理空格）
+        Pattern quotedPattern = Pattern.compile("\"([a-zA-Z]:[\\\\/][^\"/]+[^\"/]*|/[^\"/]+/[^\"/]*)\"");
+        Matcher quotedMatcher = quotedPattern.matcher(text);
+        if (quotedMatcher.find()) {
+            String matched = quotedMatcher.group(1);
+            String path = tryGetValidDirPath(matched);
+            if (path != null) return path;
+        }
+
+        // 兜底匹配普通路径（不带空格）
+        // Windows: C:\path, Unix: /path/to or /tmp
+        Pattern pattern = Pattern.compile("([a-zA-Z]:[\\\\/][^\\s\"']+|/[^\\s\"'<>|*]+)");
+        Matcher matcher = pattern.matcher(text);
+        while (matcher.find()) {
+            String matched = matcher.group(1);
+            String path = tryGetValidDirPath(matched);
+            if (path != null) return path;
+        }
+        return null;
+    }
+
+    private String tryGetValidDirPath(String matched) {
+        try {
+            Path path = Path.of(matched);
+            if (Files.isDirectory(path)) {
+                return path.toAbsolutePath().toString();
+            } else if (Files.isRegularFile(path)) {
+                Path parent = path.getParent();
+                if (parent != null) {
+                    return parent.toAbsolutePath().toString();
+                }
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    private String inferProjectDirFromArtifacts(Path sessionDir) {
+        Path ipFile = sessionDir.resolve("implementation_plan.md");
+        if (Files.exists(ipFile)) {
+            try {
+                String content = Files.readString(ipFile, StandardCharsets.UTF_8);
+                String path = findPathInText(content);
+                if (path != null) return path;
+            } catch (IOException ignored) {}
+        }
+        return null;
+    }
+
+    private String cleanAntigravityText(String content) {
+        if (content == null) return "";
+        // 仅清理特定的 Antigravity 元数据标签，避免使用通配符 <[^>]+> 误伤代码逻辑（如 a < b）
+        String cleaned = content.replaceAll("(?s)<USER_REQUEST>.*?</USER_REQUEST>", "")
+                .replaceAll("(?s)<ADDITIONAL_METADATA>.*?</ADDITIONAL_METADATA>", "")
+                .replaceAll("(?s)<user_information>.*?</user_information>", "")
+                .replaceAll("(?s)<user_rules>.*?</user_rules>", "")
+                .replaceAll("(?s)<subagents>.*?</subagents>", "")
+                .replaceAll("(?s)<artifacts>.*?</artifacts>", "")
+                .replaceAll("(?s)<planning_mode>.*?</planning_mode>", "")
+                .replaceAll("(?s)<identity>.*?</identity>", "")
+                .replaceAll("(?s)<messaging>.*?</messaging>", "")
+                .trim();
+        return cleaned.isEmpty() ? content.trim() : cleaned;
+    }
+
+    private List<SessionMessage> loadAntigravityMessages(Path file) {
+        List<SessionMessage> messages = new ArrayList<>();
+        try (BufferedReader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                JsonObject obj = parseJsonLine(line);
+                if (obj == null) continue;
+                String type = getStr(obj, "type", "");
+                String source = getStr(obj, "source", "");
+                String content = getStr(obj, "content", "");
+
+                if ("USER_INPUT".equals(type) && "USER_EXPLICIT".equals(source)) {
+                    String cleanText = cleanAntigravityText(content);
+                    Long ts = obj.has("created_at") ? parseTimestamp(obj.get("created_at")) : null;
+                    messages.add(new SessionMessage("user", cleanText, ts));
+                }
+                else if ("PLANNER_RESPONSE".equals(type) && "MODEL".equals(source)) {
+                    String cleanText = cleanAntigravityText(content);
+                    if (cleanText.isBlank() && obj.has("tool_calls")) {
+                        cleanText = formatToolCallsForDisplay(obj.getAsJsonArray("tool_calls"));
+                    }
+                    if (cleanText.isBlank()) {
+                        continue;
+                    }
+                    Long ts = obj.has("created_at") ? parseTimestamp(obj.get("created_at")) : null;
+                    messages.add(new SessionMessage("assistant", cleanText, ts));
+                }
+            }
+        } catch (IOException e) {
+            LOG.warn("Failed to load Antigravity messages: " + file, e);
+        }
+        return messages;
+    }
+
+    private String formatToolCallsForDisplay(JsonArray toolCalls) {
+        if (toolCalls == null || toolCalls.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder();
+        for (JsonElement tcElem : toolCalls) {
+            if (!tcElem.isJsonObject()) continue;
+            JsonObject tc = tcElem.getAsJsonObject();
+            String name = getStr(tc, "name", "tool");
+            if (!sb.isEmpty()) sb.append("\n");
+            sb.append("🛠️ 正在执行工具: ").append(name);
+        }
+        return sb.toString();
     }
 }

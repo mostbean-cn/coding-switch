@@ -184,6 +184,7 @@ public final class ProviderConnectionTestService {
             case CLAUDE -> buildClaudeProbes(config);
             case CODEX -> buildCodexProbes(config);
             case OPENCODE -> buildOpenCodeProbes(config);
+            case ANTIGRAVITY -> buildAntigravityProbes(config);
         };
     }
 
@@ -192,6 +193,7 @@ public final class ProviderConnectionTestService {
             case CLAUDE -> buildClaudeModelListRequests(config);
             case CODEX -> buildCodexModelListRequests(config);
             case OPENCODE -> buildOpenCodeModelListRequests(config);
+            case ANTIGRAVITY -> buildAntigravityModelListRequests(config);
         };
     }
 
@@ -312,6 +314,70 @@ public final class ProviderConnectionTestService {
                         new Header("anthropic-version", "2023-06-01")),
                 body,
                 "Claude Messages"));
+        return probes;
+    }
+
+    private List<ProbeRequest> buildAntigravityProbes(JsonObject config) {
+        JsonObject env = config != null && config.has("env") && config.get("env").isJsonObject()
+                ? config.getAsJsonObject("env")
+                : new JsonObject();
+        String apiKey = getString(env, "GEMINI_API_KEY");
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IllegalArgumentException("Missing Gemini API key");
+        }
+        String baseUrl = trimTrailingSlash(getString(env, "GEMINI_BASE_URL"));
+        if (baseUrl == null) {
+            baseUrl = "https://generativelanguage.googleapis.com";
+        }
+        String model = getString(env, "GEMINI_MODEL");
+        if (model == null || model.isBlank()) {
+            model = "gemini-2.5-flash";
+        }
+
+        List<ProbeRequest> probes = new ArrayList<>();
+        if (isGeminiNativeBaseUrl(baseUrl)) {
+            String nativeBody = "{\"contents\": [{\"parts\": [{\"text\": \"Hello\"}]}]}";
+            probes.add(postJson(
+                    ensurePath(baseUrl, "/v1beta/models/" + model + ":generateContent?key=" + urlEncode(apiKey)),
+                    List.of(),
+                    nativeBody,
+                    "Gemini Native Test"));
+        }
+
+        String oaiBody = "{\"model\": \"" + model + "\", \"messages\": [{\"role\": \"user\", \"content\": \"Hello\"}], \"max_tokens\": 5}";
+        probes.add(postJson(
+                ensurePath(baseUrl, "/v1/chat/completions"),
+                bearerHeaders(apiKey),
+                oaiBody,
+                "Gemini OpenAI-compatible Test"));
+
+        return probes;
+    }
+
+    private List<ProbeRequest> buildAntigravityModelListRequests(JsonObject config) {
+        JsonObject env = config != null && config.has("env") && config.get("env").isJsonObject()
+                ? config.getAsJsonObject("env")
+                : new JsonObject();
+        String apiKey = getString(env, "GEMINI_API_KEY");
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IllegalArgumentException("Missing Gemini API key");
+        }
+        String baseUrl = trimTrailingSlash(getString(env, "GEMINI_BASE_URL"));
+        if (baseUrl == null) {
+            baseUrl = "https://generativelanguage.googleapis.com";
+        }
+
+        List<ProbeRequest> probes = new ArrayList<>();
+        if (isGeminiNativeBaseUrl(baseUrl)) {
+            probes.add(get(
+                    ensurePath(baseUrl, "/v1beta/models?key=" + urlEncode(apiKey)),
+                    List.of(),
+                    "Gemini Native Models"));
+        }
+        probes.add(get(
+                ensurePath(baseUrl, "/models"),
+                bearerHeaders(apiKey),
+                "Gemini OpenAI-compatible Models"));
         return probes;
     }
 
@@ -445,6 +511,10 @@ public final class ProviderConnectionTestService {
         return value.replaceAll("/+$", "");
     }
 
+    private static String urlEncode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
+    }
+
     private static String firstNotBlank(String a, String b) {
         if (a != null && !a.isBlank()) {
             return a;
@@ -528,6 +598,18 @@ public final class ProviderConnectionTestService {
             return firstNotBlank(getString(env, "ANTHROPIC_DEFAULT_OPUS_MODEL"), model);
         }
         return model;
+    }
+
+    private static boolean isGeminiNativeBaseUrl(String baseUrl) {
+        if (baseUrl == null || baseUrl.isBlank()) {
+            return false;
+        }
+        try {
+            String host = URI.create(baseUrl).getHost();
+            return "generativelanguage.googleapis.com".equalsIgnoreCase(host);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private static String firstOpenCodeModel(JsonObject config) {
