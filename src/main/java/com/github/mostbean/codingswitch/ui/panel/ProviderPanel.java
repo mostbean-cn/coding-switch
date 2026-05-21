@@ -455,7 +455,7 @@ public class ProviderPanel extends JPanel {
                     case CLAUDE -> config.has("env") && config.getAsJsonObject("env").has("ANTHROPIC_MODEL")
                             ? config.getAsJsonObject("env").get("ANTHROPIC_MODEL").getAsString()
                             : "N/A";
-                    case ANTIGRAVITY -> I18n.t("provider.table.officialLogin");
+                    case ANTIGRAVITY -> "N/A";
                     case CODEX -> config.has("config") && config.get("config").getAsString().contains("model =")
                             ? extractTomlModel(config.get("config").getAsString())
                             : "N/A";

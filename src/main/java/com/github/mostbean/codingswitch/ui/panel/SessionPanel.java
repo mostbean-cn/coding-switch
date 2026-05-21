@@ -24,6 +24,8 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.datatransfer.StringSelection;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -39,6 +41,8 @@ public class SessionPanel extends JPanel {
 
     private static final long AUTO_REFRESH_INTERVAL_MS = 5 * 60 * 1000L;
     private static final CliType DEFAULT_SESSION_FILTER_CLI = CliType.CLAUDE;
+    private static final int ASSISTANT_PREVIEW_CHARS = 500;
+    private static final int MESSAGE_TRUNCATE_CHARS = 4000;
 
     private final DefaultListModel<SessionMeta> listModel = new DefaultListModel<>();
     private final JBList<SessionMeta> sessionList = new JBList<>(listModel);
@@ -54,7 +58,7 @@ public class SessionPanel extends JPanel {
             return new Dimension(0, 0);
         }
     };
-    private final JPanel messageContainer = new JPanel();
+    private final JPanel messageContainer = new MessageTimelinePanel();
     private final JBLabel emptyLabel = new JBLabel(I18n.t("session.empty.selectHint"), SwingConstants.CENTER);
     private final Project project;
 
@@ -445,10 +449,10 @@ public class SessionPanel extends JPanel {
             messageContainer.add(empty);
         } else {
             for (SessionMessage msg : messages) {
-                messageContainer.add(Box.createVerticalStrut(6));
+                messageContainer.add(Box.createVerticalStrut(4));
                 messageContainer.add(createMessageCard(msg));
             }
-            messageContainer.add(Box.createVerticalStrut(8));
+            messageContainer.add(Box.createVerticalStrut(4));
         }
 
         messageContainer.revalidate();
@@ -456,72 +460,213 @@ public class SessionPanel extends JPanel {
     }
 
     private JPanel createMessageCard(SessionMessage message) {
-        JPanel card = new JPanel(new BorderLayout(0, 4));
+        if ("tool".equalsIgnoreCase(message.getRole())) {
+            return createCollapsibleCard(message);
+        }
+        if ("assistant".equalsIgnoreCase(message.getRole())
+                && message.getContent() != null
+                && message.getContent().length() > ASSISTANT_PREVIEW_CHARS) {
+            return createExpandableTextCard(message);
+        }
+        return createStaticMessageCard(message, message.getContent());
+    }
+
+    private JPanel createStaticMessageCard(SessionMessage message, String content) {
+        JPanel card = createCardShell(message);
+        card.add(createMessageTextArea(normalizeDisplayContent(content, MESSAGE_TRUNCATE_CHARS)), BorderLayout.CENTER);
+        return wrapMessageCard(message, card);
+    }
+
+    private JPanel createExpandableTextCard(SessionMessage message) {
+        String fullContent = normalizeDisplayContent(message.getContent(), MESSAGE_TRUNCATE_CHARS);
+        String previewContent = fullContent.length() > ASSISTANT_PREVIEW_CHARS
+                ? fullContent.substring(0, ASSISTANT_PREVIEW_CHARS).trim() + "..."
+                : fullContent;
+
+        JPanel card = createCardShell(message);
+        JPanel bodyPanel = new JPanel(new BorderLayout(0, 4));
+        bodyPanel.setOpaque(false);
+
+        JTextArea textArea = createMessageTextArea(previewContent);
+        JButton toggleButton = createInlineToggleButton(I18n.t("session.content.expand"));
+        boolean[] expanded = {false};
+        JPanel[] wrapperRef = new JPanel[1];
+
+        toggleButton.addActionListener(e -> {
+            expanded[0] = !expanded[0];
+            textArea.setText(expanded[0] ? fullContent : previewContent);
+            textArea.setCaretPosition(0);
+            toggleButton.setText(expanded[0]
+                    ? I18n.t("session.content.collapse")
+                    : I18n.t("session.content.expand"));
+            refreshMessageWrapper(wrapperRef[0]);
+        });
+
+        bodyPanel.add(textArea, BorderLayout.CENTER);
+        bodyPanel.add(toggleButton, BorderLayout.SOUTH);
+        card.add(bodyPanel, BorderLayout.CENTER);
+
+        JPanel wrapper = wrapMessageCard(message, card);
+        wrapperRef[0] = wrapper;
+        return wrapper;
+    }
+
+    private JPanel createCollapsibleCard(SessionMessage message) {
+        JPanel card = createCardShell(message);
+        JPanel bodyPanel = new JPanel(new BorderLayout(0, 4));
+        bodyPanel.setOpaque(false);
+
+        JBLabel summaryLabel = new JBLabel("▶ " + I18n.t("session.tool.collapsed"));
+        summaryLabel.setFont(summaryLabel.getFont().deriveFont(11f));
+        summaryLabel.setForeground(UIUtil.getInactiveTextColor());
+        summaryLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+
+        JTextArea textArea = createMessageTextArea(normalizeDisplayContent(message.getContent(), MESSAGE_TRUNCATE_CHARS));
+        textArea.setVisible(false);
+
+        boolean[] expanded = {false};
+        JPanel[] wrapperRef = new JPanel[1];
+        MouseAdapter toggleListener = new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                expanded[0] = !expanded[0];
+                textArea.setVisible(expanded[0]);
+                summaryLabel.setText((expanded[0] ? "▼ " : "▶ ")
+                        + (expanded[0]
+                        ? I18n.t("session.tool.expanded")
+                        : I18n.t("session.tool.collapsed")));
+                refreshMessageWrapper(wrapperRef[0]);
+            }
+        };
+        summaryLabel.addMouseListener(toggleListener);
+        bodyPanel.addMouseListener(toggleListener);
+
+        bodyPanel.add(summaryLabel, BorderLayout.NORTH);
+        bodyPanel.add(textArea, BorderLayout.CENTER);
+        card.add(bodyPanel, BorderLayout.CENTER);
+
+        JPanel wrapper = wrapMessageCard(message, card);
+        wrapperRef[0] = wrapper;
+        return wrapper;
+    }
+
+    private JPanel createCardShell(SessionMessage message) {
+        JPanel card = new JPanel(new BorderLayout(0, 3));
         boolean isUser = "user".equalsIgnoreCase(message.getRole());
         boolean isAssistant = "assistant".equalsIgnoreCase(message.getRole());
+        boolean isTool = "tool".equalsIgnoreCase(message.getRole());
 
         Color bgColor;
         if (isUser) {
-            bgColor = new Color(59, 130, 246, 15); // 蓝色半透明
+            bgColor = new Color(59, 130, 246, 14);
         } else if (isAssistant) {
-            bgColor = new Color(100, 116, 139, 12); // 灰蓝半透明
+            bgColor = new Color(100, 116, 139, 10);
+        } else if (isTool) {
+            bgColor = new Color(139, 92, 246, 8);
         } else {
-            bgColor = new Color(245, 158, 11, 10); // 橙色半透明
+            bgColor = new Color(245, 158, 11, 8);
         }
 
         card.setBackground(bgColor);
         card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(128, 128, 128, 40), 1, true),
-                JBUI.Borders.empty(8, 10)));
+                BorderFactory.createLineBorder(new Color(128, 128, 128, 36), 1, true),
+                JBUI.Borders.empty(6, 8)));
         card.setOpaque(true);
         card.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        // 角色 + 时间标签
         JPanel headerPanel = new JPanel(new BorderLayout());
         headerPanel.setOpaque(false);
 
         JBLabel roleLabel = new JBLabel(getRoleLabel(message.getRole()));
-        roleLabel.setFont(roleLabel.getFont().deriveFont(Font.BOLD, 11f));
+        roleLabel.setFont(roleLabel.getFont().deriveFont(Font.BOLD, 10.5f));
         roleLabel.setForeground(getRoleColor(message.getRole()));
         headerPanel.add(roleLabel, BorderLayout.WEST);
 
         if (message.getTimestamp() != null) {
             JBLabel timeLabel = new JBLabel(formatTimestamp(message.getTimestamp()));
-            timeLabel.setFont(timeLabel.getFont().deriveFont(10f));
+            timeLabel.setFont(timeLabel.getFont().deriveFont(9.5f));
             timeLabel.setForeground(UIUtil.getInactiveTextColor());
             headerPanel.add(timeLabel, BorderLayout.EAST);
         }
 
         card.add(headerPanel, BorderLayout.NORTH);
+        return card;
+    }
 
-        // 消息内容（限制最大行数，超长截断）
-        String content = message.getContent();
-        if (content.length() > 2000) {
-            content = content.substring(0, 2000) + I18n.t("session.content.truncated");
-        }
-        JTextArea textArea = new JTextArea(content);
+    private JTextArea createMessageTextArea(String content) {
+        JTextArea textArea = new JTextArea(content == null ? "" : content) {
+            @Override
+            public Dimension getPreferredSize() {
+                Container parent = getParent();
+                if (parent != null && parent.getWidth() > 0) {
+                    int width = Math.max(1, parent.getWidth());
+                    setSize(width, Short.MAX_VALUE);
+                }
+                return super.getPreferredSize();
+            }
+        };
         textArea.setEditable(false);
         textArea.setLineWrap(true);
         textArea.setWrapStyleWord(true);
         textArea.setOpaque(false);
-        textArea.setFont(textArea.getFont().deriveFont(12f));
+        textArea.setFont(textArea.getFont().deriveFont(11f));
         textArea.setBorder(JBUI.Borders.empty());
+        return textArea;
+    }
 
-        card.add(textArea, BorderLayout.CENTER);
+    private JButton createInlineToggleButton(String text) {
+        JButton button = new JButton(text);
+        button.setHorizontalAlignment(SwingConstants.LEFT);
+        button.setFont(button.getFont().deriveFont(11f));
+        button.setForeground(getRoleColor("assistant"));
+        button.setBorder(JBUI.Borders.emptyTop(2));
+        button.setBorderPainted(false);
+        button.setContentAreaFilled(false);
+        button.setFocusPainted(false);
+        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        return button;
+    }
 
-        // 设置左右缩进模拟消息气泡效果
-        JPanel wrapper = new JPanel(new BorderLayout());
+    private JPanel wrapMessageCard(SessionMessage message, JPanel card) {
+        boolean isUser = "user".equalsIgnoreCase(message.getRole());
+        boolean isAssistant = "assistant".equalsIgnoreCase(message.getRole());
+        JPanel wrapper = new JPanel(new BorderLayout()) {
+            @Override
+            public Dimension getMaximumSize() {
+                return new Dimension(Integer.MAX_VALUE, getPreferredSize().height);
+            }
+        };
         wrapper.setOpaque(false);
         wrapper.setAlignmentX(Component.LEFT_ALIGNMENT);
         if (isUser) {
-            wrapper.setBorder(JBUI.Borders.emptyLeft(40));
+            wrapper.setBorder(JBUI.Borders.emptyLeft(32));
         } else if (isAssistant) {
-            wrapper.setBorder(JBUI.Borders.emptyRight(40));
+            wrapper.setBorder(JBUI.Borders.emptyRight(32));
         }
         wrapper.add(card, BorderLayout.CENTER);
-        wrapper.setMaximumSize(new Dimension(Integer.MAX_VALUE, wrapper.getPreferredSize().height + 200));
-
+        refreshMessageWrapper(wrapper);
         return wrapper;
+    }
+
+    private void refreshMessageWrapper(JPanel wrapper) {
+        if (wrapper == null) {
+            return;
+        }
+        wrapper.revalidate();
+        wrapper.repaint();
+        messageContainer.revalidate();
+        messageContainer.repaint();
+    }
+
+    private String normalizeDisplayContent(String content, int maxChars) {
+        if (content == null) {
+            return "";
+        }
+        String normalized = content.replaceAll("\\n{3,}", "\n\n").trim();
+        if (normalized.length() > maxChars) {
+            return normalized.substring(0, maxChars) + I18n.t("session.content.truncated");
+        }
+        return normalized;
     }
 
     // =====================================================================
@@ -708,6 +853,33 @@ public class SessionPanel extends JPanel {
     // =====================================================================
     // 列表单元格渲染器
     // =====================================================================
+
+    private static class MessageTimelinePanel extends JPanel implements Scrollable {
+        @Override
+        public Dimension getPreferredScrollableViewportSize() {
+            return getPreferredSize();
+        }
+
+        @Override
+        public int getScrollableUnitIncrement(Rectangle visibleRect, int orientation, int direction) {
+            return 16;
+        }
+
+        @Override
+        public int getScrollableBlockIncrement(Rectangle visibleRect, int orientation, int direction) {
+            return Math.max(visibleRect.height - 16, 16);
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportWidth() {
+            return true;
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportHeight() {
+            return false;
+        }
+    }
 
     private class SessionListCellRenderer extends JPanel implements ListCellRenderer<SessionMeta> {
         private final JBLabel titleLabel = new JBLabel();

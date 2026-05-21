@@ -75,7 +75,7 @@ public final class SessionScannerService {
      */
     public List<SessionMessage> loadMessages(String providerId, String sourcePath) {
         try {
-            return switch (providerId) {
+            List<SessionMessage> messages = switch (providerId) {
                 case "claude" -> loadClaudeMessages(Path.of(sourcePath));
                 case "codex" -> loadCodexMessages(Path.of(sourcePath));
                 case "opencode" -> loadOpenCodeMessages(Path.of(sourcePath));
@@ -85,6 +85,7 @@ public final class SessionScannerService {
                     yield Collections.emptyList();
                 }
             };
+            return postProcessMessages(messages);
         } catch (Exception e) {
             LOG.warn("Failed to load messages for " + providerId + ": " + sourcePath, e);
             return Collections.emptyList();
@@ -230,6 +231,9 @@ public final class SessionScannerService {
 
                 JsonObject message = obj.getAsJsonObject("message");
                 String role = normalizeClaudeRole(message);
+                // 跳过工具调用结果消息，对回顾对话无价值
+                if ("tool".equalsIgnoreCase(role))
+                    continue;
                 String content = extractText(message.get("content"));
                 if (content == null || content.isBlank())
                     continue;
@@ -771,6 +775,10 @@ public final class SessionScannerService {
                 if (!elem.isJsonObject())
                     continue;
                 JsonObject item = elem.getAsJsonObject();
+                String type = getStr(item, "type", "").toLowerCase();
+                // 跳过工具调用请求和思考过程，只保留有意义的文本
+                if ("tool_use".equals(type) || "thinking".equals(type))
+                    continue;
                 String text = getStr(item, "text", null);
                 if (text == null)
                     text = getStr(item, "input_text", null);
@@ -1078,8 +1086,28 @@ public final class SessionScannerService {
                 .replaceAll("(?s)<planning_mode>.*?</planning_mode>", "")
                 .replaceAll("(?s)<identity>.*?</identity>", "")
                 .replaceAll("(?s)<messaging>.*?</messaging>", "")
+                .replaceAll("(?s)<thinking_mode>.*?</thinking_mode>", "")
+                .replaceAll("(?s)<thinking>.*?</thinking>", "")
                 .trim();
+        // 移除纯工具调用格式的行
+        cleaned = cleaned.replaceAll("(?m)^\\s*🛠️\\s*正在执行工具:.*$", "").trim();
         return cleaned.isEmpty() ? content.trim() : cleaned;
+    }
+
+    /**
+     * 消息后处理：压缩连续空行、去除首尾空白、过滤纯噪声消息。
+     */
+    private List<SessionMessage> postProcessMessages(List<SessionMessage> messages) {
+        List<SessionMessage> result = new ArrayList<>();
+        for (SessionMessage msg : messages) {
+            String content = msg.getContent();
+            if (content == null) continue;
+            // 压缩连续空行为单个换行
+            content = content.replaceAll("\\n{3,}", "\n\n").trim();
+            if (content.isEmpty()) continue;
+            result.add(new SessionMessage(msg.getRole(), content, msg.getTimestamp()));
+        }
+        return result;
     }
 
     private List<SessionMessage> loadAntigravityMessages(Path file) {
@@ -1116,12 +1144,8 @@ public final class SessionScannerService {
 
         if (messages.isEmpty()) {
             boolean isCliSource = file.toAbsolutePath().toString().contains("antigravity-cli");
-            String sessionId = "unknown";
-            try {
-                sessionId = file.getParent().getParent().getParent().getFileName().toString();
-            } catch (Exception ignored) {}
             String tip = isCliSource
-                    ? "该会话为 Antigravity CLI 本地运行的 Native 会话，其详细内容保存在本地加密/二进制文件中。\n\n您可以在终端中运行以下命令继续对话：\n\n`agy --conversation " + sessionId + "`"
+                    ? "该会话为 Antigravity CLI 本地运行的 Native 会话，其详细内容保存在本地加密/二进制文件中。"
                     : "未找到对话内容（可能由于会话正在进行中，或者日志文件尚未刷写）。";
             messages.add(new SessionMessage("system", tip, System.currentTimeMillis()));
         }

@@ -258,6 +258,11 @@ public final class I18n {
                 m.put("session.batchDelete.col.lastActive", "最后活跃");
                 m.put("session.batchDelete.col.project", "项目/摘要");
                 m.put("session.content.truncated", "\n... (内容过长已截断)");
+                m.put("session.content.expand", "展开全文");
+                m.put("session.content.collapse", "收起");
+                m.put("session.tool.collapsed", "工具调用结果（点击展开）");
+                m.put("session.tool.expanded", "收起工具调用结果");
+                m.put("session.tool.callCount", "调用了 {0} 个工具");
                 m.put("session.time.unknown", "未知");
                 m.put("session.time.justNow", "刚刚");
                 m.put("session.time.minutesAgo", "{0} 分钟前");
@@ -821,6 +826,11 @@ public final class I18n {
                 m.put("session.batchDelete.col.lastActive", "Last Active");
                 m.put("session.batchDelete.col.project", "Project/Summary");
                 m.put("session.content.truncated", "\n... (content truncated)");
+                m.put("session.content.expand", "Show more");
+                m.put("session.content.collapse", "Show less");
+                m.put("session.tool.collapsed", "Tool result (click to expand)");
+                m.put("session.tool.expanded", "Collapse tool result");
+                m.put("session.tool.callCount", "{0} tool calls");
                 m.put("session.time.unknown", "Unknown");
                 m.put("session.time.justNow", "Just now");
                 m.put("session.time.minutesAgo", "{0} min ago");
