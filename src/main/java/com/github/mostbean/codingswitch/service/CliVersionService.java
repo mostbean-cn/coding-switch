@@ -27,6 +27,8 @@ public final class CliVersionService {
     private static final long VERSION_TIMEOUT_SECONDS = 10;
     private static final long LATEST_TIMEOUT_SECONDS = 15;
     private static final String OFFICIAL_NPM_REGISTRY = "https://registry.npmjs.org/";
+    private static final String ANTIGRAVITY_MANIFEST_BASE_URL =
+        "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests";
 
     public enum VersionStatus {
         INSTALLED,
@@ -199,6 +201,10 @@ public final class CliVersionService {
     }
 
     public String getLatestVersion(SettingsCli cliType, String currentVersion) {
+        if (cliType == SettingsCli.ANTIGRAVITY) {
+            return getLatestVersionFromManifest();
+        }
+
         String packageName = getNpmPackageName(cliType);
         if (packageName == null) {
             return null;
@@ -229,6 +235,10 @@ public final class CliVersionService {
     }
 
     public String getLatestVersion(CliType cliType, String currentVersion) {
+        if (cliType == CliType.ANTIGRAVITY) {
+            return getLatestVersionFromManifest();
+        }
+
         String packageName = getNpmPackageName(cliType);
         if (packageName == null) {
             return null;
@@ -264,7 +274,7 @@ public final class CliVersionService {
             case MMX -> "npm i -g mmx-cli@latest";
             case QODER -> "npm i -g @qoder-ai/qodercli@latest";
             case AUGGIE -> "npm i -g @augmentcode/auggie@latest";
-            case ANTIGRAVITY -> "npm i -g antigravity-kit@latest";
+            case ANTIGRAVITY -> getAntigravityInstallCommand();
         };
     }
 
@@ -280,7 +290,7 @@ public final class CliVersionService {
             case CLAUDE -> "claude update";
             case CODEX -> "npm i -g @openai/codex@latest";
             case OPENCODE -> "npm i -g opencode-ai@latest";
-            case ANTIGRAVITY -> "npm i -g antigravity-kit@latest";
+            case ANTIGRAVITY -> getAntigravityInstallCommand();
         };
     }
 
@@ -315,7 +325,7 @@ public final class CliVersionService {
             case MMX -> new String[]{"mmx --version"};
             case QODER -> new String[]{"qodercli --version"};
             case AUGGIE -> new String[]{"auggie --version"};
-            case ANTIGRAVITY -> new String[]{"antigravity --version", "antigravity -v"};
+            case ANTIGRAVITY -> new String[]{"agy --version", "agy -v"};
         };
     }
 
@@ -324,7 +334,7 @@ public final class CliVersionService {
             case CLAUDE -> new String[]{"claude --version", "claude -v"};
             case CODEX -> new String[]{"codex --version", "codex -v"};
             case OPENCODE -> new String[]{"opencode --version", "opencode -v"};
-            case ANTIGRAVITY -> new String[]{"antigravity --version", "antigravity -v"};
+            case ANTIGRAVITY -> new String[]{"agy --version", "agy -v"};
         };
     }
 
@@ -346,7 +356,7 @@ public final class CliVersionService {
             case MMX -> "mmx";
             case QODER -> "qodercli";
             case AUGGIE -> "auggie";
-            case ANTIGRAVITY -> "antigravity";
+            case ANTIGRAVITY -> "agy";
         };
     }
 
@@ -355,7 +365,7 @@ public final class CliVersionService {
             case CLAUDE -> "claude";
             case CODEX -> "codex";
             case OPENCODE -> "opencode";
-            case ANTIGRAVITY -> "antigravity";
+            case ANTIGRAVITY -> "agy";
         };
     }
 
@@ -369,7 +379,7 @@ public final class CliVersionService {
             case MMX -> "mmx-cli";
             case QODER -> "@qoder-ai/qodercli";
             case AUGGIE -> "@augmentcode/auggie";
-            case ANTIGRAVITY -> "antigravity-kit";
+            case ANTIGRAVITY -> null;
         };
     }
 
@@ -378,7 +388,7 @@ public final class CliVersionService {
             case CLAUDE -> "@anthropic-ai/claude-code";
             case CODEX -> "@openai/codex";
             case OPENCODE -> "opencode-ai";
-            case ANTIGRAVITY -> "antigravity-kit";
+            case ANTIGRAVITY -> null;
         };
     }
 
@@ -462,6 +472,41 @@ public final class CliVersionService {
             LOG.info("Version command failed: " + command + " -> " + e.getMessage());
             return CommandOutput.failed(e.getMessage());
         }
+    }
+
+    private static boolean isWindows() {
+        return System.getProperty("os.name", "").toLowerCase().contains("win");
+    }
+
+    private String getAntigravityInstallCommand() {
+        return isWindows()
+            ? "irm https://antigravity.google/cli/install.ps1 | iex"
+            : "curl -fsSL https://antigravity.google/cli/install.sh | bash";
+    }
+
+    private String getLatestVersionFromManifest() {
+        String platform = isWindows() ? "windows_amd64" : "linux_amd64";
+        String manifestUrl = ANTIGRAVITY_MANIFEST_BASE_URL + "/" + platform + ".json";
+        String command = isWindows()
+            ? "powershell -Command \"(Invoke-RestMethod -Uri '" + manifestUrl + "').version\""
+            : "curl -fsSL " + manifestUrl;
+        CommandOutput result = runCommand(command, LATEST_TIMEOUT_SECONDS);
+        if (result.timedOut() || result.exitCode() == null || result.exitCode() != 0) {
+            return null;
+        }
+        String raw = result.output();
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        Matcher m = Pattern.compile("\"version\"\\s*:\\s*\"([^\"]+)\"").matcher(raw);
+        if (m.find()) {
+            return m.group(1);
+        }
+        String trimmed = raw.trim();
+        if (trimmed.matches("\\d+\\.\\d+[.\\d]*")) {
+            return trimmed;
+        }
+        return null;
     }
 
     private String getLatestVersionFromRegistry(String packageName, String registry) {
