@@ -252,9 +252,11 @@ public class SessionPanel extends JPanel {
         // CLI 类型 + 来源 + 会话 ID
         String cliName = getCliDisplayName(session.getProviderId());
         String sourceLabel = "";
-        if (isAntigravitySessionProvider(session.getProviderId()) && session.getClientSource() != null) {
-            String sourceKey = "antigravity.source." + session.getClientSource().toLowerCase();
-            sourceLabel = " (" + I18n.t(sourceKey) + ")";
+        if (isAntigravitySessionProvider(session.getProviderId())) {
+            String sourceName = getAntigravitySourceDisplayName(session.getClientSource());
+            if (!sourceName.isEmpty()) {
+                sourceLabel = " (" + sourceName + ")";
+            }
         }
         JBLabel cliLabel = new JBLabel(cliName + sourceLabel + "  ·  " + truncateId(session.getSessionId()));
         cliLabel.setFont(cliLabel.getFont().deriveFont(11f));
@@ -786,6 +788,13 @@ public class SessionPanel extends JPanel {
         return "agy".equals(providerId) || "antigravity".equals(providerId);
     }
 
+    private String getAntigravitySourceDisplayName(String clientSource) {
+        if (clientSource == null || clientSource.isBlank() || "cli".equalsIgnoreCase(clientSource)) {
+            return "";
+        }
+        return I18n.t("antigravity.source." + clientSource.toLowerCase());
+    }
+
     private String getRoleLabel(String role) {
         if (role == null) {
             return I18n.t("session.role.unknown");
@@ -916,9 +925,11 @@ public class SessionPanel extends JPanel {
                 SessionMeta value, int index,
                 boolean isSelected, boolean cellHasFocus) {
             String cliName = getCliDisplayName(value.getProviderId());
-            if (isAntigravitySessionProvider(value.getProviderId()) && value.getClientSource() != null) {
-                String sourceKey = "antigravity.source." + value.getClientSource().toLowerCase();
-                cliName += "-" + I18n.t(sourceKey);
+            if (isAntigravitySessionProvider(value.getProviderId())) {
+                String sourceName = getAntigravitySourceDisplayName(value.getClientSource());
+                if (!sourceName.isEmpty()) {
+                    cliName += "-" + sourceName;
+                }
             }
             String cliTag = "[" + cliName + "]";
             providerLabel.setText(cliTag);

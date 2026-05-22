@@ -555,6 +555,24 @@ public class SettingsPanel extends JPanel {
         gbc.weightx = 1.0;
         panel.add(cmdField, gbc);
 
+        JPanel presetsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        addCliCommandPresetButton(presetsPanel, nameField, cmdField,
+            "Claude", "claude --dangerously-skip-permissions");
+        addCliCommandPresetButton(presetsPanel, nameField, cmdField, "Codex", "codex");
+        addCliCommandPresetButton(presetsPanel, nameField, cmdField, "OpenCode", "opencode");
+        addCliCommandPresetButton(presetsPanel, nameField, cmdField,
+            "Antigravity CLI", "agy --dangerously-skip-permissions");
+
+        gbc.gridy = 2;
+        gbc.gridx = 0;
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.weightx = 0;
+        panel.add(new JLabel(I18n.t("settings.dialog.cliCommand.presets")), gbc);
+        gbc.gridx = 1;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
+        panel.add(presetsPanel, gbc);
+
         int result = JOptionPane.showConfirmDialog(
             this,
             panel,
@@ -577,6 +595,21 @@ public class SettingsPanel extends JPanel {
                 updateCliCommandTableViewportHeight();
             }
         }
+    }
+
+    private void addCliCommandPresetButton(
+        JPanel presetsPanel,
+        JTextField nameField,
+        JTextField cmdField,
+        String name,
+        String command
+    ) {
+        JButton button = new JButton(name);
+        button.addActionListener(e -> {
+            nameField.setText(name);
+            cmdField.setText(command);
+        });
+        presetsPanel.add(button);
     }
 
 
