@@ -252,7 +252,7 @@ public class SessionPanel extends JPanel {
         // CLI 类型 + 来源 + 会话 ID
         String cliName = getCliDisplayName(session.getProviderId());
         String sourceLabel = "";
-        if ("antigravity".equals(session.getProviderId()) && session.getClientSource() != null) {
+        if (isAntigravitySessionProvider(session.getProviderId()) && session.getClientSource() != null) {
             String sourceKey = "antigravity.source." + session.getClientSource().toLowerCase();
             sourceLabel = " (" + I18n.t(sourceKey) + ")";
         }
@@ -690,7 +690,8 @@ public class SessionPanel extends JPanel {
     private boolean matchesSearch(SessionMeta session) {
         // 先按 CLI 类型过滤
         if (selectedProvider != null && !selectedProvider.equals(session.getProviderId())) {
-            return false;
+            return isAntigravitySessionProvider(selectedProvider)
+                && isAntigravitySessionProvider(session.getProviderId());
         }
         // 再按搜索关键词过滤
         if (searchQuery.isEmpty())
@@ -779,6 +780,10 @@ public class SessionPanel extends JPanel {
     private String getCliDisplayName(String providerId) {
         CliType cliType = CliType.fromId(providerId);
         return cliType == null ? providerId : cliType.getDisplayName();
+    }
+
+    private boolean isAntigravitySessionProvider(String providerId) {
+        return "agy".equals(providerId) || "antigravity".equals(providerId);
     }
 
     private String getRoleLabel(String role) {
@@ -911,7 +916,7 @@ public class SessionPanel extends JPanel {
                 SessionMeta value, int index,
                 boolean isSelected, boolean cellHasFocus) {
             String cliName = getCliDisplayName(value.getProviderId());
-            if ("antigravity".equals(value.getProviderId()) && value.getClientSource() != null) {
+            if (isAntigravitySessionProvider(value.getProviderId()) && value.getClientSource() != null) {
                 String sourceKey = "antigravity.source." + value.getClientSource().toLowerCase();
                 cliName += "-" + I18n.t(sourceKey);
             }

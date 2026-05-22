@@ -15,7 +15,7 @@ public enum SettingsCli {
     MMX("MMX", "mmx"),
     QODER("Qoder CLI", "qodercli"),
     AUGGIE("Auggie CLI", "auggie"),
-    ANTIGRAVITY("Antigravity", "antigravity");
+    ANTIGRAVITY("Antigravity CLI", "agy");
 
     private final String displayName;
     private final String id;
@@ -42,9 +42,13 @@ public enum SettingsCli {
             return null;
         }
         return Arrays.stream(values())
-            .filter(cli -> cli.id.equalsIgnoreCase(id))
+            .filter(cli -> cli.id.equalsIgnoreCase(id) || cli.matchesLegacyId(id))
             .findFirst()
             .orElse(null);
+    }
+
+    private boolean matchesLegacyId(String id) {
+        return this == ANTIGRAVITY && "antigravity".equalsIgnoreCase(id);
     }
 
     public static List<SettingsCli> defaultVisibleValues() {

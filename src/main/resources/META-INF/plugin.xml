@@ -6,7 +6,7 @@
 
     <description><![CDATA[
     <h2>Coding Switch — AI 编程 CLI 与 IDE 辅助工具集</h2>
-    <p>在 IDE 内统一管理 Claude Code、Codex、OpenCode 等主流 AI 编程命令行工具，并提供代码补全、Git 提交信息生成、路径行号插入、CLI 快速启动与版本检测等日常开发辅助能力。</p>
+    <p>在 IDE 内统一管理 Claude Code、Codex、OpenCode、Antigravity CLI 等主流 AI 编程命令行工具，并提供代码补全、Git 提交信息生成、路径行号插入、CLI 快速启动与版本检测等日常开发辅助能力。</p>
 
     <h3>✨ 核心功能</h3>
     <ul>
@@ -23,6 +23,7 @@
         <tr><td>Claude Code</td><td>✅</td><td>✅</td></tr>
         <tr><td>Codex (OpenAI)</td><td>✅</td><td>✅</td></tr>
         <tr><td>OpenCode</td><td>—</td><td>✅</td></tr>
+        <tr><td>Antigravity CLI</td><td>✅</td><td>—</td></tr>
     </table>
 
     <h3>📦 内置预设供应商</h3>
@@ -41,7 +42,7 @@
     <change-notes><![CDATA[
     <h3>0.4.2</h3>
     <ul>
-        <li><b>Antigravity 适配优化</b> — Gemini Cli迁移至Antigravity Cli并实现功能兼容。</li>
+        <li><b>Antigravity CLI 适配优化</b> — Gemini CLI 迁移至 Antigravity CLI 并实现功能兼容。</li>
         <li><b>会话管理体验优化</b> — 历史对话自动过滤工具调用、思考过程与冗余结果，AI 长消息支持展开/收起，工具消息默认折叠。</li>
         <li><b>代码补全优化</b> — 优化代码补全逻辑，提高补全效果和稳定性。</li>
     </ul>

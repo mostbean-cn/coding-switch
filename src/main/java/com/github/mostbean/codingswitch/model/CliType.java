@@ -15,8 +15,8 @@ public enum CliType {
     CODEX("Codex", "codex"),
     @SerializedName(value = "OPENCODE", alternate = { "OpenCode", "opencode" })
     OPENCODE("OpenCode", "opencode"),
-    @SerializedName(value = "ANTIGRAVITY", alternate = { "Antigravity", "antigravity" })
-    ANTIGRAVITY("Antigravity", "antigravity");
+    @SerializedName(value = "ANTIGRAVITY", alternate = { "Antigravity CLI", "Antigravity", "agy", "antigravity" })
+    ANTIGRAVITY("Antigravity CLI", "agy");
 
     private final String displayName;
     private final String id;
@@ -39,9 +39,13 @@ public enum CliType {
             return null;
         }
         return Arrays.stream(values())
-                .filter(cli -> cli.id.equalsIgnoreCase(id))
+                .filter(cli -> cli.id.equalsIgnoreCase(id) || cli.matchesLegacyId(id))
                 .findFirst()
                 .orElse(null);
+    }
+
+    private boolean matchesLegacyId(String id) {
+        return this == ANTIGRAVITY && "antigravity".equalsIgnoreCase(id);
     }
 
     @Override

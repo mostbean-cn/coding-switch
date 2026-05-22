@@ -84,7 +84,7 @@ public class BatchDeleteSessionsDialog extends DialogWrapper {
         this.cliType = cliType;
         this.refreshCallback = refreshCallback;
         this.allSessions = sessions.stream()
-            .filter(session -> cliType.getId().equals(session.getProviderId()))
+            .filter(session -> matchesCliType(session, cliType))
             .sorted(Comparator.comparingLong(SessionMeta::getEffectiveTimestamp).reversed())
             .collect(Collectors.toCollection(ArrayList::new));
         this.tableModel = new SessionTableModel();
@@ -313,6 +313,16 @@ public class BatchDeleteSessionsDialog extends DialogWrapper {
             return session.getLastActiveAt();
         }
         return session.getCreatedAt();
+    }
+
+    private boolean matchesCliType(SessionMeta session, CliType cliType) {
+        if (session == null || cliType == null || session.getProviderId() == null) {
+            return false;
+        }
+        if (cliType.getId().equals(session.getProviderId())) {
+            return true;
+        }
+        return cliType == CliType.ANTIGRAVITY && "antigravity".equals(session.getProviderId());
     }
 
     private void showPreview(SessionMeta session) {

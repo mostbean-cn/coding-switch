@@ -150,7 +150,7 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
     }
 
     private void syncAntigravityMcp(ConfigFileService svc, List<McpServer> servers) throws IOException {
-        // 1. 同步到 Antigravity IDE 独占配置文件 (mcp_config.json)
+        // 1. 同步到 Antigravity CLI IDE 独占配置文件 (mcp_config.json)
         Path path = svc.getMcpConfigPath(CliType.ANTIGRAVITY);
         JsonObject root = svc.readJsonFile(path);
         if (servers.isEmpty()) {
@@ -160,7 +160,7 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
         }
         svc.writeJsonFile(path, root);
 
-        // 2. 同步到 Antigravity/Gemini CLI 独占配置文件 (settings.json 中的 mcpServers 字段)
+        // 2. 同步到 Antigravity CLI 独占配置文件 (settings.json 中的 mcpServers 字段)
         Path cliPath = svc.getProviderConfigPath(CliType.ANTIGRAVITY);
         JsonObject cliRoot = svc.readJsonFile(cliPath);
         if (servers.isEmpty()) {
@@ -332,7 +332,7 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
                     && !cliRoot.getAsJsonObject("mcpServers").keySet().isEmpty()) {
                 importFromJsonServerObject(
                         cliRoot.getAsJsonObject("mcpServers"),
-                        existing, CliType.ANTIGRAVITY, "Antigravity", report);
+                        existing, CliType.ANTIGRAVITY, "Antigravity CLI", report);
                 return;
             }
 
@@ -342,11 +342,11 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
             if (ideRoot.has("mcpServers") && ideRoot.get("mcpServers").isJsonObject()) {
                 importFromJsonServerObject(
                         ideRoot.getAsJsonObject("mcpServers"),
-                        existing, CliType.ANTIGRAVITY, "Antigravity", report);
+                        existing, CliType.ANTIGRAVITY, "Antigravity CLI", report);
             }
         } catch (Exception e) {
-            LOG.info("Failed to import MCP from Antigravity: " + e.getMessage());
-            report.warnings.add("Antigravity 导入失败: " + e.getMessage());
+            LOG.info("Failed to import MCP from Antigravity CLI: " + e.getMessage());
+            report.warnings.add("Antigravity CLI 导入失败: " + e.getMessage());
         }
     }
 

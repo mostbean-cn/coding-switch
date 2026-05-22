@@ -79,7 +79,7 @@ public final class SessionScannerService {
                 case "claude" -> loadClaudeMessages(Path.of(sourcePath));
                 case "codex" -> loadCodexMessages(Path.of(sourcePath));
                 case "opencode" -> loadOpenCodeMessages(Path.of(sourcePath));
-                case "antigravity" -> loadAntigravityMessages(Path.of(sourcePath));
+                case "agy", "antigravity" -> loadAntigravityMessages(Path.of(sourcePath));
                 default -> {
                     LOG.warn("Unsupported provider: " + providerId);
                     yield Collections.emptyList();
@@ -100,7 +100,7 @@ public final class SessionScannerService {
             return false;
         }
         return switch (session.getProviderId()) {
-            case "claude", "codex", "opencode", "antigravity" -> true;
+            case "claude", "codex", "opencode", "agy", "antigravity" -> true;
             default -> false;
         };
     }
@@ -116,7 +116,7 @@ public final class SessionScannerService {
             throw new UnsupportedOperationException("当前 CLI 暂不支持删除会话");
         }
         switch (session.getProviderId()) {
-            case "claude", "codex", "antigravity" -> {
+            case "claude", "codex", "agy", "antigravity" -> {
                 String deletePath = session.getDeletePath();
                 if (deletePath == null || deletePath.isBlank()) {
                     throw new IOException("缺少会话删除路径");
@@ -945,13 +945,13 @@ public final class SessionScannerService {
 
             if (summary == null || summary.isBlank()) {
                 if (headLines.isEmpty() && tailLines.isEmpty()) {
-                    summary = "Antigravity Session (Native CLI - No transcript available)";
+                    summary = "Antigravity CLI Session (Native CLI - No transcript available)";
                 } else {
-                    summary = "Antigravity Session: " + sessionId;
+                    summary = "Antigravity CLI Session: " + sessionId;
                 }
             }
 
-            SessionMeta meta = new SessionMeta("antigravity", sessionId);
+            SessionMeta meta = new SessionMeta("agy", sessionId);
             meta.setTitle(pathBasename(projectDir != null ? projectDir : sessionId));
             meta.setSummary(summary);
             meta.setProjectDir(projectDir);
