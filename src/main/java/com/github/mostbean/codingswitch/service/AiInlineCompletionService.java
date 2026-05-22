@@ -42,6 +42,7 @@ public final class AiInlineCompletionService implements Disposable {
     private static final Key<InlineSession> SESSION_KEY = Key.create("coding.switch.ai.inline.session");
     private static final Key<Long> REQUEST_ID_KEY = Key.create("coding.switch.ai.inline.request.id");
     private static final Key<ScheduledFuture<?>> AUTO_TASK_KEY = Key.create("coding.switch.ai.inline.auto.task");
+    private static final int INLINE_HINT_GAP_CHARS = 6;
     private static final Color GHOST_FOREGROUND = new JBColor(new Color(0x8A8A8A), new Color(0x6F737A));
 
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(runnable -> {
@@ -116,7 +117,7 @@ public final class AiInlineCompletionService implements Disposable {
 
     public boolean acceptAll(Project project, Editor editor) {
         InlineSession session = validSession(editor);
-        if (project == null || session == null) {
+        if (session == null) {
             return false;
         }
         session.detachInvalidationListeners(editor);
@@ -127,7 +128,7 @@ public final class AiInlineCompletionService implements Disposable {
 
     public boolean acceptLine(Project project, Editor editor) {
         InlineSession session = validSession(editor);
-        if (project == null || session == null) {
+        if (session == null) {
             return false;
         }
         String chunk = nextLineChunk(session.remainingText);
@@ -233,20 +234,56 @@ public final class AiInlineCompletionService implements Disposable {
             return false;
         }
         String inserted = normalizeDelta(event.getNewFragment().toString());
-        if (inserted.isEmpty() || !session.remainingText.startsWith(inserted)) {
+        if (inserted.isEmpty()) {
             return false;
         }
-        session.disposeInlays();
-        session.consumeVisiblePrefix(inserted);
-        session.offset += inserted.length();
-        session.documentStamp = editor.getDocument().getModificationStamp();
-        if (session.remainingText.isBlank()) {
-            editor.putUserData(SESSION_KEY, null);
-            session.detachInvalidationListeners(editor);
+        if (session.remainingText.startsWith(inserted)) {
+            session.disposeInlays();
+            session.consumeVisiblePrefix(inserted);
+            session.offset += inserted.length();
+            session.documentStamp = editor.getDocument().getModificationStamp();
+            if (session.remainingText.isBlank()) {
+                editor.putUserData(SESSION_KEY, null);
+                session.detachInvalidationListeners(editor);
+                return true;
+            }
+            renderSession(editor, session);
             return true;
         }
-        renderSession(editor, session);
-        return true;
+        if (isIndentFallbackInsertion(event, inserted)) {
+            replaceIndentWithCompletion(editor, session, event.getOffset(), inserted);
+            return true;
+        }
+        return false;
+    }
+
+    private boolean isIndentFallbackInsertion(DocumentEvent event, String inserted) {
+        return event.getOldFragment().length() == 0
+            && (inserted.indexOf('\t') >= 0 || inserted.length() > 1)
+            && inserted.chars().allMatch(Character::isWhitespace);
+    }
+
+    private void replaceIndentWithCompletion(Editor editor, InlineSession session, int offset, String inserted) {
+        String completion = session.remainingText;
+        session.detachInvalidationListeners(editor);
+        session.disposeInlays();
+        editor.putUserData(SESSION_KEY, null);
+        ApplicationManager.getApplication().invokeLater(() -> WriteCommandAction.runWriteCommandAction(null, () -> {
+            if (editor.isDisposed()) {
+                return;
+            }
+            int endOffset = offset + inserted.length();
+            if (endOffset > editor.getDocument().getTextLength()) {
+                return;
+            }
+            CharSequence current = editor.getDocument().getCharsSequence().subSequence(offset, endOffset);
+            if (!inserted.contentEquals(current)) {
+                return;
+            }
+            editor.getDocument().deleteString(offset, endOffset);
+            editor.getDocument().insertString(offset, completion);
+            editor.getCaretModel().moveToOffset(offset + completion.length());
+        }));
     }
 
     private void appendDelta(Editor editor, long requestId, int offset, long documentStamp, String delta) {
@@ -332,7 +369,7 @@ public final class AiInlineCompletionService implements Disposable {
         String rest = newline < 0 ? "" : text.substring(newline + 1);
         if (!firstLine.isEmpty()) {
             session.inlineInlay = editor.getInlayModel()
-                .addInlineElement(session.offset, true, new GhostInlineRenderer(firstLine));
+                .addInlineElement(session.offset, true, new GhostInlineRenderer(firstLine, acceptLineHint(newline >= 0)));
         }
         if (newline >= 0) {
             int anchorLine = editor.offsetToLogicalPosition(session.offset).line;
@@ -365,6 +402,10 @@ public final class AiInlineCompletionService implements Disposable {
     private String nextLineChunk(String text) {
         int newline = text.indexOf('\n');
         return newline < 0 ? text : text.substring(0, newline + 1);
+    }
+
+    private String acceptLineHint(boolean multiline) {
+        return multiline ? I18n.t("inlineCompletion.hint.acceptLine") : "";
     }
 
     private String normalizeDelta(String delta) {
@@ -471,21 +512,32 @@ public final class AiInlineCompletionService implements Disposable {
 
     private static final class GhostInlineRenderer implements EditorCustomElementRenderer {
         private final String text;
+        private final String hint;
 
-        private GhostInlineRenderer(String text) {
+        private GhostInlineRenderer(String text, String hint) {
             this.text = text;
+            this.hint = hint == null ? "" : hint;
         }
 
         @Override
         public int calcWidthInPixels(Inlay inlay) {
-            return textWidth(inlay, text);
+            int width = textWidth(inlay, text);
+            if (!hint.isBlank()) {
+                width += hintGapWidth(inlay) + textWidth(inlay, hint);
+            }
+            return width;
         }
 
         @Override
         public void paint(Inlay inlay, Graphics graphics, Rectangle targetRegion, TextAttributes textAttributes) {
             graphics.setColor(GHOST_FOREGROUND);
             FontMetrics metrics = fontMetrics(inlay, editorFont(inlay));
-            drawGhostText(inlay, graphics, text, targetRegion.x, targetRegion.y + metrics.getAscent());
+            int baseline = targetRegion.y + metrics.getAscent();
+            drawGhostText(inlay, graphics, text, targetRegion.x, baseline);
+            if (!hint.isBlank()) {
+                int hintX = targetRegion.x + textWidth(inlay, text) + hintGapWidth(inlay);
+                drawGhostText(inlay, graphics, hint, hintX, baseline);
+            }
         }
     }
 
@@ -556,6 +608,10 @@ public final class AiInlineCompletionService implements Disposable {
             index = next;
         }
         return width;
+    }
+
+    private static int hintGapWidth(Inlay inlay) {
+        return fontMetrics(inlay, editorFont(inlay)).charWidth(' ') * INLINE_HINT_GAP_CHARS;
     }
 
     private static void drawGhostText(Inlay inlay, Graphics graphics, String text, int x, int baseline) {

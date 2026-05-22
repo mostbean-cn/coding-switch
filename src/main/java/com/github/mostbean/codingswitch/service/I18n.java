@@ -213,6 +213,7 @@ public final class I18n {
                 m.put("aiSettings.status.failedClickDetails", "失败，点击查看");
                 m.put("aiSettings.dialog.modelCheckFailed", "模型配置检测失败");
                 m.put("aiSettings.dialog.detectedModels", "检测到的模型");
+                m.put("inlineCompletion.hint.acceptLine", "Ctrl+向下箭头 逐行采纳");
 
                 // ── Session 面板 ──
                 m.put("session.empty.selectHint", "选择一个会话查看详情");
@@ -780,6 +781,7 @@ public final class I18n {
                 m.put("aiSettings.status.failedClickDetails", "Failed, click to view");
                 m.put("aiSettings.dialog.modelCheckFailed", "Model Configuration Check Failed");
                 m.put("aiSettings.dialog.detectedModels", "Detected Models");
+                m.put("inlineCompletion.hint.acceptLine", "Ctrl+Down accept line");
 
                 // ── Session Panel ──
                 m.put("session.empty.selectHint", "Select a session to view details");
