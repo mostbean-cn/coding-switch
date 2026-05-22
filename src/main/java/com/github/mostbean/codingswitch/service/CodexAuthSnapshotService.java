@@ -22,6 +22,7 @@ public final class CodexAuthSnapshotService {
     }
 
     private static final String SERVICE_NAME = "com.github.mostbean.codingswitch.codex.auth.snapshot";
+    private static final String SHARED_NAMESPACE = "codex";
     private static final String SNAPSHOT_USERNAME = "codex-official-login";
 
     public static CodexAuthSnapshotService getInstance() {
@@ -46,9 +47,7 @@ public final class CodexAuthSnapshotService {
         ConfigFileService configFileService = ConfigFileService.getInstance();
         String rawAuthJson = configFileService.readCodexAuthRaw();
         if (CodexAuthSupport.isValidOfficialLoginAuth(rawAuthJson)) {
-            PasswordSafe.getInstance().set(
-                    createAttributes(primaryKey),
-                    new Credentials(SNAPSHOT_USERNAME, rawAuthJson.trim()));
+            saveSnapshot(primaryKey, rawAuthJson.trim());
             clearLegacySnapshot(primaryKey, legacyKey);
             return;
         }
@@ -74,7 +73,7 @@ public final class CodexAuthSnapshotService {
             return RestoreResult.NO_SNAPSHOT;
         }
 
-        String rawAuthJson = PasswordSafe.getInstance().getPassword(createAttributes(snapshotKey));
+        String rawAuthJson = readSnapshot(snapshotKey);
         if (!CodexAuthSupport.isValidOfficialLoginAuth(rawAuthJson)) {
             clearSnapshot(primaryKey, legacyKey);
             ConfigFileService.getInstance().deleteCodexAuthFile();
@@ -82,9 +81,7 @@ public final class CodexAuthSnapshotService {
         }
 
         if (!snapshotKey.equals(primaryKey)) {
-            PasswordSafe.getInstance().set(
-                    createAttributes(primaryKey),
-                    new Credentials(SNAPSHOT_USERNAME, rawAuthJson.trim()));
+            saveSnapshot(primaryKey, rawAuthJson.trim());
             clearLegacySnapshot(primaryKey, legacyKey);
         }
 
@@ -105,7 +102,7 @@ public final class CodexAuthSnapshotService {
 
     private void clearSnapshot(String primaryKey, String legacyKey) {
         for (String key : snapshotKeys(primaryKey, legacyKey)) {
-            PasswordSafe.getInstance().set(createAttributes(key), null);
+            deleteSnapshot(key);
         }
     }
 
@@ -126,7 +123,7 @@ public final class CodexAuthSnapshotService {
 
     private String findExistingSnapshotKey(String primaryKey, String legacyKey) {
         for (String key : snapshotKeys(primaryKey, legacyKey)) {
-            String rawAuthJson = PasswordSafe.getInstance().getPassword(createAttributes(key));
+            String rawAuthJson = readSnapshot(key);
             if (!isBlank(rawAuthJson)) {
                 return key;
             }
@@ -138,7 +135,7 @@ public final class CodexAuthSnapshotService {
         if (isBlank(legacyKey) || legacyKey.equals(primaryKey)) {
             return;
         }
-        PasswordSafe.getInstance().set(createAttributes(legacyKey), null);
+        deleteSnapshot(legacyKey);
     }
 
     private Set<String> snapshotKeys(String primaryKey, String legacyKey) {
@@ -154,6 +151,26 @@ public final class CodexAuthSnapshotService {
 
     private CredentialAttributes createAttributes(String providerId) {
         return new CredentialAttributes(CredentialAttributesKt.generateServiceName(SERVICE_NAME, providerId));
+    }
+
+    private void saveSnapshot(String snapshotKey, String rawSnapshot) {
+        PasswordSafe.getInstance().set(
+                createAttributes(snapshotKey),
+                new Credentials(SNAPSHOT_USERNAME, rawSnapshot));
+        SharedAuthSnapshotStore.save(SHARED_NAMESPACE, snapshotKey, rawSnapshot);
+    }
+
+    private String readSnapshot(String snapshotKey) {
+        String rawSnapshot = PasswordSafe.getInstance().getPassword(createAttributes(snapshotKey));
+        if (!isBlank(rawSnapshot)) {
+            return rawSnapshot;
+        }
+        return SharedAuthSnapshotStore.load(SHARED_NAMESPACE, snapshotKey);
+    }
+
+    private void deleteSnapshot(String snapshotKey) {
+        PasswordSafe.getInstance().set(createAttributes(snapshotKey), null);
+        SharedAuthSnapshotStore.delete(SHARED_NAMESPACE, snapshotKey);
     }
 
     private boolean isBlank(String value) {

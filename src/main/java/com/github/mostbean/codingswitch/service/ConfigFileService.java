@@ -227,6 +227,74 @@ public final class ConfigFileService {
         return List.of(getAntigravityCliGoogleAccountsFilePath(), getAntigravityGoogleAccountsFilePath());
     }
 
+    public Path getAntigravityBrowserProfileDir() {
+        return userHome().resolve(".gemini").resolve("antigravity-browser-profile");
+    }
+
+    public Path getAntigravityAppConfigDir() {
+        return userHome().resolve(".gemini").resolve("antigravity");
+    }
+
+    public Path getAntigravityIdeConfigDir() {
+        return userHome().resolve(".gemini").resolve("antigravity-ide");
+    }
+
+    public Path getAntigravityBrowserProfileDefaultDir() {
+        return getAntigravityBrowserProfileDir().resolve("Default");
+    }
+
+    public Path getAntigravityAuthResetBackupDir() {
+        return PluginDataStorage.getUserSharedRootDir()
+                .resolve("backups")
+                .resolve("antigravity-auth");
+    }
+
+    public List<Path> getAntigravityRuntimeAuthStatePaths() {
+        Path gemini = userHome().resolve(".gemini");
+        Path app = getAntigravityAppConfigDir();
+        Path ide = getAntigravityIdeConfigDir();
+        Path browserProfile = getAntigravityBrowserProfileDir();
+        Path profile = getAntigravityBrowserProfileDefaultDir();
+        Path network = profile.resolve("Network");
+        Path cli = getConfigDir(CliType.ANTIGRAVITY);
+        return List.of(
+                gemini.resolve("state.json"),
+                cli.resolve("cache"),
+                cli.resolve("implicit"),
+                cli.resolve("history.jsonl"),
+                app.resolve("user_settings.pb"),
+                app.resolve("implicit"),
+                app.resolve("daemon"),
+                ide.resolve("user_settings.pb"),
+                ide.resolve("implicit"),
+                ide.resolve("daemon"),
+                browserProfile.resolve("Local State"),
+                network.resolve("Cookies"),
+                network.resolve("Cookies-journal"),
+                profile.resolve("Extension Cookies"),
+                profile.resolve("Extension Cookies-journal"),
+                profile.resolve("Login Data"),
+                profile.resolve("Login Data-journal"),
+                profile.resolve("Login Data For Account"),
+                profile.resolve("Login Data For Account-journal"),
+                profile.resolve("Local Storage"),
+                profile.resolve("Session Storage"),
+                profile.resolve("Extension State"),
+                profile.resolve("IndexedDB"),
+                profile.resolve("WebStorage"),
+                profile.resolve("Storage").resolve("ext"));
+    }
+
+    public Path getAntigravityRuntimeSnapshotDir(String snapshotKey) {
+        String safeKey = snapshotKey == null || snapshotKey.isBlank()
+                ? "unknown"
+                : snapshotKey.replaceAll("[^A-Za-z0-9._-]", "_");
+        return PluginDataStorage.getUserSharedRootDir()
+                .resolve("auth-snapshots")
+                .resolve("antigravity-runtime")
+                .resolve(safeKey);
+    }
+
     public CodexAuthSupport.CodexAuthState detectCodexAuthState() {
         return CodexAuthSupport.detectState(readCodexAuthRaw());
     }

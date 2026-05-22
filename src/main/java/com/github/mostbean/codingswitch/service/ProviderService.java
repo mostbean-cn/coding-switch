@@ -200,6 +200,16 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         return lastAntigravityActivationResult;
     }
 
+    public AntigravityAuthSnapshotService.RestoreResult prepareActiveAntigravityForLaunch() throws IOException {
+        Optional<Provider> active = getActiveProvider(CliType.ANTIGRAVITY);
+        if (active.isEmpty() || active.get().getAuthMode() != AuthMode.OFFICIAL_LOGIN) {
+            lastAntigravityActivationResult = null;
+            return null;
+        }
+        lastAntigravityActivationResult = switchAntigravityAuthStateIfNeeded(active.get());
+        return lastAntigravityActivationResult;
+    }
+
     /**
      * 根据 CLI 类型，将 settingsConfig 写入对应的 live 配置文件。
      * 输出格式与 cc-switch 完全一致。

@@ -2,6 +2,7 @@ package com.github.mostbean.codingswitch.ui.action;
 
 import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.PluginSettings;
+import com.github.mostbean.codingswitch.service.ProviderService;
 import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
@@ -9,6 +10,7 @@ import com.intellij.openapi.actionSystem.Presentation;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.project.DumbAwareAction;
+import java.io.IOException;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -57,6 +59,15 @@ public class CliQuickLaunchAction extends DumbAwareAction {
             return;
         }
 
+        if (isAntigravityCommand(selectedItem.command)) {
+            try {
+                ProviderService.getInstance().prepareActiveAntigravityForLaunch();
+            } catch (IOException ex) {
+                new CliQuickLaunchAction().showExecutionError(ex.getMessage());
+                return;
+            }
+        }
+
         String workingDir = project.getBasePath() != null
             ? project.getBasePath()
             : System.getProperty("user.home");
@@ -76,6 +87,19 @@ public class CliQuickLaunchAction extends DumbAwareAction {
             }
         }
         return null;
+    }
+
+    private static boolean isAntigravityCommand(String command) {
+        if (command == null || command.isBlank()) {
+            return false;
+        }
+        String normalized = command.trim().toLowerCase().replace("\"", "").replace("'", "");
+        return normalized.equals("agy")
+            || normalized.startsWith("agy ")
+            || normalized.endsWith("\\agy.exe")
+            || normalized.contains("\\agy.exe ")
+            || normalized.endsWith("/agy")
+            || normalized.contains("/agy ");
     }
 
     /**
