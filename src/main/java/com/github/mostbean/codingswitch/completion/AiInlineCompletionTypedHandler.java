@@ -13,8 +13,11 @@ public class AiInlineCompletionTypedHandler extends TypedHandlerDelegate {
 
     @Override
     public @NotNull Result charTyped(char c, @NotNull Project project, @NotNull Editor editor, @NotNull PsiFile file) {
-        AiInlineCompletionService.getInstance().hide(editor);
-        if (AiCompletionEditorGuard.isEligible(project, editor) && shouldSchedule(c)) {
+        boolean hasActiveCompletion = AiInlineCompletionService.getInstance().hasActiveCompletion(editor);
+        if (!hasActiveCompletion) {
+            AiInlineCompletionService.getInstance().hide(editor);
+        }
+        if (!hasActiveCompletion && AiCompletionEditorGuard.isEligible(project, editor) && shouldSchedule(c)) {
             AiInlineCompletionService.getInstance().scheduleAuto(project, editor);
         }
         return Result.CONTINUE;
@@ -22,7 +25,7 @@ public class AiInlineCompletionTypedHandler extends TypedHandlerDelegate {
 
     @Override
     public @NotNull Result checkAutoPopup(char c, @NotNull Project project, @NotNull Editor editor, @NotNull PsiFile file) {
-        return shouldSuppressIdeAutoPopup(project, editor) ? Result.STOP : Result.CONTINUE;
+        return shouldSuppressIdeAutoPopup(c, project, editor) ? Result.STOP : Result.CONTINUE;
     }
 
     private boolean shouldSchedule(char c) {
@@ -44,10 +47,16 @@ public class AiInlineCompletionTypedHandler extends TypedHandlerDelegate {
             || c == ';';
     }
 
-    private boolean shouldSuppressIdeAutoPopup(Project project, Editor editor) {
+    private boolean shouldSuppressIdeAutoPopup(char c, Project project, Editor editor) {
         AiFeatureSettings settings = AiFeatureSettings.getInstance();
         return settings.isCodeCompletionEnabled()
             && settings.isAutoCompletionEnabled()
-            && AiCompletionEditorGuard.isEligible(project, editor);
+            && AiCompletionEditorGuard.isEligible(project, editor)
+            && AiInlineCompletionService.getInstance().hasActiveCompletion(editor)
+            && !shouldPreferIdeAutoPopup(c);
+    }
+
+    private boolean shouldPreferIdeAutoPopup(char c) {
+        return c == '.' || c == ':' || c == '>';
     }
 }

@@ -1,6 +1,5 @@
 package com.github.mostbean.codingswitch.ui.action;
 
-import com.github.mostbean.codingswitch.service.AiCompletionService;
 import com.github.mostbean.codingswitch.service.AiCompletionEditorGuard;
 import com.github.mostbean.codingswitch.service.AiInlineCompletionService;
 import com.intellij.openapi.actionSystem.AnActionEvent;
@@ -19,9 +18,6 @@ public class TriggerAiCompletionAction extends DumbAwareAction {
         if (project == null || editor == null || !AiCompletionEditorGuard.isEligible(project, editor)) {
             return;
         }
-        if (AiCompletionService.getInstance().isCompletionInProgress(project, editor)) {
-            return;
-        }
         AiInlineCompletionService.getInstance().requestManual(project, editor);
     }
 
@@ -33,7 +29,6 @@ public class TriggerAiCompletionAction extends DumbAwareAction {
             project != null
                 && editor != null
                 && AiCompletionEditorGuard.isEligible(project, editor)
-                && !AiCompletionService.getInstance().isCompletionInProgress(project, editor)
         );
     }
 }

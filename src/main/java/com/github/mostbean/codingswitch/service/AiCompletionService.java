@@ -43,17 +43,32 @@ public final class AiCompletionService {
             return Optional.ofNullable(normalizeCompletion(context.request(), cached.get()))
                 .filter(value -> !value.isBlank());
         }
+        Optional<String> contextCached = cache.getContext(context.request());
+        if (contextCached.isPresent()) {
+            String completion = normalizeCompletion(context.request(), contextCached.get());
+            if (completion != null && !completion.isBlank()) {
+                cache.put(filePath, context.snapshot().caretOffset(), context.snapshot().documentStamp(), completion);
+                inFlightCompletionKeys.remove(context.inFlightKey());
+                return Optional.of(completion);
+            }
+        }
+        if (cache.isNegativeCached(context.request())) {
+            inFlightCompletionKeys.remove(context.inFlightKey());
+            return Optional.empty();
+        }
 
         try {
             String completion = createClient(context.profile().getFormat()).complete(context.request());
             completion = normalizeCompletion(context.request(), completion);
             if (completion == null || completion.isBlank()) {
+                cache.putNegative(context.request());
                 return Optional.empty();
             }
             if (!isStillValid(editor, context.snapshot())) {
                 return Optional.empty();
             }
             cache.put(filePath, context.snapshot().caretOffset(), context.snapshot().documentStamp(), completion);
+            cache.putContext(context.request(), completion);
             return Optional.of(completion);
         } finally {
             inFlightCompletionKeys.remove(context.inFlightKey());
@@ -81,6 +96,20 @@ public final class AiCompletionService {
             }
             inFlightCompletionKeys.remove(context.inFlightKey());
             return completion != null && !completion.isBlank();
+        }
+        Optional<String> contextCached = cache.getContext(context.request());
+        if (contextCached.isPresent()) {
+            String completion = normalizeCompletion(context.request(), contextCached.get());
+            if (completion != null && !completion.isBlank()) {
+                cache.put(filePath, context.snapshot().caretOffset(), context.snapshot().documentStamp(), completion);
+                onDelta.accept(completion);
+                inFlightCompletionKeys.remove(context.inFlightKey());
+                return true;
+            }
+        }
+        if (cache.isNegativeCached(context.request())) {
+            inFlightCompletionKeys.remove(context.inFlightKey());
+            return false;
         }
 
         StringBuilder fullCompletion = new StringBuilder();
@@ -122,7 +151,11 @@ public final class AiCompletionService {
                 }
             }
             if (hasText.get()) {
-                cache.put(filePath, context.snapshot().caretOffset(), context.snapshot().documentStamp(), fullCompletion.toString());
+                String completion = fullCompletion.toString();
+                cache.put(filePath, context.snapshot().caretOffset(), context.snapshot().documentStamp(), completion);
+                cache.putContext(context.request(), completion);
+            } else {
+                cache.putNegative(context.request());
             }
             return hasText.get();
         } finally {
@@ -149,7 +182,7 @@ public final class AiCompletionService {
             return null;
         }
 
-        String inFlightKey = PlatformReadAccess.compute(() -> completionKey(project, editor));
+        String inFlightKey = PlatformReadAccess.compute(() -> completionKey(project, editor, triggerMode));
         if (inFlightCompletionKeys.putIfAbsent(inFlightKey, System.currentTimeMillis()) != null) {
             return null;
         }
@@ -193,7 +226,10 @@ public final class AiCompletionService {
         if (project == null || editor == null) {
             return false;
         }
-        return PlatformReadAccess.compute(() -> inFlightCompletionKeys.containsKey(completionKey(project, editor)));
+        return PlatformReadAccess.compute(() ->
+            inFlightCompletionKeys.containsKey(completionKey(project, editor, AiCompletionTriggerMode.AUTO))
+                || inFlightCompletionKeys.containsKey(completionKey(project, editor, AiCompletionTriggerMode.MANUAL))
+        );
     }
 
     public Optional<String> generateText(String systemPrompt, String userPrompt, AiCompletionLengthLevel lengthLevel)
@@ -395,11 +431,13 @@ public final class AiCompletionService {
         return false;
     }
 
-    private String completionKey(Project project, Editor editor) {
+    private String completionKey(Project project, Editor editor, AiCompletionTriggerMode triggerMode) {
         String projectKey = project == null ? "" : project.getLocationHash();
         return projectKey
             + ":"
-            + System.identityHashCode(editor.getDocument());
+            + System.identityHashCode(editor.getDocument())
+            + ":"
+            + triggerMode.name().toLowerCase();
     }
 
     private boolean isStillValid(Editor editor, CompletionSnapshot snapshot) {

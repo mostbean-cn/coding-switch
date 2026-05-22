@@ -31,7 +31,6 @@ final class FimChatCompletionClient implements AiCompletionClient {
     public void streamComplete(AiCompletionRequest request, Consumer<String> onDelta)
         throws IOException, InterruptedException {
         HttpClient client = AiCompletionHttpSupport.createClient(request.profile());
-        StringBuilder completion = new StringBuilder();
         AiCompletionHttpSupport.postJsonStream(
             client,
             request.profile(),
@@ -41,14 +40,10 @@ final class FimChatCompletionClient implements AiCompletionClient {
             event -> {
                 String delta = extractDelta(event);
                 if (!delta.isEmpty()) {
-                    completion.append(delta);
+                    onDelta.accept(delta);
                 }
             }
         );
-        String text = AiCompletionHttpSupport.trimCompletion(completion.toString());
-        if (!text.isBlank()) {
-            onDelta.accept(text);
-        }
     }
 
     private JsonObject createBody(AiCompletionRequest request, boolean stream) {

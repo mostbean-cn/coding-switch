@@ -58,6 +58,8 @@ final class AnthropicMessagesCompletionClient implements AiCompletionClient {
         body.addProperty("model", request.profile().getModel());
         body.addProperty("system", request.systemPrompt());
         body.addProperty("temperature", 0.2);
+        body.addProperty("max_tokens", request.maxTokens());
+        body.add("stop_sequences", FimStopSequences.create(request));
         if (stream) {
             body.addProperty("stream", true);
         }

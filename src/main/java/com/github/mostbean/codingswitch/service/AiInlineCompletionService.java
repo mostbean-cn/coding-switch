@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -40,6 +41,7 @@ public final class AiInlineCompletionService implements Disposable {
 
     private static final Key<InlineSession> SESSION_KEY = Key.create("coding.switch.ai.inline.session");
     private static final Key<Long> REQUEST_ID_KEY = Key.create("coding.switch.ai.inline.request.id");
+    private static final Key<ScheduledFuture<?>> AUTO_TASK_KEY = Key.create("coding.switch.ai.inline.auto.task");
     private static final Color GHOST_FOREGROUND = new JBColor(new Color(0x8A8A8A), new Color(0x6F737A));
 
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(runnable -> {
@@ -57,25 +59,29 @@ public final class AiInlineCompletionService implements Disposable {
         if (project == null || editor == null || hasActiveCompletion(editor)) {
             return;
         }
+        cancelPendingAuto(editor);
         long requestId = requestIds.incrementAndGet();
         editor.putUserData(REQUEST_ID_KEY, requestId);
         long delay = AiFeatureSettings.getInstance().getTimingConfig().getDebounceDelayMs();
-        scheduler.schedule(
+        ScheduledFuture<?> future = scheduler.schedule(
             () -> ApplicationManager.getApplication().invokeLater(() -> {
                 Long current = editor.getUserData(REQUEST_ID_KEY);
                 if (current != null && current == requestId) {
+                    editor.putUserData(AUTO_TASK_KEY, null);
                     request(project, editor, AiCompletionTriggerMode.AUTO, requestId);
                 }
             }),
             delay,
             TimeUnit.MILLISECONDS
         );
+        editor.putUserData(AUTO_TASK_KEY, future);
     }
 
     public void requestManual(Project project, Editor editor) {
         if (project == null || editor == null) {
             return;
         }
+        cancelPendingAuto(editor);
         hide(editor);
         long requestId = requestIds.incrementAndGet();
         editor.putUserData(REQUEST_ID_KEY, requestId);
@@ -92,6 +98,15 @@ public final class AiInlineCompletionService implements Disposable {
         }
         session.dispose(editor);
         editor.putUserData(SESSION_KEY, null);
+    }
+
+    private void cancelPendingAuto(Editor editor) {
+        ScheduledFuture<?> future = editor == null ? null : editor.getUserData(AUTO_TASK_KEY);
+        if (future == null) {
+            return;
+        }
+        future.cancel(false);
+        editor.putUserData(AUTO_TASK_KEY, null);
     }
 
     public boolean hasActiveCompletion(Editor editor) {
@@ -132,10 +147,9 @@ public final class AiInlineCompletionService implements Disposable {
     }
 
     private void request(Project project, Editor editor, AiCompletionTriggerMode triggerMode, long requestId) {
-        if (AiCompletionService.getInstance().isCompletionInProgress(project, editor)) {
-            if (triggerMode == AiCompletionTriggerMode.AUTO) {
-                scheduleInFlightRetry(project, editor, requestId);
-            }
+        if (triggerMode == AiCompletionTriggerMode.AUTO
+            && AiCompletionService.getInstance().isCompletionInProgress(project, editor)) {
+            scheduleInFlightRetry(project, editor, requestId);
             return;
         }
         String unavailableReason = unavailableReason(triggerMode);
@@ -170,16 +184,18 @@ public final class AiInlineCompletionService implements Disposable {
 
     private void scheduleInFlightRetry(Project project, Editor editor, long requestId) {
         long delay = AiFeatureSettings.getInstance().getTimingConfig().getInFlightRetryDelayMs();
-        scheduler.schedule(
+        ScheduledFuture<?> future = scheduler.schedule(
             () -> ApplicationManager.getApplication().invokeLater(() -> {
                 Long current = editor.getUserData(REQUEST_ID_KEY);
                 if (current != null && current == requestId && !hasActiveCompletion(editor)) {
+                    editor.putUserData(AUTO_TASK_KEY, null);
                     request(project, editor, AiCompletionTriggerMode.AUTO, requestId);
                 }
             }),
             delay,
             TimeUnit.MILLISECONDS
         );
+        editor.putUserData(AUTO_TASK_KEY, future);
     }
 
     private String unavailableReason(AiCompletionTriggerMode triggerMode) {
@@ -210,6 +226,27 @@ public final class AiInlineCompletionService implements Disposable {
                 .createNotification(message, NotificationType.WARNING)
                 .notify(project)
         );
+    }
+
+    private boolean consumeTypedPrefix(Editor editor, InlineSession session, DocumentEvent event) {
+        if (editor == null || session == null || event.getOffset() != session.offset) {
+            return false;
+        }
+        String inserted = normalizeDelta(event.getNewFragment().toString());
+        if (inserted.isEmpty() || !session.remainingText.startsWith(inserted)) {
+            return false;
+        }
+        session.disposeInlays();
+        session.consumeVisiblePrefix(inserted);
+        session.offset += inserted.length();
+        session.documentStamp = editor.getDocument().getModificationStamp();
+        if (session.remainingText.isBlank()) {
+            editor.putUserData(SESSION_KEY, null);
+            session.detachInvalidationListeners(editor);
+            return true;
+        }
+        renderSession(editor, session);
+        return true;
     }
 
     private void appendDelta(Editor editor, long requestId, int offset, long documentStamp, String delta) {
@@ -384,7 +421,9 @@ public final class AiInlineCompletionService implements Disposable {
             documentListener = new DocumentListener() {
                 @Override
                 public void documentChanged(DocumentEvent event) {
-                    AiInlineCompletionService.getInstance().hide(editor);
+                    if (!AiInlineCompletionService.getInstance().consumeTypedPrefix(editor, InlineSession.this, event)) {
+                        AiInlineCompletionService.getInstance().hide(editor);
+                    }
                 }
             };
             caretListener = new CaretListener() {

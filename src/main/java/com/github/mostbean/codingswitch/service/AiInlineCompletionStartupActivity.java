@@ -61,7 +61,7 @@ public class AiInlineCompletionStartupActivity implements ProjectActivity {
     private void installAcceptLineKeyDispatcher() {
         KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(event -> {
             Component component = event.getComponent();
-            if (!isAcceptLineKey(event) || component == null) {
+            if ((!isAcceptLineKey(event) && !isHideInlineCompletionKey(event)) || component == null) {
                 return false;
             }
             DataContext dataContext = DataManager.getInstance().getDataContext(component);
@@ -69,6 +69,10 @@ public class AiInlineCompletionStartupActivity implements ProjectActivity {
             Editor editor = dataContext.getData(CommonDataKeys.EDITOR);
             if (project == null || editor == null || !AiInlineCompletionService.getInstance().hasActiveCompletion(editor)) {
                 return false;
+            }
+            if (isHideInlineCompletionKey(event)) {
+                AiInlineCompletionService.getInstance().hide(editor);
+                return true;
             }
             return AiInlineCompletionService.getInstance().acceptLine(project, editor);
         });
@@ -78,6 +82,15 @@ public class AiInlineCompletionStartupActivity implements ProjectActivity {
         return event.getID() == KeyEvent.KEY_PRESSED
             && event.getKeyCode() == KeyEvent.VK_DOWN
             && event.isControlDown()
+            && !event.isAltDown()
+            && !event.isShiftDown()
+            && !event.isMetaDown();
+    }
+
+    private boolean isHideInlineCompletionKey(KeyEvent event) {
+        return event.getID() == KeyEvent.KEY_PRESSED
+            && event.getKeyCode() == KeyEvent.VK_ESCAPE
+            && !event.isControlDown()
             && !event.isAltDown()
             && !event.isShiftDown()
             && !event.isMetaDown();

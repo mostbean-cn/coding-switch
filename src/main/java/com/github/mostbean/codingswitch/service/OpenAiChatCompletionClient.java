@@ -50,6 +50,8 @@ final class OpenAiChatCompletionClient implements AiCompletionClient {
         JsonObject body = new JsonObject();
         body.addProperty("model", request.profile().getModel());
         body.addProperty("temperature", 0.2);
+        body.addProperty("max_tokens", request.maxTokens());
+        body.add("stop", FimStopSequences.create(request));
         if (stream) {
             body.addProperty("stream", true);
         }
