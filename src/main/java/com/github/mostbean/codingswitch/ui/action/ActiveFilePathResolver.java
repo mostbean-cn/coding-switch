@@ -33,14 +33,22 @@ public final class ActiveFilePathResolver {
         }
 
         Editor editor = e.getData(CommonDataKeys.EDITOR);
-        if (editor == null || !editor.getSelectionModel().hasSelection()) {
-            return Resolution.unavailable("cliQuickLaunch.insertFilePathWithLine.noSelection");
+        if (editor == null) {
+            return Resolution.unavailable("cliQuickLaunch.insertFilePathWithLine.noEditor");
         }
 
-        int startLineNumber = editor.getDocument().getLineNumber(
-            editor.getSelectionModel().getSelectionStart()
-        ) + 1;
-        int endLineNumber = resolveSelectionEndLine(editor);
+        int startLineNumber;
+        int endLineNumber;
+        if (editor.getSelectionModel().hasSelection()) {
+            startLineNumber = editor.getDocument().getLineNumber(
+                editor.getSelectionModel().getSelectionStart()
+            ) + 1;
+            endLineNumber = resolveSelectionEndLine(editor);
+        } else {
+            startLineNumber = editor.getCaretModel().getLogicalPosition().line + 1;
+            endLineNumber = startLineNumber;
+        }
+
         String lineSuffix = startLineNumber == endLineNumber
             ? ":" + startLineNumber
             : ":" + startLineNumber + "-" + endLineNumber;

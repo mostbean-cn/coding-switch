@@ -11,7 +11,7 @@ import com.intellij.openapi.ui.Messages;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * 将当前选中代码起始行的相对路径插入到当前激活终端输入区。
+ * 将当前光标行或选中代码行号的相对路径插入到当前激活终端输入区。
  */
 public class InsertFilePathWithLineAction extends DumbAwareAction {
 
