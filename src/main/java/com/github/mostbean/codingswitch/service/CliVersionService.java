@@ -274,13 +274,14 @@ public final class CliVersionService {
             case MMX -> "npm i -g mmx-cli@latest";
             case QODER -> "npm i -g @qoder-ai/qodercli@latest";
             case AUGGIE -> "npm i -g @augmentcode/auggie@latest";
-            case ANTIGRAVITY -> getAntigravityInstallCommand();
+            case ANTIGRAVITY -> getAntigravityUpdateCommand();
         };
     }
 
     public String getInstallCommand(SettingsCli cliType) {
         return switch (cliType) {
             case CLAUDE -> "npm install -g @anthropic-ai/claude-code";
+            case ANTIGRAVITY -> getAntigravityInstallCommand();
             default -> getUpdateCommand(cliType);
         };
     }
@@ -290,13 +291,14 @@ public final class CliVersionService {
             case CLAUDE -> "claude update";
             case CODEX -> "npm i -g @openai/codex@latest";
             case OPENCODE -> "npm i -g opencode-ai@latest";
-            case ANTIGRAVITY -> getAntigravityInstallCommand();
+            case ANTIGRAVITY -> getAntigravityUpdateCommand();
         };
     }
 
     public String getInstallCommand(CliType cliType) {
         return switch (cliType) {
             case CLAUDE -> "npm install -g @anthropic-ai/claude-code";
+            case ANTIGRAVITY -> getAntigravityInstallCommand();
             default -> getUpdateCommand(cliType);
         };
     }
@@ -476,6 +478,10 @@ public final class CliVersionService {
 
     private static boolean isWindows() {
         return System.getProperty("os.name", "").toLowerCase().contains("win");
+    }
+
+    private String getAntigravityUpdateCommand() {
+        return "agy update";
     }
 
     private String getAntigravityInstallCommand() {
