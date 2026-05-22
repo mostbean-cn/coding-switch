@@ -161,10 +161,10 @@ public final class AiInlineCompletionService implements Disposable {
         int offset = editor.getCaretModel().getOffset();
         long documentStamp = editor.getDocument().getModificationStamp();
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
-            boolean received;
+            AiCompletionService.CompletionResult result;
             StreamAccumulator accumulator = new StreamAccumulator();
             try {
-                received = AiCompletionService.getInstance().streamComplete(project, editor, triggerMode, delta ->
+                result = AiCompletionService.getInstance().streamComplete(project, editor, triggerMode, delta ->
                     enqueueDelta(editor, requestId, offset, documentStamp, accumulator, delta)
                 );
             } catch (InterruptedException ex) {
@@ -175,12 +175,27 @@ public final class AiInlineCompletionService implements Disposable {
                 notifyManualFailure(project, triggerMode, "生成补全失败: " + ignored.getMessage());
                 return;
             }
-            if (!received) {
-                notifyManualFailure(project, triggerMode, "未生成代码补全，请检查模型配置或当前上下文。");
-            } else {
+            if (result.isSuccess()) {
                 flushDelta(editor, requestId, offset, documentStamp, accumulator);
+            } else {
+                handleCompletionResult(project, triggerMode, result);
             }
         });
+    }
+
+    private void handleCompletionResult(
+        Project project,
+        AiCompletionTriggerMode triggerMode,
+        AiCompletionService.CompletionResult result
+    ) {
+        if (triggerMode != AiCompletionTriggerMode.MANUAL) {
+            return;
+        }
+        if (result.status() == AiCompletionService.CompletionStatus.CONFIG_UNAVAILABLE
+            && result.message() != null
+            && !result.message().isBlank()) {
+            notifyManualFailure(project, triggerMode, result.message());
+        }
     }
 
     private void scheduleInFlightRetry(Project project, Editor editor, long requestId) {

@@ -28,9 +28,42 @@ public final class AiCompletionService {
         return ApplicationManager.getApplication().getService(AiCompletionService.class);
     }
 
+    public enum CompletionStatus {
+        SUCCESS,
+        NO_RESULT,
+        NEGATIVE_CACHED,
+        COOLDOWN,
+        IN_FLIGHT,
+        STALE_CONTEXT,
+        CONFIG_UNAVAILABLE
+    }
+
+    public record CompletionResult(CompletionStatus status, String message) {
+        public static CompletionResult success() {
+            return new CompletionResult(CompletionStatus.SUCCESS, "");
+        }
+
+        public static CompletionResult skipped(CompletionStatus status) {
+            return new CompletionResult(status, "");
+        }
+
+        public static CompletionResult skipped(CompletionStatus status, String message) {
+            return new CompletionResult(status, message == null ? "" : message);
+        }
+
+        public static CompletionResult unavailable(String message) {
+            return new CompletionResult(CompletionStatus.CONFIG_UNAVAILABLE, message == null ? "" : message);
+        }
+
+        public boolean isSuccess() {
+            return status == CompletionStatus.SUCCESS;
+        }
+    }
+
     public Optional<String> complete(Project project, Editor editor, AiCompletionTriggerMode triggerMode)
         throws IOException, InterruptedException {
-        CompletionRequestContext context = prepareCompletionRequest(project, editor, triggerMode);
+        CompletionPreparation preparation = prepareCompletionRequest(project, editor, triggerMode);
+        CompletionRequestContext context = preparation.context();
         if (context == null) {
             return Optional.empty();
         }
@@ -75,15 +108,16 @@ public final class AiCompletionService {
         }
     }
 
-    public boolean streamComplete(
+    public CompletionResult streamComplete(
         Project project,
         Editor editor,
         AiCompletionTriggerMode triggerMode,
         Consumer<String> onDelta
     ) throws IOException, InterruptedException {
-        CompletionRequestContext context = prepareCompletionRequest(project, editor, triggerMode);
+        CompletionPreparation preparation = prepareCompletionRequest(project, editor, triggerMode);
+        CompletionRequestContext context = preparation.context();
         if (context == null) {
-            return false;
+            return CompletionResult.skipped(preparation.status(), preparation.message());
         }
 
         AiCompletionCache cache = AiCompletionCache.getInstance();
@@ -93,9 +127,11 @@ public final class AiCompletionService {
             String completion = normalizeCompletion(context.request(), cached.get());
             if (completion != null && !completion.isBlank()) {
                 onDelta.accept(completion);
+                inFlightCompletionKeys.remove(context.inFlightKey());
+                return CompletionResult.success();
             }
             inFlightCompletionKeys.remove(context.inFlightKey());
-            return completion != null && !completion.isBlank();
+            return CompletionResult.skipped(CompletionStatus.NO_RESULT);
         }
         Optional<String> contextCached = cache.getContext(context.request());
         if (contextCached.isPresent()) {
@@ -104,22 +140,27 @@ public final class AiCompletionService {
                 cache.put(filePath, context.snapshot().caretOffset(), context.snapshot().documentStamp(), completion);
                 onDelta.accept(completion);
                 inFlightCompletionKeys.remove(context.inFlightKey());
-                return true;
+                return CompletionResult.success();
             }
         }
-        if (cache.isNegativeCached(context.request())) {
+        if (triggerMode == AiCompletionTriggerMode.AUTO && cache.isNegativeCached(context.request())) {
             inFlightCompletionKeys.remove(context.inFlightKey());
-            return false;
+            return CompletionResult.skipped(CompletionStatus.NEGATIVE_CACHED);
         }
 
         StringBuilder fullCompletion = new StringBuilder();
         AtomicBoolean hasText = new AtomicBoolean(false);
+        AtomicBoolean staleContext = new AtomicBoolean(false);
         CompletionDeltaFilter deltaFilter = createDeltaFilter(context.request());
         try {
             AiCompletionClient client = createClient(context.profile().getFormat());
             try {
                 client.streamComplete(context.request(), delta -> {
-                    if (delta == null || delta.isEmpty() || !isStillValid(editor, context.snapshot())) {
+                    if (delta == null || delta.isEmpty()) {
+                        return;
+                    }
+                    if (!isStillValid(editor, context.snapshot())) {
+                        staleContext.set(true);
                         return;
                     }
                     String visibleDelta = deltaFilter == null ? delta : deltaFilter.append(delta);
@@ -136,6 +177,8 @@ public final class AiCompletionService {
                         hasText.set(true);
                         fullCompletion.append(remaining);
                         onDelta.accept(remaining);
+                    } else if (!remaining.isEmpty()) {
+                        staleContext.set(true);
                     }
                 }
             } catch (IOException ex) {
@@ -148,55 +191,62 @@ public final class AiCompletionService {
                     hasText.set(true);
                     fullCompletion.append(completion);
                     onDelta.accept(completion);
+                } else if (completion != null && !completion.isBlank()) {
+                    staleContext.set(true);
                 }
             }
             if (hasText.get()) {
                 String completion = fullCompletion.toString();
                 cache.put(filePath, context.snapshot().caretOffset(), context.snapshot().documentStamp(), completion);
                 cache.putContext(context.request(), completion);
-            } else {
+                return CompletionResult.success();
+            }
+            if (staleContext.get()) {
+                return CompletionResult.skipped(CompletionStatus.STALE_CONTEXT);
+            }
+            if (triggerMode == AiCompletionTriggerMode.AUTO) {
                 cache.putNegative(context.request());
             }
-            return hasText.get();
+            return CompletionResult.skipped(CompletionStatus.NO_RESULT);
         } finally {
             inFlightCompletionKeys.remove(context.inFlightKey());
         }
     }
 
-    private CompletionRequestContext prepareCompletionRequest(
+    private CompletionPreparation prepareCompletionRequest(
         Project project,
         Editor editor,
         AiCompletionTriggerMode triggerMode
     ) {
         AiFeatureSettings settings = AiFeatureSettings.getInstance();
         if (!settings.isCodeCompletionEnabled()) {
-            return null;
+            return CompletionPreparation.unavailable("代码补全功能未启用");
         }
         if (triggerMode == AiCompletionTriggerMode.AUTO && !settings.isAutoCompletionEnabled()) {
-            return null;
+            return CompletionPreparation.skipped(CompletionStatus.CONFIG_UNAVAILABLE);
         }
         if (!AiCompletionEditorGuard.isEligible(project, editor)) {
-            return null;
+            return CompletionPreparation.skipped(CompletionStatus.STALE_CONTEXT);
         }
         if (triggerMode == AiCompletionTriggerMode.MANUAL && shouldSkipManualRequest()) {
-            return null;
+            return CompletionPreparation.skipped(CompletionStatus.COOLDOWN);
         }
 
         String inFlightKey = PlatformReadAccess.compute(() -> completionKey(project, editor, triggerMode));
         if (inFlightCompletionKeys.putIfAbsent(inFlightKey, System.currentTimeMillis()) != null) {
-            return null;
+            return CompletionPreparation.skipped(CompletionStatus.IN_FLIGHT);
         }
 
         try {
             AiModelProfile profile = settings.getActiveCompletionProfile();
             if (profile == null || profile.getModel().isBlank()) {
                 inFlightCompletionKeys.remove(inFlightKey);
-                return null;
+                return CompletionPreparation.unavailable("请先配置补全模型");
             }
             String apiKey = settings.getApiKey(profile.getId());
             if (apiKey.isBlank()) {
                 inFlightCompletionKeys.remove(inFlightKey);
-                return null;
+                return CompletionPreparation.unavailable("请先配置补全模型 API Key");
             }
 
             AiCompletionLengthLevel lengthLevel = settings.getCompletionLengthLevel(triggerMode);
@@ -215,7 +265,7 @@ public final class AiCompletionService {
                 snapshot.context().fimPrefix(),
                 snapshot.context().fimSuffix()
             );
-            return new CompletionRequestContext(inFlightKey, profile, request, snapshot);
+            return CompletionPreparation.ready(new CompletionRequestContext(inFlightKey, profile, request, snapshot));
         } catch (RuntimeException ex) {
             inFlightCompletionKeys.remove(inFlightKey);
             throw ex;
@@ -462,6 +512,24 @@ public final class AiCompletionService {
         int caretOffset,
         AiCompletionContextBuilder.Context context
     ) {
+    }
+
+    private record CompletionPreparation(
+        CompletionStatus status,
+        String message,
+        CompletionRequestContext context
+    ) {
+        private static CompletionPreparation ready(CompletionRequestContext context) {
+            return new CompletionPreparation(CompletionStatus.SUCCESS, "", context);
+        }
+
+        private static CompletionPreparation skipped(CompletionStatus status) {
+            return new CompletionPreparation(status, "", null);
+        }
+
+        private static CompletionPreparation unavailable(String message) {
+            return new CompletionPreparation(CompletionStatus.CONFIG_UNAVAILABLE, message == null ? "" : message, null);
+        }
     }
 
     private record CompletionRequestContext(
