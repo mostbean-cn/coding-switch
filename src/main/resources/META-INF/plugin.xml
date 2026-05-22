@@ -39,6 +39,11 @@
     ]]>    </description>
 
     <change-notes><![CDATA[
+    <h3>0.4.2</h3>
+    <ul>
+        <li><b>Antigravity 适配优化</b> — Gemini Cli迁移至Antigravity Cli并实现功能兼容。</li>
+        <li><b>会话管理体验优化</b> — 历史对话自动过滤工具调用、思考过程与冗余结果，AI 长消息支持展开/收起，工具消息默认折叠。</li>
+    </ul>
     <h3>0.4.1</h3>
     <ul>
         <li><b>Git 提交信息生成优化</b> — 支持生成语言设置。</li>
