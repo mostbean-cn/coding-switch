@@ -10,14 +10,14 @@ public enum SettingsCli {
     CLAUDE("Claude Code", "claude"),
     CODEX("Codex", "codex"),
     OPENCODE("OpenCode", "opencode"),
+    ANTIGRAVITY("Antigravity CLI", "agy"),
     CODEBUDDY("CodeBuddy", "codebuddy"),
     QWEN("Qwen Code", "qwen"),
     MMX("MMX", "mmx"),
     QODER("Qoder CLI", "qodercli"),
     AUGGIE("Auggie CLI", "auggie"),
     REASONIX("Reasonix", "reasonix"),
-    KIMI("Kimi CLI", "kimi"),
-    ANTIGRAVITY("Antigravity CLI", "agy");
+    KIMI("Kimi CLI", "kimi");
 
     private final String displayName;
     private final String id;
