@@ -29,6 +29,7 @@ public final class CliVersionService {
     private static final String OFFICIAL_NPM_REGISTRY = "https://registry.npmjs.org/";
     private static final String ANTIGRAVITY_MANIFEST_BASE_URL =
         "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests";
+    private static final String PYPI_JSON_BASE_URL = "https://pypi.org/pypi/";
 
     public enum VersionStatus {
         INSTALLED,
@@ -204,6 +205,9 @@ public final class CliVersionService {
         if (cliType == SettingsCli.ANTIGRAVITY) {
             return getLatestVersionFromManifest();
         }
+        if (cliType == SettingsCli.KIMI) {
+            return getLatestVersionFromPyPI("kimi-cli");
+        }
 
         String packageName = getNpmPackageName(cliType);
         if (packageName == null) {
@@ -275,6 +279,7 @@ public final class CliVersionService {
             case QODER -> "npm i -g @qoder-ai/qodercli@latest";
             case AUGGIE -> "npm i -g @augmentcode/auggie@latest";
             case REASONIX -> "npm i -g reasonix@latest";
+            case KIMI -> "uv tool upgrade kimi-cli --no-cache";
             case ANTIGRAVITY -> getAntigravityUpdateCommand();
         };
     }
@@ -283,6 +288,7 @@ public final class CliVersionService {
         return switch (cliType) {
             case CLAUDE -> "npm install -g @anthropic-ai/claude-code";
             case REASONIX -> "npm install -g reasonix";
+            case KIMI -> getKimiInstallCommand();
             case ANTIGRAVITY -> getAntigravityInstallCommand();
             default -> getUpdateCommand(cliType);
         };
@@ -330,6 +336,7 @@ public final class CliVersionService {
             case QODER -> new String[]{"qodercli --version"};
             case AUGGIE -> new String[]{"auggie --version"};
             case REASONIX -> new String[]{"reasonix --version"};
+            case KIMI -> new String[]{"kimi --version"};
             case ANTIGRAVITY -> new String[]{"agy --version", "agy -v"};
         };
     }
@@ -362,6 +369,7 @@ public final class CliVersionService {
             case QODER -> "qodercli";
             case AUGGIE -> "auggie";
             case REASONIX -> "reasonix";
+            case KIMI -> "kimi";
             case ANTIGRAVITY -> "agy";
         };
     }
@@ -386,6 +394,7 @@ public final class CliVersionService {
             case QODER -> "@qoder-ai/qodercli";
             case AUGGIE -> "@augmentcode/auggie";
             case REASONIX -> "reasonix";
+            case KIMI -> null;
             case ANTIGRAVITY -> null;
         };
     }
@@ -487,6 +496,36 @@ public final class CliVersionService {
 
     private String getAntigravityUpdateCommand() {
         return "agy update";
+    }
+
+    private String getKimiInstallCommand() {
+        return isWindows()
+            ? "irm https://code.kimi.com/install.ps1 | iex"
+            : "curl -L code.kimi.com/install.sh | bash";
+    }
+
+    private String getLatestVersionFromPyPI(String packageName) {
+        String pypiUrl = PYPI_JSON_BASE_URL + packageName + "/json";
+        String command = isWindows()
+            ? "powershell -Command \"(Invoke-RestMethod -Uri '" + pypiUrl + "').info.version\""
+            : "curl -s " + pypiUrl;
+        CommandOutput result = runCommand(command, LATEST_TIMEOUT_SECONDS);
+        if (result.timedOut() || result.exitCode() == null || result.exitCode() != 0) {
+            return null;
+        }
+        String raw = result.output();
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String trimmed = raw.trim();
+        if (trimmed.matches("\\d+\\.\\d+[.\\d]*")) {
+            return trimmed;
+        }
+        Matcher m = Pattern.compile("\"version\"\\s*:\\s*\"([^\"]+)\"").matcher(raw);
+        if (m.find()) {
+            return m.group(1);
+        }
+        return null;
     }
 
     private String getAntigravityInstallCommand() {
