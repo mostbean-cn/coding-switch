@@ -15,6 +15,7 @@ public enum SettingsCli {
     MMX("MMX", "mmx"),
     QODER("Qoder CLI", "qodercli"),
     AUGGIE("Auggie CLI", "auggie"),
+    REASONIX("Reasonix", "reasonix"),
     ANTIGRAVITY("Antigravity CLI", "agy");
 
     private final String displayName;
@@ -52,6 +53,6 @@ public enum SettingsCli {
     }
 
     public static List<SettingsCli> defaultVisibleValues() {
-        return List.of(CLAUDE, CODEX, OPENCODE, ANTIGRAVITY);
+        return List.of(CLAUDE, CODEX, OPENCODE, ANTIGRAVITY, REASONIX);
     }
 }

@@ -274,6 +274,7 @@ public final class CliVersionService {
             case MMX -> "npm i -g mmx-cli@latest";
             case QODER -> "npm i -g @qoder-ai/qodercli@latest";
             case AUGGIE -> "npm i -g @augmentcode/auggie@latest";
+            case REASONIX -> "npm i -g reasonix@latest";
             case ANTIGRAVITY -> getAntigravityUpdateCommand();
         };
     }
@@ -281,6 +282,7 @@ public final class CliVersionService {
     public String getInstallCommand(SettingsCli cliType) {
         return switch (cliType) {
             case CLAUDE -> "npm install -g @anthropic-ai/claude-code";
+            case REASONIX -> "npm install -g reasonix";
             case ANTIGRAVITY -> getAntigravityInstallCommand();
             default -> getUpdateCommand(cliType);
         };
@@ -327,6 +329,7 @@ public final class CliVersionService {
             case MMX -> new String[]{"mmx --version"};
             case QODER -> new String[]{"qodercli --version"};
             case AUGGIE -> new String[]{"auggie --version"};
+            case REASONIX -> new String[]{"reasonix --version"};
             case ANTIGRAVITY -> new String[]{"agy --version", "agy -v"};
         };
     }
@@ -358,6 +361,7 @@ public final class CliVersionService {
             case MMX -> "mmx";
             case QODER -> "qodercli";
             case AUGGIE -> "auggie";
+            case REASONIX -> "reasonix";
             case ANTIGRAVITY -> "agy";
         };
     }
@@ -381,6 +385,7 @@ public final class CliVersionService {
             case MMX -> "mmx-cli";
             case QODER -> "@qoder-ai/qodercli";
             case AUGGIE -> "@augmentcode/auggie";
+            case REASONIX -> "reasonix";
             case ANTIGRAVITY -> null;
         };
     }
