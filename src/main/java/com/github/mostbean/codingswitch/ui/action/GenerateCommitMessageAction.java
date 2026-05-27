@@ -4,6 +4,7 @@ import com.github.mostbean.codingswitch.service.AiCommitMessageService;
 import com.github.mostbean.codingswitch.service.AiFeatureSettings;
 import com.intellij.notification.NotificationGroupManager;
 import com.intellij.notification.NotificationType;
+import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.DataKey;
@@ -35,6 +36,11 @@ public class GenerateCommitMessageAction extends DumbAwareAction {
     private static final DataKey<Object> COMMIT_WORKFLOW_UI_KEY = DataKey.create("Vcs.CommitWorkflowUI");
     private static final Key<AtomicBoolean> COMMIT_GENERATION_STATE_KEY =
         Key.create("coding.switch.ai.commit.message.generating");
+
+    @Override
+    public @NotNull ActionUpdateThread getActionUpdateThread() {
+        return ActionUpdateThread.BGT;
+    }
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {

@@ -47,6 +47,9 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
     }
 
     private State state = new State();
+    private volatile State sharedStateCache;
+    private volatile long sharedStateCacheTimestamp;
+    private static final long CACHE_TTL_MS = 2000;
 
     public static AiFeatureSettings getInstance() {
         return ApplicationManager.getApplication().getService(AiFeatureSettings.class);
@@ -180,7 +183,10 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
     }
 
     public void writeSharedState(State next) {
-        PluginDataStorage.writeJson(PluginDataStorage.getSharedAiFeaturesPath(), normalize(copyState(next)));
+        State normalized = normalize(copyState(next));
+        PluginDataStorage.writeJson(PluginDataStorage.getSharedAiFeaturesPath(), normalized);
+        sharedStateCache = normalized;
+        sharedStateCacheTimestamp = System.currentTimeMillis();
     }
 
     public void notifyStateChanged() {
@@ -225,10 +231,18 @@ public final class AiFeatureSettings implements PersistentStateComponent<AiFeatu
     }
 
     private State getActiveState() {
-        if (PluginSettings.getInstance().getStorageMode() == PluginSettings.DataStorageMode.USER_SHARED) {
-            return readSharedState(normalize(copyState(state)));
+        if (PluginSettings.getInstance().getStorageMode() != PluginSettings.DataStorageMode.USER_SHARED) {
+            return state;
         }
-        return state;
+        long now = System.currentTimeMillis();
+        State cached = sharedStateCache;
+        if (cached != null && (now - sharedStateCacheTimestamp) < CACHE_TTL_MS) {
+            return cached;
+        }
+        State loaded = readSharedState(normalize(copyState(state)));
+        sharedStateCache = loaded;
+        sharedStateCacheTimestamp = now;
+        return loaded;
     }
 
     private void saveActiveState(State next) {
