@@ -108,6 +108,8 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     private JBLabel gitCommitProfileHintLabel;
     private DefaultTableModel profileTableModel;
     private JTable profileTable;
+    private JComboBox<ProfileTypeFilter> profileTypeFilterCombo;
+    private final List<Integer> visibleProfileIndexes = new ArrayList<>();
     private JPanel rootPanel;
 
     private final List<AiModelProfile> profiles = new ArrayList<>();
@@ -602,7 +604,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     }
 
     private void addProfile() {
-        ProfileDialog dialog = new ProfileDialog(null, "");
+        ProfileDialog dialog = new ProfileDialog(null, "", selectedProfileTypeFilter());
         if (!dialog.showAndGet()) {
             return;
         }
@@ -630,7 +632,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             original.getId(),
             AiFeatureSettings.getInstance().getApiKey(original.getId())
         );
-        ProfileDialog dialog = new ProfileDialog(original, existingKey);
+        ProfileDialog dialog = new ProfileDialog(original, existingKey, selectedProfileTypeFilter());
         if (!dialog.showAndGet()) {
             return;
         }
@@ -641,6 +643,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             editedApiKeys.put(updated.getId(), apiKey);
         }
         reloadProfiles();
+        selectVisibleProfile(updated.getId());
         updateFeatureAvailability();
     }
 
@@ -664,10 +667,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
         profiles.add(row + 1, copy);
         reloadProfiles();
-        if (profileTable != null) {
-            profileTable.setRowSelectionInterval(row + 1, row + 1);
-            profileTable.scrollRectToVisible(profileTable.getCellRect(row + 1, 0, true));
-        }
+        selectVisibleProfile(copy.getId());
         updateFeatureAvailability();
     }
 
@@ -688,7 +688,26 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             return -1;
         }
         int viewRow = profileTable.getSelectedRow();
-        return viewRow < 0 ? -1 : profileTable.convertRowIndexToModel(viewRow);
+        int modelRow = viewRow < 0 ? -1 : profileTable.convertRowIndexToModel(viewRow);
+        return modelRow < 0 || modelRow >= visibleProfileIndexes.size() ? -1 : visibleProfileIndexes.get(modelRow);
+    }
+
+    private void selectVisibleProfile(String profileId) {
+        if (profileTable == null || profileId == null || profileId.isBlank()) {
+            return;
+        }
+        for (int modelRow = 0; modelRow < visibleProfileIndexes.size(); modelRow++) {
+            int profileIndex = visibleProfileIndexes.get(modelRow);
+            if (profileIndex >= 0 && profileIndex < profiles.size()
+                && Objects.equals(profiles.get(profileIndex).getId(), profileId)) {
+                int viewRow = profileTable.convertRowIndexToView(modelRow);
+                if (viewRow >= 0) {
+                    profileTable.setRowSelectionInterval(viewRow, viewRow);
+                    profileTable.scrollRectToVisible(profileTable.getCellRect(viewRow, 0, true));
+                }
+                return;
+            }
+        }
     }
 
     private String uniqueProfileName(String baseName) {
@@ -720,6 +739,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         try {
             if (profileTableModel != null) {
                 profileTableModel.setRowCount(0);
+                visibleProfileIndexes.clear();
             }
             if (activeProfileModel != null) {
                 activeProfileModel.removeAllElements();
@@ -727,8 +747,11 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             if (activeGitCommitProfileModel != null) {
                 activeGitCommitProfileModel.removeAllElements();
             }
-            for (AiModelProfile profile : profiles) {
-                if (profileTableModel != null) {
+            ProfileTypeFilter selectedFilter = selectedProfileTypeFilter();
+            for (int i = 0; i < profiles.size(); i++) {
+                AiModelProfile profile = profiles.get(i);
+                if (profileTableModel != null && selectedFilter.matches(profile)) {
+                    visibleProfileIndexes.add(i);
                     profileTableModel.addRow(new Object[] {
                         profile.getDisplayName(),
                         profile.getFormat().getDisplayName(),
@@ -1346,6 +1369,29 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             profileTable.getColumnModel().getColumn(2).setPreferredWidth(JBUI.scale(240));
             profileTable.getColumnModel().getColumn(3).setPreferredWidth(JBUI.scale(180));
 
+            profileTypeFilterCombo = new JComboBox<>(ProfileTypeFilter.values());
+            profileTypeFilterCombo.setSelectedItem(ProfileTypeFilter.ALL);
+            profileTypeFilterCombo.setRenderer(new DefaultListCellRenderer() {
+                @Override
+                public Component getListCellRendererComponent(
+                    JList<?> list,
+                    Object value,
+                    int index,
+                    boolean isSelected,
+                    boolean cellHasFocus
+                ) {
+                    super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                    if (value instanceof ProfileTypeFilter filter) {
+                        setText(filter.displayName());
+                    }
+                    return this;
+                }
+            });
+            profileTypeFilterCombo.addActionListener(e -> reloadProfiles());
+            JPanel filterRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+            filterRow.add(profileTypeFilterCombo);
+            panel.add(filterRow, BorderLayout.NORTH);
+
             JBScrollPane tablePane = new JBScrollPane(profileTable);
             tablePane.setPreferredSize(new Dimension(JBUI.scale(760), JBUI.scale(220)));
             panel.add(tablePane, BorderLayout.CENTER);
@@ -1384,6 +1430,63 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         }
     }
 
+    private ProfileTypeFilter selectedProfileTypeFilter() {
+        Object selected = profileTypeFilterCombo == null ? null : profileTypeFilterCombo.getSelectedItem();
+        return selected instanceof ProfileTypeFilter filter ? filter : ProfileTypeFilter.ALL;
+    }
+
+    private enum ProfileTypeFilter {
+        ALL("全部") {
+            @Override
+            boolean matches(AiModelProfile profile) {
+                return true;
+            }
+
+            @Override
+            boolean matchesFormat(AiModelFormat format) {
+                return true;
+            }
+        },
+        FIM("FIM") {
+            @Override
+            boolean matches(AiModelProfile profile) {
+                return matchesFormat(profile.getFormat()) || profile.isFimEnabled();
+            }
+
+            @Override
+            boolean matchesFormat(AiModelFormat format) {
+                return AiFeatureSettings.isNativeFimFormat(format);
+            }
+        },
+        LLM("LLM") {
+            @Override
+            boolean matches(AiModelProfile profile) {
+                return !FIM.matches(profile);
+            }
+
+            @Override
+            boolean matchesFormat(AiModelFormat format) {
+                return !FIM.matchesFormat(format);
+            }
+        };
+
+        private final String displayName;
+
+        ProfileTypeFilter(String displayName) {
+            this.displayName = displayName;
+        }
+
+        String displayName() {
+            return displayName;
+        }
+
+        boolean matches(AiModelProfile profile) {
+            return matchesFormat(profile.getFormat()) || profile.isFimEnabled();
+        }
+
+        abstract boolean matchesFormat(AiModelFormat format);
+    }
+
     private static final class VerticalScrollablePanel extends JPanel implements Scrollable {
 
         @Override
@@ -1416,6 +1519,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
         private final AiModelProfile original;
         private final String existingApiKey;
+        private final ProfileTypeFilter formatFilter;
         private JTextField nameField;
         private JComboBox<AiModelFormat> formatCombo;
         private JTextField baseUrlField;
@@ -1431,10 +1535,11 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         private String latestTestDetail = "";
         private boolean testStatusClickable = false;
 
-        private ProfileDialog(AiModelProfile profile, String existingApiKey) {
+        private ProfileDialog(AiModelProfile profile, String existingApiKey, ProfileTypeFilter formatFilter) {
             super(true);
             this.original = profile == null ? new AiModelProfile() : profile.copy();
             this.existingApiKey = existingApiKey == null ? "" : existingApiKey;
+            this.formatFilter = formatFilter == null ? ProfileTypeFilter.ALL : formatFilter;
             setTitle(profile == null ? I18n.t("aiSettings.dialog.addProfile") : I18n.t("aiSettings.dialog.editProfile"));
             init();
         }
@@ -1442,8 +1547,8 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         @Override
         protected @Nullable JComponent createCenterPanel() {
             nameField = new JTextField(original.getName(), 30);
-            formatCombo = new JComboBox<>(AiModelFormat.values());
-            formatCombo.setSelectedItem(original.getFormat());
+            formatCombo = new JComboBox<>(availableFormats());
+            formatCombo.setSelectedItem(selectedInitialFormat());
             baseUrlField = new JTextField(original.getBaseUrl(), 30);
             modelField = new JTextField(original.getModel(), 30);
             apiKeyField = new JPasswordField(existingApiKey, 30);
@@ -1528,6 +1633,27 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
                 }
             }
             return null;
+        }
+
+        private AiModelFormat[] availableFormats() {
+            List<AiModelFormat> formats = new ArrayList<>();
+            for (AiModelFormat format : AiModelFormat.values()) {
+                if (formatFilter.matchesFormat(format)) {
+                    formats.add(format);
+                }
+            }
+            if (formats.isEmpty()) {
+                return AiModelFormat.values();
+            }
+            return formats.toArray(new AiModelFormat[0]);
+        }
+
+        private AiModelFormat selectedInitialFormat() {
+            if (formatFilter.matchesFormat(original.getFormat())) {
+                return original.getFormat();
+            }
+            AiModelFormat[] formats = availableFormats();
+            return formats.length == 0 ? original.getFormat() : formats[0];
         }
 
         private AiModelProfile getProfile() {
