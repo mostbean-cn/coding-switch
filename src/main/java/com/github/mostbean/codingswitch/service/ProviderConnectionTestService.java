@@ -28,6 +28,7 @@ public final class ProviderConnectionTestService {
     private static final Gson GSON = new Gson();
 
     private final HttpClient httpClient = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
             .connectTimeout(CONNECT_TIMEOUT)
             .build();
 

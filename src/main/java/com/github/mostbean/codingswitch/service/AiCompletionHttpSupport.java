@@ -23,6 +23,8 @@ final class AiCompletionHttpSupport {
 
     static HttpClient createClient(AiModelProfile profile) {
         return HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
+            .followRedirects(HttpClient.Redirect.NORMAL)
             .connectTimeout(Duration.ofSeconds(profile.getTimeoutSeconds()))
             .build();
     }
@@ -71,17 +73,77 @@ final class AiCompletionHttpSupport {
             }
         }
         addCustomHeaders(builder, profile.getHeadersJson());
-        HttpResponse<InputStream> response = client.send(
-            builder.POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8)).build(),
-            HttpResponse.BodyHandlers.ofInputStream()
-        );
+        HttpResponse<InputStream> response;
+        try {
+            response = client.send(
+                builder.POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8)).build(),
+                HttpResponse.BodyHandlers.ofInputStream()
+            );
+        } catch (IOException ex) {
+            throw rethrowAsNetworkError(ex, url);
+        }
         int statusCode = response.statusCode();
         if (statusCode < 200 || statusCode >= 300) {
             String responseBody = new String(response.body().readAllBytes(), StandardCharsets.UTF_8);
             String detail = responseBody.length() > 240 ? responseBody.substring(0, 240) + "..." : responseBody;
             throw new IOException("HTTP " + statusCode + (detail.isBlank() ? "" : ": " + detail));
         }
-        readServerSentEvents(response.body(), onEvent);
+        try {
+            readServerSentEvents(response.body(), onEvent);
+        } catch (IOException ex) {
+            throw rethrowAsNetworkError(ex, url);
+        }
+    }
+
+    static void postJsonStreamWithRetry(
+        HttpClient client,
+        AiModelProfile profile,
+        String url,
+        Map<String, String> headers,
+        String body,
+        Consumer<String> onEvent
+    ) throws IOException, InterruptedException {
+        IOException last = null;
+        for (int attempt = 0; attempt < 2; attempt++) {
+            try {
+                postJsonStream(client, profile, url, headers, body, onEvent);
+                return;
+            } catch (IOException ex) {
+                last = ex;
+                if (attempt == 1 || !isRetryableNetworkError(ex)) {
+                    throw ex;
+                }
+            }
+        }
+        if (last != null) {
+            throw last;
+        }
+    }
+
+    private static boolean isRetryableNetworkError(IOException ex) {
+        String lower = ex.getMessage() == null ? "" : ex.getMessage().toLowerCase();
+        if (lower.isEmpty()) {
+            return false;
+        }
+        return lower.contains("no bytes")
+            || lower.contains("connection reset")
+            || lower.contains("connection closed")
+            || lower.contains("premature")
+            || lower.contains("end of stream")
+            || lower.contains("stream is closed")
+            || lower.contains("unexpected eof");
+    }
+
+    private static IOException rethrowAsNetworkError(IOException original, String url) {
+        if (!isRetryableNetworkError(original)) {
+            return original;
+        }
+        return new IOException(
+            "与 LLM 网关通信失败（" + original.getMessage() + "）。"
+                + "请检查：1) Base URL 是否可访问；2) 是否被代理/VPN 拦截；"
+                + "3) 若使用公司或第三方中转网关，确认其支持流式 SSE 输出。URL: " + url,
+            original
+        );
     }
 
     static String ensurePath(String baseUrl, String path) {

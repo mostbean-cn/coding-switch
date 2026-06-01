@@ -32,7 +32,7 @@ final class OpenAiResponsesCompletionClient implements AiCompletionClient {
     public void streamComplete(AiCompletionRequest request, Consumer<String> onDelta)
         throws IOException, InterruptedException {
         HttpClient client = AiCompletionHttpSupport.createClient(request.profile());
-        AiCompletionHttpSupport.postJsonStream(
+        AiCompletionHttpSupport.postJsonStreamWithRetry(
             client,
             request.profile(),
             AiCompletionHttpSupport.ensurePath(request.profile().getBaseUrl(), "/v1/responses"),

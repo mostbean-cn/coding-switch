@@ -125,7 +125,14 @@ public class GenerateCommitMessageAction extends DumbAwareAction {
                         }
                     );
                 } catch (Exception ex) {
-                    showNotification(project, "生成提交信息失败: " + ex.getMessage(), NotificationType.ERROR);
+                    String message = ex.getMessage() == null ? ex.toString() : ex.getMessage();
+                    if (isNetworkLayerFailure(message)) {
+                        showNotification(project,
+                            "生成提交信息失败：网络层错误。\n" + message,
+                            NotificationType.WARNING);
+                    } else {
+                        showNotification(project, "生成提交信息失败: " + message, NotificationType.ERROR);
+                    }
                 } finally {
                     if (clearOnExit) {
                         finishCommitGeneration(project);
@@ -328,5 +335,19 @@ public class GenerateCommitMessageAction extends DumbAwareAction {
             .getNotificationGroup("Coding Switch")
             .createNotification(message, type)
             .notify(project);
+    }
+
+    private static boolean isNetworkLayerFailure(String message) {
+        if (message == null || message.isEmpty()) {
+            return false;
+        }
+        String lower = message.toLowerCase();
+        return lower.contains("no bytes")
+            || lower.contains("connection reset")
+            || lower.contains("connection closed")
+            || lower.contains("premature eof")
+            || lower.contains("end of stream")
+            || lower.contains("unexpected eof")
+            || message.contains("与 LLM 网关通信失败");
     }
 }
