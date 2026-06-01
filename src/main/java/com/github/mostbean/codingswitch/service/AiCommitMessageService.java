@@ -74,7 +74,10 @@ public final class AiCommitMessageService {
             delta -> {
                 raw.append(delta);
                 if (onPartial != null) {
-                    onPartial.accept(raw.toString().stripLeading());
+                    String partial = sanitizeStreamingCommitMessage(raw.toString());
+                    if (!partial.isBlank()) {
+                        onPartial.accept(partial);
+                    }
                 }
             }
         ).map(value -> normalizeGeneratedMessage(value, changeList, unversionedFileList, context.language()))
@@ -91,6 +94,7 @@ public final class AiCommitMessageService {
         String systemPrompt = """
             你是 Git 提交信息生成器。
             你的输出必须是最终提交信息本身，不能包含任何对话、确认、解释、Markdown、代码块或引号。
+            禁止输出任何思考过程、推理过程、analysis、reasoning、think 标签或隐藏提示内容。
             不能调用工具，不能输出 tool_call、Bash、git status、system、reminder 等工具调用或系统消息文本。
             不要说需要先查看代码变更；下面已经提供了当前选中文件的变更内容。
             禁止输出“明白”“好的”“我会”“下面是”“以下是”等前缀。
@@ -599,7 +603,8 @@ public final class AiCommitMessageService {
         if (raw == null) {
             return "";
         }
-        String text = raw.trim()
+        String text = stripThinkingContent(raw, false)
+            .trim()
             .replace("\r\n", "\n")
             .replace("\r", "\n")
             .replaceAll("(?s)^```[a-zA-Z0-9_-]*\\s*", "")
@@ -612,6 +617,29 @@ public final class AiCommitMessageService {
             return extractConventionalCommit(text).orElse("");
         }
 
+        List<String> lines = effectiveCommitLines(text);
+        if (lines.isEmpty()) {
+            return "";
+        }
+
+        return extractCommitMessageFromFirstConventionalLine(lines).orElseGet(() -> joinCommitLines(lines));
+    }
+
+    private String sanitizeStreamingCommitMessage(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "";
+        }
+        String text = stripThinkingContent(raw, true)
+            .stripLeading()
+            .replace("\r\n", "\n")
+            .replace("\r", "\n");
+        if (text.isBlank()) {
+            return "";
+        }
+        return sanitizeCommitMessage(text);
+    }
+
+    private List<String> effectiveCommitLines(String text) {
         List<String> lines = new ArrayList<>();
         for (String line : text.split("\\n")) {
             String normalized = normalizeOutputLine(line);
@@ -619,26 +647,55 @@ public final class AiCommitMessageService {
                 lines.add(normalized);
             }
         }
-        if (lines.isEmpty()) {
-            return "";
-        }
-
-        for (int i = 0; i < lines.size(); i++) {
-            if (CONVENTIONAL_COMMIT_PATTERN.matcher(lines.get(i)).matches()) {
-                return joinCommitLines(lines.subList(i, lines.size()));
-            }
-        }
-        return joinCommitLines(lines);
+        return lines;
     }
 
     private Optional<String> extractConventionalCommit(String text) {
-        for (String line : text.split("\\n")) {
-            String normalized = normalizeOutputLine(line);
-            if (CONVENTIONAL_COMMIT_PATTERN.matcher(normalized).matches()) {
-                return Optional.of(normalized);
+        return extractCommitMessageFromFirstConventionalLine(effectiveCommitLines(stripThinkingContent(text, false)));
+    }
+
+    private Optional<String> extractCommitMessageFromFirstConventionalLine(List<String> lines) {
+        for (int i = 0; i < lines.size(); i++) {
+            if (CONVENTIONAL_COMMIT_PATTERN.matcher(lines.get(i)).matches()) {
+                return Optional.of(joinCommitLines(lines.subList(i, lines.size())));
             }
         }
         return Optional.empty();
+    }
+
+    private String stripThinkingContent(String raw, boolean streaming) {
+        if (raw == null || raw.isBlank()) {
+            return "";
+        }
+        String text = raw.replace("\r\n", "\n").replace("\r", "\n");
+        text = text.replaceAll("(?is)<think\\b[^>]*>.*?</think>", "");
+        text = text.replaceAll("(?is)<reasoning\\b[^>]*>.*?</reasoning>", "");
+        text = text.replaceAll("(?is)<analysis\\b[^>]*>.*?</analysis>", "");
+
+        int openTagIndex = firstUnclosedThinkingTagIndex(text);
+        if (openTagIndex >= 0) {
+            if (streaming) {
+                return text.substring(0, openTagIndex).trim();
+            }
+            text = text.substring(0, openTagIndex);
+        }
+        return text.trim();
+    }
+
+    private int firstUnclosedThinkingTagIndex(String text) {
+        String lower = text.toLowerCase();
+        int result = -1;
+        for (String tag : List.of("think", "reasoning", "analysis")) {
+            int open = lower.lastIndexOf("<" + tag);
+            if (open < 0) {
+                continue;
+            }
+            int close = lower.lastIndexOf("</" + tag + ">");
+            if (close < open && (result < 0 || open < result)) {
+                result = open;
+            }
+        }
+        return result;
     }
 
     private String normalizeOutputLine(String line) {
