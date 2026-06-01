@@ -53,6 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -620,7 +621,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     }
 
     private void editSelectedProfile() {
-        int row = profileTable.getSelectedRow();
+        int row = selectedProfileIndex();
         if (row < 0 || row >= profiles.size()) {
             return;
         }
@@ -643,8 +644,35 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         updateFeatureAvailability();
     }
 
+    private void duplicateSelectedProfile() {
+        int row = selectedProfileIndex();
+        if (row < 0 || row >= profiles.size()) {
+            return;
+        }
+        AiModelProfile source = profiles.get(row);
+        AiModelProfile copy = source.copy();
+        copy.setId(UUID.randomUUID().toString());
+        copy.setName(uniqueProfileName(source.getDisplayName()));
+
+        String sourceApiKey = editedApiKeys.getOrDefault(
+            source.getId(),
+            AiFeatureSettings.getInstance().getApiKey(source.getId())
+        );
+        if (!sourceApiKey.isBlank()) {
+            editedApiKeys.put(copy.getId(), sourceApiKey);
+        }
+
+        profiles.add(row + 1, copy);
+        reloadProfiles();
+        if (profileTable != null) {
+            profileTable.setRowSelectionInterval(row + 1, row + 1);
+            profileTable.scrollRectToVisible(profileTable.getCellRect(row + 1, 0, true));
+        }
+        updateFeatureAvailability();
+    }
+
     private void removeSelectedProfile() {
-        int row = profileTable.getSelectedRow();
+        int row = selectedProfileIndex();
         if (row < 0 || row >= profiles.size()) {
             return;
         }
@@ -653,6 +681,34 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         editedApiKeys.remove(removed.getId());
         reloadProfiles();
         updateFeatureAvailability();
+    }
+
+    private int selectedProfileIndex() {
+        if (profileTable == null) {
+            return -1;
+        }
+        int viewRow = profileTable.getSelectedRow();
+        return viewRow < 0 ? -1 : profileTable.convertRowIndexToModel(viewRow);
+    }
+
+    private String uniqueProfileName(String baseName) {
+        String base = baseName == null || baseName.isBlank() ? I18n.t("aiSettings.table.name") : baseName.trim();
+        String suffix = " Copy";
+        String candidate = base + suffix;
+        int index = 2;
+        while (profileNameExists(candidate)) {
+            candidate = base + suffix + " " + index++;
+        }
+        return candidate;
+    }
+
+    private boolean profileNameExists(String name) {
+        for (AiModelProfile profile : profiles) {
+            if (Objects.equals(profile.getName(), name)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void reloadProfiles() {
@@ -1305,6 +1361,10 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             JButton editButton = new JButton(I18n.t("common.button.edit"), AllIcons.Actions.Edit);
             editButton.addActionListener(e -> editSelectedProfile());
             buttonRow.add(editButton);
+
+            JButton duplicateButton = new JButton(I18n.t("common.button.copy"), AllIcons.Actions.Copy);
+            duplicateButton.addActionListener(e -> duplicateSelectedProfile());
+            buttonRow.add(duplicateButton);
 
             JButton removeButton = new JButton(I18n.t("common.button.delete"), AllIcons.General.Remove);
             removeButton.addActionListener(e -> removeSelectedProfile());

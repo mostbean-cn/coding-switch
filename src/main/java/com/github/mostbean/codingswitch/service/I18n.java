@@ -83,6 +83,7 @@ public final class I18n {
                 m.put("common.button.add", "新增");
                 m.put("common.button.edit", "修改");
                 m.put("common.button.delete", "删除");
+                m.put("common.button.copy", "复制");
                 m.put("common.button.reset", "重置");
                 m.put("common.button.details", "详情");
 
@@ -651,6 +652,7 @@ public final class I18n {
                 m.put("common.button.add", "Add");
                 m.put("common.button.edit", "Edit");
                 m.put("common.button.delete", "Delete");
+                m.put("common.button.copy", "Copy");
                 m.put("common.button.reset", "Reset");
                 m.put("common.button.details", "Details");
 

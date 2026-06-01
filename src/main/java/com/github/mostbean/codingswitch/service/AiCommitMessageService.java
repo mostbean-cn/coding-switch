@@ -46,12 +46,15 @@ public final class AiCommitMessageService {
         }
 
         CommitGenerationContext context = buildCommitGenerationContext(changeList, unversionedFileList);
-        return AiCompletionService.getInstance().generateGitCommitText(
+        Optional<String> generated = AiCompletionService.getInstance().generateGitCommitText(
             context.systemPrompt(),
             context.userPrompt(),
             AiCompletionLengthLevel.LONG
-        ).map(value -> normalizeGeneratedMessage(value, changeList, unversionedFileList, context.language()))
-            .filter(value -> !value.isBlank());
+        );
+        String message = generated
+            .map(value -> normalizeGeneratedMessage(value, changeList, unversionedFileList, context.language()))
+            .orElseGet(() -> fallbackCommitMessage(changeList, unversionedFileList, context.language()));
+        return Optional.ofNullable(message).filter(value -> !value.isBlank());
     }
 
     public Optional<String> generateStreaming(
@@ -67,7 +70,7 @@ public final class AiCommitMessageService {
 
         CommitGenerationContext context = buildCommitGenerationContext(changeList, unversionedFileList);
         StringBuilder raw = new StringBuilder();
-        return AiCompletionService.getInstance().streamGitCommitText(
+        Optional<String> generated = AiCompletionService.getInstance().streamGitCommitText(
             context.systemPrompt(),
             context.userPrompt(),
             AiCompletionLengthLevel.LONG,
@@ -80,8 +83,11 @@ public final class AiCommitMessageService {
                     }
                 }
             }
-        ).map(value -> normalizeGeneratedMessage(value, changeList, unversionedFileList, context.language()))
-            .filter(value -> !value.isBlank());
+        );
+        String message = generated
+            .map(value -> normalizeGeneratedMessage(value, changeList, unversionedFileList, context.language()))
+            .orElseGet(() -> fallbackCommitMessage(changeList, unversionedFileList, context.language()));
+        return Optional.ofNullable(message).filter(value -> !value.isBlank());
     }
 
     private CommitGenerationContext buildCommitGenerationContext(

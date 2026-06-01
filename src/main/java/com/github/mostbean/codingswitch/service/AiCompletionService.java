@@ -352,17 +352,130 @@ public final class AiCompletionService {
             return Optional.empty();
         }
         AiCompletionRequest request = createTextRequest(systemPrompt, userPrompt, lengthLevel, profile, apiKey);
+        AiCompletionClient client = createClient(profile.getFormat());
         StringBuilder text = new StringBuilder();
-        createClient(profile.getFormat()).streamComplete(request, delta -> {
-            if (delta == null || delta.isEmpty()) {
-                return;
+        StringBuilder ignoredReasoning = new StringBuilder();
+        IOException streamFailure = null;
+        try {
+            client.streamComplete(request, delta -> {
+                if (delta == null || delta.isEmpty()) {
+                    return;
+                }
+                if (AiCompletionDelta.isReasoning(delta)) {
+                    ignoredReasoning.append(AiCompletionDelta.unwrapReasoning(delta));
+                    return;
+                }
+                String visibleDelta = visibleTextDelta(request, delta);
+                if (!visibleDelta.isEmpty()) {
+                    text.append(visibleDelta);
+                    if (onDelta != null) {
+                        onDelta.accept(visibleDelta);
+                    }
+                    return;
+                }
+                if (looksLikeReasoningDelta(delta)) {
+                    ignoredReasoning.append(delta);
+                }
+            });
+        } catch (IOException ex) {
+            if (!text.isEmpty()) {
+                throw ex;
             }
-            text.append(delta);
-            if (onDelta != null) {
-                onDelta.accept(delta);
+            streamFailure = ex;
+        }
+        if (!text.isEmpty()) {
+            return Optional.of(text.toString());
+        }
+        if (!ignoredReasoning.isEmpty()) {
+            Optional<String> extracted = extractVisibleTextFromReasoning(ignoredReasoning.toString());
+            if (extracted.isPresent()) {
+                return extracted;
             }
-        });
-        return text.isEmpty() ? Optional.empty() : Optional.of(text.toString());
+        }
+
+        // Some OpenAI/Anthropic-compatible providers accept stream=true but return no readable SSE text,
+        // or reject streaming while their normal completion endpoint works. Fall back to non-streaming
+        // before reporting no result.
+        try {
+            String completion = client.complete(request);
+            if (completion != null && !completion.isBlank()) {
+                return Optional.of(completion);
+            }
+        } catch (IOException ex) {
+            if (streamFailure != null) {
+                throw streamFailure;
+            }
+            throw ex;
+        }
+        if (streamFailure != null) {
+            throw streamFailure;
+        }
+        return Optional.empty();
+    }
+
+    private String visibleTextDelta(AiCompletionRequest request, String delta) {
+        if (request.profile().getFormat() != AiModelFormat.OPENAI_CHAT_COMPLETIONS
+            && request.profile().getFormat() != AiModelFormat.FIM_CHAT_COMPLETIONS) {
+            return delta;
+        }
+        return stripReasoningPrefix(delta).orElse(delta);
+    }
+
+    private boolean looksLikeReasoningDelta(String delta) {
+        return delta != null && stripReasoningPrefix(delta).isPresent();
+    }
+
+    private Optional<String> stripReasoningPrefix(String value) {
+        if (value == null || value.isEmpty()) {
+            return Optional.empty();
+        }
+        String text = value.stripLeading();
+        for (String marker : java.util.List.of("最终提交信息", "提交信息", "最终答案", "最终输出", "Final commit message", "Final answer")) {
+            int index = text.indexOf(marker);
+            if (index >= 0) {
+                int separator = index + marker.length();
+                while (separator < text.length()) {
+                    char ch = text.charAt(separator);
+                    if (Character.isWhitespace(ch) || ch == ':' || ch == '：' || ch == '-' || ch == '—') {
+                        separator++;
+                        continue;
+                    }
+                    break;
+                }
+                String afterMarker = text.substring(separator).stripLeading();
+                if (!afterMarker.isBlank()) {
+                    return Optional.of(afterMarker);
+                }
+            }
+        }
+        if (startsLikeReasoning(text)) {
+            return Optional.of("");
+        }
+        return Optional.empty();
+    }
+
+    private boolean startsLikeReasoning(String text) {
+        String lower = text.toLowerCase();
+        return text.startsWith("首先")
+            || text.startsWith("先")
+            || text.startsWith("我们需要")
+            || text.startsWith("我需要")
+            || text.startsWith("需要")
+            || text.startsWith("根据要求")
+            || text.startsWith("任务是")
+            || lower.startsWith("first")
+            || lower.startsWith("we need")
+            || lower.startsWith("i need")
+            || lower.startsWith("the task")
+            || lower.startsWith("let's");
+    }
+
+    private Optional<String> extractVisibleTextFromReasoning(String text) {
+        Optional<String> stripped = stripReasoningPrefix(text);
+        if (stripped.isEmpty() || stripped.get().isBlank()) {
+            return Optional.empty();
+        }
+        return stripped;
     }
 
     private AiCompletionRequest createTextRequest(

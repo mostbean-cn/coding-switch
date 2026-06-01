@@ -79,11 +79,7 @@ final class OpenAiChatCompletionClient implements AiCompletionClient {
         if (!choice.has("message") || !choice.get("message").isJsonObject()) {
             return "";
         }
-        JsonObject message = choice.getAsJsonObject("message");
-        if (!message.has("content") || message.get("content").isJsonNull()) {
-            return "";
-        }
-        return message.get("content").getAsString();
+        return extractMessageText(choice.getAsJsonObject("message"));
     }
 
     private String extractDelta(String event) {
@@ -95,10 +91,19 @@ final class OpenAiChatCompletionClient implements AiCompletionClient {
         if (!choice.has("delta") || !choice.get("delta").isJsonObject()) {
             return "";
         }
-        JsonObject delta = choice.getAsJsonObject("delta");
-        if (!delta.has("content") || delta.get("content").isJsonNull()) {
-            return "";
+        return extractMessageText(choice.getAsJsonObject("delta"));
+    }
+
+    private String extractMessageText(JsonObject object) {
+        if (object.has("content") && !object.get("content").isJsonNull()) {
+            return object.get("content").getAsString();
         }
-        return delta.get("content").getAsString();
+        if (object.has("reasoning_content") && !object.get("reasoning_content").isJsonNull()) {
+            return AiCompletionDelta.reasoning(object.get("reasoning_content").getAsString());
+        }
+        if (object.has("reasoning") && !object.get("reasoning").isJsonNull()) {
+            return AiCompletionDelta.reasoning(object.get("reasoning").getAsString());
+        }
+        return "";
     }
 }
