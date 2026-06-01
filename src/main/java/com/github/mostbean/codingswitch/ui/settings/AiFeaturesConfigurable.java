@@ -341,7 +341,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         completionRow.add(profileSelectionLabel(completionProfileLabel, profileLabelWidth));
         activeProfileModel = new DefaultComboBoxModel<>();
         activeProfileCombo = new JComboBox<>(activeProfileModel);
-        configureProfileCombo(activeProfileCombo);
+        configureProfileCombo(activeProfileCombo, true);
         completionRow.add(activeProfileCombo);
         completionProfileHintLabel = profileHintLabel();
         completionRow.add(completionProfileHintLabel);
@@ -351,7 +351,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         gitCommitRow.add(profileSelectionLabel(gitCommitProfileLabel, profileLabelWidth));
         activeGitCommitProfileModel = new DefaultComboBoxModel<>();
         activeGitCommitProfileCombo = new JComboBox<>(activeGitCommitProfileModel);
-        configureProfileCombo(activeGitCommitProfileCombo);
+        configureProfileCombo(activeGitCommitProfileCombo, false);
         gitCommitRow.add(activeGitCommitProfileCombo);
         gitCommitProfileHintLabel = profileHintLabel();
         gitCommitRow.add(gitCommitProfileHintLabel);
@@ -384,15 +384,25 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         return label;
     }
 
-    private void configureProfileCombo(JComboBox<AiModelProfile> comboBox) {
+    private void configureProfileCombo(JComboBox<AiModelProfile> comboBox, boolean preferFim) {
         comboBox.setRenderer((JList<? extends AiModelProfile> list, AiModelProfile value, int index,
             boolean isSelected, boolean cellHasFocus) -> {
-            JLabel label = new JLabel(value == null ? I18n.t("aiSettings.option.noProfile") : activeProfileDisplayName(value));
-            label.setOpaque(true);
-            label.setBackground(isSelected ? list.getSelectionBackground() : list.getBackground());
-            label.setForeground(isSelected ? list.getSelectionForeground() : list.getForeground());
-            label.setBorder(JBUI.Borders.empty(2, 6));
-            return label;
+            JPanel panel = new JPanel(new BorderLayout(8, 0));
+            panel.setOpaque(true);
+            panel.setBackground(isSelected ? list.getSelectionBackground() : list.getBackground());
+            panel.setBorder(JBUI.Borders.empty(2, 6));
+
+            JLabel nameLabel = new JLabel(value == null ? I18n.t("aiSettings.option.noProfile") : activeProfileDisplayName(value));
+            nameLabel.setForeground(isSelected ? list.getSelectionForeground() : list.getForeground());
+            panel.add(nameLabel, BorderLayout.CENTER);
+
+            if (index >= 0 && value != null && isRecommendedProfile(value, preferFim)) {
+                JLabel recommendLabel = new JLabel("推荐");
+                recommendLabel.setForeground(isSelected ? list.getSelectionForeground() : JBColor.GRAY);
+                recommendLabel.setFont(recommendLabel.getFont().deriveFont(recommendLabel.getFont().getSize2D() - 1f));
+                panel.add(recommendLabel, BorderLayout.EAST);
+            }
+            return panel;
         });
         comboBox.setPreferredSize(new Dimension(JBUI.scale(280), comboBox.getPreferredSize().height));
         comboBox.addActionListener(e -> {
@@ -400,6 +410,14 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
                 updateFeatureAvailability();
             }
         });
+    }
+
+    private boolean isRecommendedProfile(AiModelProfile profile, boolean preferFim) {
+        return isFimProfile(profile) == preferFim;
+    }
+
+    private boolean isFimProfile(AiModelProfile profile) {
+        return profile != null && (AiFeatureSettings.isNativeFimFormat(profile.getFormat()) || profile.isFimEnabled());
     }
 
     private void updateProfileHints() {
@@ -759,9 +777,15 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
                         profile.getModel()
                     });
                 }
+            }
+            ProfileTypeFilter completionFilter = ProfileTypeFilter.FIM;
+            ProfileTypeFilter gitCommitFilter = ProfileTypeFilter.LLM;
+            for (AiModelProfile profile : sortedProfiles(completionFilter)) {
                 if (activeProfileModel != null) {
                     activeProfileModel.addElement(profile);
                 }
+            }
+            for (AiModelProfile profile : sortedProfiles(gitCommitFilter)) {
                 if (activeGitCommitProfileModel != null) {
                     activeGitCommitProfileModel.addElement(profile);
                 }
@@ -779,6 +803,19 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         } finally {
             suppressFeatureAvailabilityUpdates = false;
         }
+    }
+
+    private List<AiModelProfile> sortedProfiles(ProfileTypeFilter recommendedFilter) {
+        List<AiModelProfile> sorted = new ArrayList<>(profiles);
+        sorted.sort((left, right) -> {
+            boolean leftRecommended = recommendedFilter.matches(left);
+            boolean rightRecommended = recommendedFilter.matches(right);
+            if (leftRecommended != rightRecommended) {
+                return leftRecommended ? -1 : 1;
+            }
+            return 0;
+        });
+        return sorted;
     }
 
     private void selectProfile(JComboBox<AiModelProfile> comboBox, String profileId) {
