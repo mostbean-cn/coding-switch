@@ -40,6 +40,10 @@
     ]]>    </description>
 
     <change-notes><![CDATA[
+    <h3>0.4.3</h3>
+    <ul>
+        <li><b>AI Git提价信息生成优化</b> — 增强请求网络错误处理与重试机制，进一步提升补全稳定性。</li>
+    </ul>
     <h3>0.4.2</h3>
     <ul>
         <li><b>Antigravity CLI 适配优化</b> — Gemini CLI 迁移至 Antigravity CLI 并实现功能兼容。</li>
