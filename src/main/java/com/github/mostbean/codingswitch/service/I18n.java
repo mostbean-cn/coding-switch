@@ -121,6 +121,7 @@ public final class I18n {
                 m.put("settings.label.ccSwitch", "CC Switch:");
                 m.put("settings.label.extensionSync", "与 CC Switch 数据同步:");
                 m.put("settings.label.ccSwitchOfficial", "CC Switch官网:");
+                m.put("settings.label.ccSwitchConfigDirectory", "CC Switch 配置目录:");
                 m.put("settings.button.show", "显示");
                 m.put("settings.button.hide", "隐藏");
                 m.put("settings.button.configure", "功能配置");
@@ -130,6 +131,7 @@ public final class I18n {
                 m.put("settings.button.saveGithubToken", "保存令牌");
                 m.put("settings.button.applyStorageMode", "应用");
                 m.put("settings.button.openStorageDirectory", "打开目录");
+                m.put("settings.button.chooseDirectory", "选择目录");
                 m.put("settings.button.importFromCcSwitch", "导入");
                 m.put("settings.button.exportToCcSwitch", "导出");
                 m.put("settings.hint.githubToken", "可选。配置 GitHub 令牌可提升 API 速率限制（仅影响 GitHub Skills 仓库）。");
@@ -165,6 +167,7 @@ public final class I18n {
                 m.put("settings.dialog.extensionSync.importConfirmTitle", "确认从 CC Switch 导入");
                 m.put("settings.dialog.extensionSync.importConfirm", "即将导入 {0} 条配置，其中 {1} 条本地已有配置将覆盖更新。是否继续？");
                 m.put("settings.dialog.extensionSync.enableCommonConfig", "启用 CC Switch 写入通用配置选项");
+                m.put("settings.dialog.ccSwitchDirectory.title", "选择 CC Switch 配置目录");
                 m.put("settings.dialog.extensionSync.success", "同步完成，成功 {0} 项。");
                 m.put("settings.dialog.extensionSync.partial", "同步完成，成功 {0} 项，失败 {1} 项。\n\n失败详情：\n{2}");
                 m.put("settings.githubToken.title", "设置");
@@ -740,6 +743,7 @@ public final class I18n {
                 m.put("settings.label.ccSwitch", "CC Switch:");
                 m.put("settings.label.extensionSync", "CC Switch Data Sync:");
                 m.put("settings.label.ccSwitchOfficial", "CC Switch official site:");
+                m.put("settings.label.ccSwitchConfigDirectory", "CC Switch config directory:");
                 m.put("settings.button.show", "Show");
                 m.put("settings.button.hide", "Hide");
                 m.put("settings.button.configure", "Feature Config");
@@ -749,6 +753,7 @@ public final class I18n {
                 m.put("settings.button.saveGithubToken", "Save Token");
                 m.put("settings.button.applyStorageMode", "Apply");
                 m.put("settings.button.openStorageDirectory", "Open Directory");
+                m.put("settings.button.chooseDirectory", "Choose Directory");
                 m.put("settings.button.importFromCcSwitch", "Import");
                 m.put("settings.button.exportToCcSwitch", "Export");
                 m.put("settings.hint.githubToken", "Optional. Increases GitHub API rate limit (only affects GitHub Skills repositories).");
@@ -784,6 +789,7 @@ public final class I18n {
                 m.put("settings.dialog.extensionSync.importConfirmTitle", "Confirm Import from CC Switch");
                 m.put("settings.dialog.extensionSync.importConfirm", "Import {0} configuration(s). {1} existing local configuration(s) will be overwritten. Continue?");
                 m.put("settings.dialog.extensionSync.enableCommonConfig", "Enable CC Switch write common config option");
+                m.put("settings.dialog.ccSwitchDirectory.title", "Choose CC Switch Config Directory");
                 m.put("settings.dialog.extensionSync.success", "Sync completed. {0} item(s) succeeded.");
                 m.put("settings.dialog.extensionSync.partial", "Sync completed. Success: {0}, Failed: {1}.\n\nFailure details:\n{2}");
                 m.put("settings.githubToken.title", "Settings");

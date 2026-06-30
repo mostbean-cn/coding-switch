@@ -50,6 +50,8 @@ import java.awt.event.HierarchyListener;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.IOException;
@@ -74,6 +76,7 @@ import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
+import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
@@ -122,6 +125,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     private DefaultComboBoxModel<AiModelProfile> activeGitCommitProfileModel;
     private JBLabel completionProfileHintLabel;
     private JBLabel gitCommitProfileHintLabel;
+    private JTextField ccSwitchConfigDirectoryField;
     private DefaultTableModel profileTableModel;
     private JTable profileTable;
     private JComboBox<ProfileTypeFilter> profileTypeFilterCombo;
@@ -289,6 +293,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             I18n.t("settings.label.ccSwitchOfficial"),
             CC_SWITCH_OFFICIAL_URL
         ));
+        section.add(buildCcSwitchDirectoryRow());
 
         JPanel buttonRow = rowPanel();
         buttonRow.add(new JBLabel(I18n.t("settings.label.extensionSync")));
@@ -302,6 +307,68 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         buttonRow.add(exportButton);
         section.add(buttonRow);
         return section;
+    }
+
+    private JPanel buildCcSwitchDirectoryRow() {
+        JPanel row = rowPanel();
+        row.add(new JBLabel(I18n.t("settings.label.ccSwitchConfigDirectory")));
+
+        ccSwitchConfigDirectoryField = new JTextField(36);
+        refreshCcSwitchConfigDirectoryField();
+        ccSwitchConfigDirectoryField.addActionListener(e -> saveCcSwitchConfigDirectoryFromField());
+        ccSwitchConfigDirectoryField.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusLost(FocusEvent e) {
+                saveCcSwitchConfigDirectoryFromField();
+            }
+        });
+        row.add(ccSwitchConfigDirectoryField);
+
+        JButton chooseButton = new JButton(I18n.t("settings.button.chooseDirectory"));
+        chooseButton.addActionListener(e -> chooseCcSwitchConfigDirectory());
+        row.add(chooseButton);
+
+        JButton resetButton = new JButton(I18n.t("settings.button.restoreDefault"));
+        resetButton.addActionListener(e -> {
+            PluginSettings.getInstance().setCcSwitchConfigDirectory("");
+            refreshCcSwitchConfigDirectoryField();
+        });
+        row.add(resetButton);
+        return row;
+    }
+
+    private void refreshCcSwitchConfigDirectoryField() {
+        if (ccSwitchConfigDirectoryField == null) {
+            return;
+        }
+        ccSwitchConfigDirectoryField.setText(
+            CcSwitchSyncService.getInstance().getConfiguredCcSwitchRootDir().toString()
+        );
+    }
+
+    private void chooseCcSwitchConfigDirectory() {
+        JFileChooser chooser = new JFileChooser(ccSwitchConfigDirectoryField.getText());
+        chooser.setDialogTitle(I18n.t("settings.dialog.ccSwitchDirectory.title"));
+        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        chooser.setMultiSelectionEnabled(false);
+        int option = chooser.showOpenDialog(rootPanel);
+        if (option != JFileChooser.APPROVE_OPTION || chooser.getSelectedFile() == null) {
+            return;
+        }
+        PluginSettings.getInstance().setCcSwitchConfigDirectory(chooser.getSelectedFile().toPath().toString());
+        refreshCcSwitchConfigDirectoryField();
+    }
+
+    private void saveCcSwitchConfigDirectoryFromField() {
+        if (ccSwitchConfigDirectoryField == null) {
+            return;
+        }
+        String value = ccSwitchConfigDirectoryField.getText().trim();
+        String defaultDirectory = CcSwitchSyncService.getInstance().getDefaultCcSwitchRootDir().toString();
+        PluginSettings.getInstance().setCcSwitchConfigDirectory(
+            value.equals(defaultDirectory) ? "" : value
+        );
+        refreshCcSwitchConfigDirectoryField();
     }
 
     private void scrollToExtensionSectionIfRequested() {

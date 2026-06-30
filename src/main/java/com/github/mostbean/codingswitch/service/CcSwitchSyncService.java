@@ -92,6 +92,18 @@ public final class CcSwitchSyncService {
         return Files.exists(getCcSwitchDbPath());
     }
 
+    public Path getDefaultCcSwitchRootDir() {
+        return Path.of(System.getProperty("user.home"), ".cc-switch");
+    }
+
+    public Path getConfiguredCcSwitchRootDir() {
+        String configured = PluginSettings.getInstance().getCcSwitchConfigDirectory();
+        if (configured.isBlank()) {
+            return getDefaultCcSwitchRootDir();
+        }
+        return Path.of(configured).toAbsolutePath().normalize();
+    }
+
     public List<SyncItem> loadSyncItems() {
         if (!isCcSwitchAvailable()) {
             return List.of();
@@ -698,7 +710,7 @@ public final class CcSwitchSyncService {
     }
 
     private Path getCcSwitchRootDir() {
-        return Path.of(System.getProperty("user.home"), ".cc-switch");
+        return getConfiguredCcSwitchRootDir();
     }
 
     private Path getCcSwitchDbPath() {

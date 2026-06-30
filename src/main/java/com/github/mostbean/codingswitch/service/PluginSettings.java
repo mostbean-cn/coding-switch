@@ -170,6 +170,7 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         public String promptFilterCliId = "";
         public String extensionSyncFilterCliId = "";
         public String extensionSyncStatusFilter = "all";
+        public String ccSwitchConfigDirectory = "";
     }
 
     private State state = new State();
@@ -334,6 +335,17 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         saveActiveState(active);
     }
 
+    public String getCcSwitchConfigDirectory() {
+        String value = getActiveState().ccSwitchConfigDirectory;
+        return value == null ? "" : value.trim();
+    }
+
+    public void setCcSwitchConfigDirectory(String directory) {
+        State active = getActiveState();
+        active.ccSwitchConfigDirectory = directory == null ? "" : directory.trim();
+        saveActiveState(active);
+    }
+
     public boolean isChinese() {
         return I18n.currentLanguage() == Language.ZH;
     }
@@ -366,6 +378,7 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         snapshot.promptFilterCliId = active.promptFilterCliId;
         snapshot.extensionSyncFilterCliId = active.extensionSyncFilterCliId;
         snapshot.extensionSyncStatusFilter = active.extensionSyncStatusFilter;
+        snapshot.ccSwitchConfigDirectory = active.ccSwitchConfigDirectory;
         return normalizeState(snapshot);
     }
 
@@ -429,6 +442,7 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         snapshot.promptFilterCliId = state.promptFilterCliId;
         snapshot.extensionSyncFilterCliId = state.extensionSyncFilterCliId;
         snapshot.extensionSyncStatusFilter = state.extensionSyncStatusFilter;
+        snapshot.ccSwitchConfigDirectory = state.ccSwitchConfigDirectory;
         return normalizeState(snapshot);
     }
 
@@ -469,6 +483,11 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         }
         if (normalized.extensionSyncStatusFilter == null || normalized.extensionSyncStatusFilter.isBlank()) {
             normalized.extensionSyncStatusFilter = "all";
+        }
+        if (normalized.ccSwitchConfigDirectory == null) {
+            normalized.ccSwitchConfigDirectory = "";
+        } else {
+            normalized.ccSwitchConfigDirectory = normalized.ccSwitchConfigDirectory.trim();
         }
         return normalized;
     }
