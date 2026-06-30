@@ -42,8 +42,11 @@ import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.Toolkit;
+import java.awt.event.HierarchyEvent;
+import java.awt.event.HierarchyListener;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
@@ -81,6 +84,7 @@ import javax.swing.JSpinner;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.JViewport;
 import javax.swing.KeyStroke;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
@@ -123,7 +127,9 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     private JComboBox<ProfileTypeFilter> profileTypeFilterCombo;
     private final List<Integer> visibleProfileIndexes = new ArrayList<>();
     private JPanel rootPanel;
+    private JBScrollPane rootScrollPane;
     private JComponent extensionSection;
+    private static AiFeaturesConfigurable activeInstance;
     private static boolean scrollToExtensionSectionRequested = false;
 
     private final List<AiModelProfile> profiles = new ArrayList<>();
@@ -142,11 +148,12 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
     @Override
     public @Nullable JComponent createComponent() {
+        activeInstance = this;
         rootPanel = new JPanel(new BorderLayout());
         rootPanel.setBorder(JBUI.Borders.empty(12));
-        JBScrollPane scrollPane = new JBScrollPane(buildContent());
-        scrollPane.setBorder(JBUI.Borders.empty());
-        rootPanel.add(scrollPane, BorderLayout.CENTER);
+        rootScrollPane = new JBScrollPane(buildContent());
+        rootScrollPane.setBorder(JBUI.Borders.empty());
+        rootPanel.add(rootScrollPane, BorderLayout.CENTER);
         reset();
         scrollToExtensionSectionIfRequested();
         return rootPanel;
@@ -154,6 +161,9 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
     public static void requestScrollToExtensionSection() {
         scrollToExtensionSectionRequested = true;
+        if (activeInstance != null) {
+            activeInstance.scrollToExtensionSectionIfRequested();
+        }
     }
 
     private JPanel buildContent() {
@@ -299,14 +309,57 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             return;
         }
         scrollToExtensionSectionRequested = false;
-        if (extensionSection == null) {
+        if (rootScrollPane == null || extensionSection == null) {
             return;
         }
+        scrollToExtensionSectionWhenReady();
+    }
+
+    private void scrollToExtensionSectionWhenReady() {
+        if (rootScrollPane.isShowing()) {
+            scrollToExtensionSectionLater();
+            return;
+        }
+
+        HierarchyListener listener = new HierarchyListener() {
+            @Override
+            public void hierarchyChanged(HierarchyEvent e) {
+                if ((e.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) == 0 || !rootScrollPane.isShowing()) {
+                    return;
+                }
+                rootScrollPane.removeHierarchyListener(this);
+                scrollToExtensionSectionLater();
+            }
+        };
+        rootScrollPane.addHierarchyListener(listener);
+    }
+
+    private void scrollToExtensionSectionLater() {
         SwingUtilities.invokeLater(() ->
-            SwingUtilities.invokeLater(() ->
-                extensionSection.scrollRectToVisible(new Rectangle(0, 0, 1, 1))
-            )
+            SwingUtilities.invokeLater(this::scrollToExtensionSection)
         );
+    }
+
+    private void scrollToExtensionSection() {
+        if (rootScrollPane == null || extensionSection == null) {
+            return;
+        }
+
+        JViewport viewport = rootScrollPane.getViewport();
+        Component view = viewport.getView();
+        if (view == null) {
+            return;
+        }
+
+        view.doLayout();
+        Rectangle sectionBounds = SwingUtilities.convertRectangle(
+            extensionSection.getParent(),
+            extensionSection.getBounds(),
+            view
+        );
+        int maxY = Math.max(0, viewport.getViewSize().height - viewport.getExtentSize().height);
+        int targetY = Math.min(Math.max(0, sectionBounds.y), maxY);
+        viewport.setViewPosition(new Point(0, targetY));
     }
 
     private JPanel buildCompletionSection() {
@@ -1208,7 +1261,12 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     @Override
     public void disposeUIResources() {
         removeShortcutCaptureListener();
+        if (activeInstance == this) {
+            activeInstance = null;
+        }
         rootPanel = null;
+        rootScrollPane = null;
+        extensionSection = null;
     }
 
     private AiFeatureSettings.State collectState() {
