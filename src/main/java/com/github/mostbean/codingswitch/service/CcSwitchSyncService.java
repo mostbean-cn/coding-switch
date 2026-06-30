@@ -4,7 +4,6 @@ import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.Provider;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.intellij.openapi.application.ApplicationManager;
@@ -28,10 +27,8 @@ import java.sql.Statement;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 
 @Service(Service.Level.APP)
@@ -112,7 +109,7 @@ public final class CcSwitchSyncService {
                     local.name(),
                     SyncScope.SAVED_PROVIDER,
                     SyncDirection.TO_CC_SWITCH,
-                    remote != null && areEquivalent(local.settingsConfig(), remote.settingsConfig(), local.cliType())));
+                    remote != null));
         }
 
         for (RemoteProviderRecord remote : remoteProviders) {
@@ -123,7 +120,7 @@ public final class CcSwitchSyncService {
                     remote.name(),
                     SyncScope.SAVED_PROVIDER,
                     SyncDirection.TO_CODING_SWITCH,
-                    local != null && areEquivalent(local.settingsConfig(), remote.settingsConfig(), remote.cliType())));
+                    local != null));
         }
 
         items.sort(Comparator
@@ -429,10 +426,6 @@ public final class CcSwitchSyncService {
                 .orElse(null);
     }
 
-    private boolean areEquivalent(JsonObject left, JsonObject right, CliType cliType) {
-        return canonicalSettings(cliType, left).equals(canonicalSettings(cliType, right));
-    }
-
     private Connection openCcSwitchConnection() throws SQLException, IOException {
         requireCcSwitchAvailable();
         try {
@@ -635,49 +628,6 @@ public final class CcSwitchSyncService {
             case OPENCODE -> "opencode";
             default -> throw new IllegalArgumentException("Unsupported cli type: " + cliType);
         };
-    }
-
-    private String canonicalSettings(CliType cliType, JsonObject config) {
-        JsonObject normalized = normalizeSettings(cliType, config);
-        return GSON.toJson(sortJsonObject(normalized));
-    }
-
-    private JsonObject normalizeSettings(CliType cliType, JsonObject source) {
-        JsonObject normalized = source == null ? new JsonObject() : source.deepCopy();
-        if (cliType == CliType.CODEX && normalized.has("config") && !normalized.get("config").isJsonNull()) {
-            normalized.addProperty("config", normalizeToml(normalized.get("config").getAsString()));
-        }
-        return normalized;
-    }
-
-    private JsonObject sortJsonObject(JsonObject source) {
-        JsonObject sorted = new JsonObject();
-        Map<String, JsonElement> ordered = new LinkedHashMap<>();
-        source.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey(String.CASE_INSENSITIVE_ORDER))
-                .forEach(entry -> ordered.put(entry.getKey(), sortJsonElement(entry.getValue())));
-        for (Map.Entry<String, JsonElement> entry : ordered.entrySet()) {
-            sorted.add(entry.getKey(), entry.getValue());
-        }
-        return sorted;
-    }
-
-    private JsonElement sortJsonElement(JsonElement element) {
-        if (element == null || element.isJsonNull()) {
-            return element;
-        }
-        if (element.isJsonObject()) {
-            return sortJsonObject(element.getAsJsonObject());
-        }
-        if (element.isJsonArray()) {
-            var array = element.getAsJsonArray();
-            var sortedArray = new com.google.gson.JsonArray();
-            for (JsonElement item : array) {
-                sortedArray.add(sortJsonElement(item));
-            }
-            return sortedArray;
-        }
-        return element;
     }
 
     private String normalizeToml(String raw) {
