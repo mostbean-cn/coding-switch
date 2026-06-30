@@ -35,13 +35,16 @@ import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.Image;
 import java.awt.Rectangle;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -54,6 +57,9 @@ import javax.swing.BoxLayout;
 import javax.swing.Action;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
+import javax.swing.GrayFilter;
+import javax.swing.Icon;
+import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JComboBox;
@@ -254,7 +260,7 @@ public class SettingsPanel extends JPanel {
             timer.start();
         });
 
-        JButton runBtn = new JButton(AllIcons.Actions.Execute);
+        JButton runBtn = new JButton(grayIcon(AllIcons.Actions.Execute));
         runBtn.setToolTipText(I18n.t("settings.tooltip.runInstallCommand"));
         runBtn.setPreferredSize(new Dimension(JBUI.scale(28), JBUI.scale(28)));
         runBtn.addActionListener(e -> runInstallCommand(cliName, cmdField.getText()));
@@ -267,6 +273,18 @@ public class SettingsPanel extends JPanel {
         row.add(cmdField, BorderLayout.CENTER);
         row.add(actionPanel, BorderLayout.EAST);
         return row;
+    }
+
+    private static Icon grayIcon(Icon icon) {
+        BufferedImage image = new BufferedImage(icon.getIconWidth(), icon.getIconHeight(), BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = image.createGraphics();
+        try {
+            icon.paintIcon(null, graphics, 0, 0);
+        } finally {
+            graphics.dispose();
+        }
+        Image grayImage = GrayFilter.createDisabledImage(image);
+        return new ImageIcon(grayImage);
     }
 
     private void runInstallCommand(String cliName, String command) {
@@ -537,7 +555,7 @@ public class SettingsPanel extends JPanel {
         btnRow.add(editButton);
 
         JButton removeButton = new JButton(I18n.t("settings.button.removeCliCommand"));
-        removeButton.setIcon(AllIcons.General.Remove);
+        removeButton.setIcon(AllIcons.General.Delete);
         removeButton.addActionListener(e -> {
             int row = cliCommandTable.getSelectedRow();
             if (row >= 0) {
