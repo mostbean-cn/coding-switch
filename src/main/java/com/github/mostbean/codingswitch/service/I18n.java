@@ -144,6 +144,7 @@ public final class I18n {
                 m.put("settings.sync.status.summary", "选中: {0} 条  当前: {1} 条  已加载: {2} 条");
                 m.put("settings.sync.status.syncing", "正在同步...");
                 m.put("settings.sync.selectAllFiltered", "全选");
+                m.put("settings.sync.invertFilteredSelection", "反选");
                 m.put("settings.sync.details.empty", "请选择左侧同步项查看配置预览。");
                 m.put("settings.sync.preview.unavailable", "配置预览不可用: {0}");
                 m.put("settings.dialog.extensionSync.importTitle", "从 cc-switch 导入");
@@ -741,6 +742,7 @@ public final class I18n {
                 m.put("settings.sync.status.summary", "Selected: {0}  Current: {1}  Loaded: {2}");
                 m.put("settings.sync.status.syncing", "Syncing...");
                 m.put("settings.sync.selectAllFiltered", "Select All");
+                m.put("settings.sync.invertFilteredSelection", "Invert Selection");
                 m.put("settings.sync.details.empty", "Select a sync item on the left to preview its configuration.");
                 m.put("settings.sync.preview.unavailable", "Configuration preview unavailable: {0}");
                 m.put("settings.dialog.extensionSync.importTitle", "Import from cc-switch");

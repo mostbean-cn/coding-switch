@@ -1572,12 +1572,11 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         private final Set<String> selections = new HashSet<>();
         private JComboBox<CliType> cliFilterCombo;
         private JComboBox<String> statusFilterCombo;
-        private JCheckBox selectAllCheckBox;
+        private JButton selectAllButton;
         private DefaultListModel<ExtensionSyncListItem> listModel;
         private JList<ExtensionSyncListItem> itemList;
         private JTextArea detailsArea;
         private JBLabel statusLabel;
-        private boolean updatingSelectAllCheckBox;
 
         private ExtensionSyncDialog(CcSwitchSyncService.SyncDirection direction) {
             super(true);
@@ -1644,13 +1643,9 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             refreshButton.addActionListener(e -> reloadItems());
             filterRow.add(refreshButton);
 
-            selectAllCheckBox = new JCheckBox(I18n.t("settings.sync.selectAllFiltered"));
-            selectAllCheckBox.addActionListener(e -> {
-                if (!updatingSelectAllCheckBox) {
-                    toggleFilteredSelections(selectAllCheckBox.isSelected());
-                }
-            });
-            filterRow.add(selectAllCheckBox);
+            selectAllButton = new JButton(I18n.t("settings.sync.selectAllFiltered"));
+            selectAllButton.addActionListener(e -> toggleFilteredSelections());
+            filterRow.add(selectAllButton);
             panel.add(filterRow, BorderLayout.NORTH);
 
             listModel = new DefaultListModel<>();
@@ -1748,8 +1743,8 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         private void setActionsEnabled(boolean enabled) {
             getOKAction().setEnabled(enabled);
             getCancelAction().setEnabled(enabled);
-            if (selectAllCheckBox != null) {
-                selectAllCheckBox.setEnabled(enabled && hasSelectableFilteredItems());
+            if (selectAllButton != null) {
+                selectAllButton.setEnabled(enabled && hasSelectableFilteredItems());
             }
         }
 
@@ -1793,7 +1788,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
                 listModel.addElement(new ExtensionSyncListItem(item));
             }
             selectItem(selected);
-            updateSelectAllCheckBox();
+            updateSelectAllButton();
             updateDetails();
             updateStatusSummary();
         }
@@ -1851,31 +1846,36 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             if (item.synced()) {
                 return;
             }
-            String key = itemKey(item);
-            if (!selections.remove(key)) {
-                selections.add(key);
-            }
+            toggleSelectionKey(item);
             itemList.repaint();
-            updateSelectAllCheckBox();
+            updateSelectAllButton();
             updateDetails();
             updateStatusSummary();
         }
 
-        private void toggleFilteredSelections(boolean selected) {
+        private void toggleFilteredSelections() {
+            boolean invertSelection = areAllFilteredSelectionsSelected();
             for (CcSwitchSyncService.SyncItem item : filteredItems()) {
                 if (item.synced()) {
                     continue;
                 }
-                if (selected) {
-                    selections.add(itemKey(item));
-                } else {
-                    selections.remove(itemKey(item));
+                if (invertSelection) {
+                    toggleSelectionKey(item);
+                    continue;
                 }
+                selections.add(itemKey(item));
             }
             itemList.repaint();
-            updateSelectAllCheckBox();
+            updateSelectAllButton();
             updateDetails();
             updateStatusSummary();
+        }
+
+        private void toggleSelectionKey(CcSwitchSyncService.SyncItem item) {
+            String key = itemKey(item);
+            if (!selections.remove(key)) {
+                selections.add(key);
+            }
         }
 
         private void updateDetails() {
@@ -1915,19 +1915,23 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             return filteredItems().stream().anyMatch(item -> !item.synced());
         }
 
-        private void updateSelectAllCheckBox() {
-            if (selectAllCheckBox == null) {
+        private void updateSelectAllButton() {
+            if (selectAllButton == null) {
                 return;
             }
+            boolean hasSelectableItems = hasSelectableFilteredItems();
+            selectAllButton.setEnabled(hasSelectableItems);
+            selectAllButton.setText(areAllFilteredSelectionsSelected()
+                ? I18n.t("settings.sync.invertFilteredSelection")
+                : I18n.t("settings.sync.selectAllFiltered"));
+        }
+
+        private boolean areAllFilteredSelectionsSelected() {
             List<CcSwitchSyncService.SyncItem> selectableItems = filteredItems().stream()
                 .filter(item -> !item.synced())
                 .toList();
-            boolean allSelected = !selectableItems.isEmpty()
+            return !selectableItems.isEmpty()
                 && selectableItems.stream().allMatch(item -> selections.contains(itemKey(item)));
-            updatingSelectAllCheckBox = true;
-            selectAllCheckBox.setSelected(allSelected);
-            selectAllCheckBox.setEnabled(!selectableItems.isEmpty());
-            updatingSelectAllCheckBox = false;
         }
 
         private void updateStatusSummary() {
