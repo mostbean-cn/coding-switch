@@ -6,6 +6,7 @@ import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.PluginDataStorage;
 import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.PluginStorageModeService;
+import com.github.mostbean.codingswitch.ui.action.TerminalSessionService;
 import com.github.mostbean.codingswitch.ui.settings.AiFeaturesConfigurable;
 import com.intellij.icons.AllIcons;
 import com.intellij.ide.ActivityTracker;
@@ -253,10 +254,59 @@ public class SettingsPanel extends JPanel {
             timer.start();
         });
 
+        JButton runBtn = new JButton(AllIcons.Actions.Execute);
+        runBtn.setToolTipText(I18n.t("settings.tooltip.runInstallCommand"));
+        runBtn.setPreferredSize(new Dimension(JBUI.scale(28), JBUI.scale(28)));
+        runBtn.addActionListener(e -> runInstallCommand(cliName, cmdField.getText()));
+
+        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        actionPanel.add(copyBtn);
+        actionPanel.add(runBtn);
+
         row.add(label, BorderLayout.WEST);
         row.add(cmdField, BorderLayout.CENTER);
-        row.add(copyBtn, BorderLayout.EAST);
+        row.add(actionPanel, BorderLayout.EAST);
         return row;
+    }
+
+    private void runInstallCommand(String cliName, String command) {
+        if (project == null || project.isDisposed()) {
+            Messages.showErrorDialog(
+                I18n.t("settings.dialog.runInstallCommand.noProject"),
+                I18n.t("provider.dialog.error")
+            );
+            return;
+        }
+        if (command == null || command.isBlank()) {
+            Messages.showErrorDialog(
+                I18n.t("cliQuickLaunch.noCommand"),
+                I18n.t("settings.dialog.runInstallCommand.title")
+            );
+            return;
+        }
+        String workingDir = project.getBasePath() != null
+            ? project.getBasePath()
+            : System.getProperty("user.home");
+        try {
+            TerminalSessionService.executeCommand(
+                project,
+                workingDir,
+                I18n.t("settings.terminal.installCommandTab", cliName),
+                command
+            );
+        } catch (RuntimeException ex) {
+            Messages.showErrorDialog(
+                I18n.t("settings.dialog.runInstallCommand.failed", safeMessage(ex)),
+                I18n.t("settings.dialog.runInstallCommand.title")
+            );
+        }
+    }
+
+    private String safeMessage(RuntimeException ex) {
+        String message = ex.getMessage();
+        return message == null || message.isBlank()
+            ? ex.getClass().getSimpleName()
+            : message;
     }
 
     /**

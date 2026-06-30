@@ -107,6 +107,11 @@ public final class I18n {
                 m.put("settings.status.localNewer", "v{0} / 当前版本较新");
                 m.put("settings.button.checkAllVersions", "检测全部版本");
                 m.put("settings.tooltip.copyClipboard", "复制到剪贴板");
+                m.put("settings.tooltip.runInstallCommand", "在新终端中运行命令");
+                m.put("settings.terminal.installCommandTab", "安装: {0}");
+                m.put("settings.dialog.runInstallCommand.title", "运行安装命令");
+                m.put("settings.dialog.runInstallCommand.noProject", "当前没有打开的项目，无法启动 IDE 终端。");
+                m.put("settings.dialog.runInstallCommand.failed", "运行安装命令失败: {0}");
                 m.put("settings.label.uiLanguage", "界面语言:");
                 m.put("settings.label.githubToken", "GitHub 令牌:");
                 m.put("settings.label.dataStorageMode", "存储位置:");
@@ -711,6 +716,11 @@ public final class I18n {
                 m.put("settings.status.localNewer", "v{0} / Local version is newer");
                 m.put("settings.button.checkAllVersions", "Check All Versions");
                 m.put("settings.tooltip.copyClipboard", "Copy to Clipboard");
+                m.put("settings.tooltip.runInstallCommand", "Run command in a new terminal");
+                m.put("settings.terminal.installCommandTab", "Install: {0}");
+                m.put("settings.dialog.runInstallCommand.title", "Run Install Command");
+                m.put("settings.dialog.runInstallCommand.noProject", "No project is open, so an IDE terminal cannot be started.");
+                m.put("settings.dialog.runInstallCommand.failed", "Failed to run install command: {0}");
                 m.put("settings.label.uiLanguage", "UI Language:");
                 m.put("settings.label.githubToken", "GitHub Token:");
                 m.put("settings.label.dataStorageMode", "Storage Location:");
