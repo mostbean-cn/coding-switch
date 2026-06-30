@@ -3,12 +3,14 @@ package com.github.mostbean.codingswitch.ui.action;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.LangDataKeys;
+import com.intellij.openapi.actionSystem.PlatformCoreDataKeys;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFileSystemItem;
+import java.lang.reflect.Method;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import org.jetbrains.annotations.NotNull;
@@ -112,7 +114,17 @@ public final class ActiveFilePathResolver {
             return resolveVirtualFile(selectedElements[0]);
         }
 
-        return resolveVirtualFile(e.getData(LangDataKeys.PSI_ELEMENT));
+        VirtualFile selectedItemFile = resolveSingleSelectedItemFile(e);
+        if (selectedItemFile != null) {
+            return selectedItemFile;
+        }
+
+        VirtualFile psiElementFile = resolveVirtualFile(e.getData(LangDataKeys.PSI_ELEMENT));
+        if (psiElementFile != null) {
+            return psiElementFile;
+        }
+
+        return resolveVirtualFile(e.getData(LangDataKeys.TARGET_PSI_ELEMENT));
     }
 
     private static boolean hasMultipleContextFiles(@NotNull AnActionEvent e) {
@@ -122,7 +134,20 @@ public final class ActiveFilePathResolver {
         }
 
         PsiElement[] selectedElements = e.getData(LangDataKeys.PSI_ELEMENT_ARRAY);
-        return selectedElements != null && selectedElements.length > 1;
+        if (selectedElements != null && selectedElements.length > 1) {
+            return true;
+        }
+
+        Object[] selectedItems = e.getData(PlatformCoreDataKeys.SELECTED_ITEMS);
+        return selectedItems != null && selectedItems.length > 1;
+    }
+
+    private static @Nullable VirtualFile resolveSingleSelectedItemFile(@NotNull AnActionEvent e) {
+        Object[] selectedItems = e.getData(PlatformCoreDataKeys.SELECTED_ITEMS);
+        if (selectedItems != null && selectedItems.length == 1) {
+            return resolveVirtualFile(selectedItems[0]);
+        }
+        return resolveVirtualFile(e.getData(PlatformCoreDataKeys.SELECTED_ITEM));
     }
 
     private static @Nullable VirtualFile resolveVirtualFile(@Nullable PsiElement element) {
@@ -130,6 +155,51 @@ public final class ActiveFilePathResolver {
             return fileSystemItem.getVirtualFile();
         }
         return null;
+    }
+
+    private static @Nullable VirtualFile resolveVirtualFile(@Nullable Object item) {
+        if (item instanceof VirtualFile virtualFile) {
+            return virtualFile;
+        }
+        if (item instanceof PsiElement psiElement) {
+            return resolveVirtualFile(psiElement);
+        }
+
+        VirtualFile directFile = invokeVirtualFileGetter(item, "getVirtualFile");
+        if (directFile != null) {
+            return directFile;
+        }
+
+        Object value = invokeGetter(item, "getValue");
+        if (value != null && value != item) {
+            return resolveVirtualFile(value);
+        }
+
+        Object element = invokeGetter(item, "getElement");
+        if (element != null && element != item) {
+            return resolveVirtualFile(element);
+        }
+        return null;
+    }
+
+    private static @Nullable VirtualFile invokeVirtualFileGetter(@Nullable Object target, @NotNull String methodName) {
+        Object value = invokeGetter(target, methodName);
+        return value instanceof VirtualFile virtualFile ? virtualFile : null;
+    }
+
+    private static @Nullable Object invokeGetter(@Nullable Object target, @NotNull String methodName) {
+        if (target == null) {
+            return null;
+        }
+        try {
+            Method method = target.getClass().getMethod(methodName);
+            if (method.getParameterCount() != 0) {
+                return null;
+            }
+            return method.invoke(target);
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+            return null;
+        }
     }
 
     private static @Nullable VirtualFile resolveSelectedEditorFile(@NotNull Project project) {
