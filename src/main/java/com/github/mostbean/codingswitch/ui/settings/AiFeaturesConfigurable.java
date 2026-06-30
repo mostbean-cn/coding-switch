@@ -11,6 +11,8 @@ import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.PluginDataStorage;
 import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.PluginStorageModeService;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.intellij.icons.AllIcons;
@@ -38,6 +40,7 @@ import java.awt.Cursor;
 import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Font;
 import java.awt.Rectangle;
 import java.awt.Toolkit;
 import java.awt.event.InputEvent;
@@ -59,7 +62,6 @@ import java.util.UUID;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
-import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.DefaultListCellRenderer;
@@ -92,6 +94,8 @@ import org.jetbrains.annotations.Nullable;
  * IDE 系统设置页：仅管理插件内 AI 功能，不复用侧边栏设置页。
  */
 public class AiFeaturesConfigurable implements SearchableConfigurable {
+
+    private static final Gson PREVIEW_GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private JCheckBox codeCompletionEnabled;
     private JCheckBox gitCommitMessageEnabled;
@@ -1568,11 +1572,12 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         private final Set<String> selections = new HashSet<>();
         private JComboBox<CliType> cliFilterCombo;
         private JComboBox<String> statusFilterCombo;
+        private JCheckBox selectAllCheckBox;
         private DefaultListModel<ExtensionSyncListItem> listModel;
         private JList<ExtensionSyncListItem> itemList;
         private JTextArea detailsArea;
         private JBLabel statusLabel;
-        private Action syncCurrentAction;
+        private boolean updatingSelectAllCheckBox;
 
         private ExtensionSyncDialog(CcSwitchSyncService.SyncDirection direction) {
             super(true);
@@ -1634,6 +1639,18 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
                 applyFilters();
             });
             filterRow.add(statusFilterCombo);
+
+            JButton refreshButton = new JButton(I18n.t("common.button.refresh"));
+            refreshButton.addActionListener(e -> reloadItems());
+            filterRow.add(refreshButton);
+
+            selectAllCheckBox = new JCheckBox(I18n.t("settings.sync.selectAllFiltered"));
+            selectAllCheckBox.addActionListener(e -> {
+                if (!updatingSelectAllCheckBox) {
+                    toggleFilteredSelections(selectAllCheckBox.isSelected());
+                }
+            });
+            filterRow.add(selectAllCheckBox);
             panel.add(filterRow, BorderLayout.NORTH);
 
             listModel = new DefaultListModel<>();
@@ -1660,8 +1677,8 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
             detailsArea = new JTextArea(I18n.t("settings.sync.details.empty"));
             detailsArea.setEditable(false);
-            detailsArea.setLineWrap(true);
-            detailsArea.setWrapStyleWord(true);
+            detailsArea.setLineWrap(false);
+            detailsArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, detailsArea.getFont().getSize()));
             detailsArea.setBorder(JBUI.Borders.empty(8));
 
             JSplitPane splitPane = new JSplitPane(
@@ -1683,13 +1700,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
         @Override
         protected Action[] createActions() {
-            syncCurrentAction = new AbstractAction(I18n.t("settings.button.syncCurrent")) {
-                @Override
-                public void actionPerformed(java.awt.event.ActionEvent e) {
-                    syncCurrentItem();
-                }
-            };
-            return new Action[] { getOKAction(), syncCurrentAction, getCancelAction() };
+            return new Action[] { getOKAction(), getCancelAction() };
         }
 
         @Override
@@ -1703,18 +1714,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
                 return;
             }
             syncItems(selected);
-        }
-
-        private void syncCurrentItem() {
-            CcSwitchSyncService.SyncItem current = selectedItem();
-            if (current == null) {
-                Messages.showInfoMessage(
-                    I18n.t("settings.dialog.extensionSync.noCurrentRow"),
-                    I18n.t("settings.section.extension")
-                );
-                return;
-            }
-            syncItems(List.of(current));
         }
 
         private void syncItems(List<CcSwitchSyncService.SyncItem> items) {
@@ -1749,8 +1748,8 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         private void setActionsEnabled(boolean enabled) {
             getOKAction().setEnabled(enabled);
             getCancelAction().setEnabled(enabled);
-            if (syncCurrentAction != null) {
-                syncCurrentAction.setEnabled(enabled);
+            if (selectAllCheckBox != null) {
+                selectAllCheckBox.setEnabled(enabled && hasSelectableFilteredItems());
             }
         }
 
@@ -1777,7 +1776,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
                     if (items.isEmpty() && !CcSwitchSyncService.getInstance().isCcSwitchAvailable()) {
                         setStatus(I18n.t("settings.dialog.extensionSync.unavailable"), true);
                     } else {
-                        setStatus(I18n.t("settings.sync.status.loaded", items.size()), false);
+                        updateStatusSummary();
                     }
                 });
             });
@@ -1788,17 +1787,15 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
                 return;
             }
             CcSwitchSyncService.SyncItem selected = selectedItem();
-            List<CcSwitchSyncService.SyncItem> filtered = CcSwitchSyncService.getInstance().filterItems(
-                allItems,
-                (CliType) cliFilterCombo.getSelectedItem(),
-                currentStatusFilterValue()
-            );
+            List<CcSwitchSyncService.SyncItem> filtered = filteredItems();
             listModel.clear();
             for (CcSwitchSyncService.SyncItem item : filtered) {
                 listModel.addElement(new ExtensionSyncListItem(item));
             }
             selectItem(selected);
+            updateSelectAllCheckBox();
             updateDetails();
+            updateStatusSummary();
         }
 
         private void selectItem(@Nullable CcSwitchSyncService.SyncItem selected) {
@@ -1828,6 +1825,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
             JCheckBox checkBox = new JCheckBox();
             checkBox.setSelected(value != null && selections.contains(itemKey(value.item())));
+            checkBox.setEnabled(value != null && !value.item().synced());
             checkBox.setOpaque(false);
             panel.add(checkBox, BorderLayout.WEST);
 
@@ -1836,11 +1834,12 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             textPanel.setLayout(new BoxLayout(textPanel, BoxLayout.Y_AXIS));
 
             JLabel title = new JLabel(value == null ? "" : value.item().name());
-            title.setForeground(isSelected ? list.getSelectionForeground() : list.getForeground());
+            title.setForeground(itemForeground(list, value, isSelected));
             textPanel.add(title);
 
             JLabel meta = new JLabel(value == null ? "" : itemMeta(value.item()));
-            meta.setForeground(isSelected ? list.getSelectionForeground() : JBColor.GRAY);
+            meta.setForeground(value != null && value.item().synced() ? JBColor.GREEN
+                : isSelected ? list.getSelectionForeground() : JBColor.GRAY);
             meta.setFont(meta.getFont().deriveFont(meta.getFont().getSize2D() - 1f));
             textPanel.add(meta);
 
@@ -1849,12 +1848,34 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         }
 
         private void toggleSelection(CcSwitchSyncService.SyncItem item) {
+            if (item.synced()) {
+                return;
+            }
             String key = itemKey(item);
             if (!selections.remove(key)) {
                 selections.add(key);
             }
             itemList.repaint();
+            updateSelectAllCheckBox();
             updateDetails();
+            updateStatusSummary();
+        }
+
+        private void toggleFilteredSelections(boolean selected) {
+            for (CcSwitchSyncService.SyncItem item : filteredItems()) {
+                if (item.synced()) {
+                    continue;
+                }
+                if (selected) {
+                    selections.add(itemKey(item));
+                } else {
+                    selections.remove(itemKey(item));
+                }
+            }
+            itemList.repaint();
+            updateSelectAllCheckBox();
+            updateDetails();
+            updateStatusSummary();
         }
 
         private void updateDetails() {
@@ -1863,7 +1884,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
                 detailsArea.setText(I18n.t("settings.sync.details.empty"));
                 return;
             }
-            detailsArea.setText(formatDetails(item));
+            detailsArea.setText(formatConfigPreview(item));
             detailsArea.setCaretPosition(0);
         }
 
@@ -1875,11 +1896,50 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         private List<CcSwitchSyncService.SyncItem> selectedItems() {
             List<CcSwitchSyncService.SyncItem> selected = new ArrayList<>();
             for (CcSwitchSyncService.SyncItem item : allItems) {
-                if (selections.contains(itemKey(item))) {
+                if (!item.synced() && selections.contains(itemKey(item))) {
                     selected.add(item);
                 }
             }
             return selected;
+        }
+
+        private List<CcSwitchSyncService.SyncItem> filteredItems() {
+            return CcSwitchSyncService.getInstance().filterItems(
+                allItems,
+                (CliType) cliFilterCombo.getSelectedItem(),
+                currentStatusFilterValue()
+            );
+        }
+
+        private boolean hasSelectableFilteredItems() {
+            return filteredItems().stream().anyMatch(item -> !item.synced());
+        }
+
+        private void updateSelectAllCheckBox() {
+            if (selectAllCheckBox == null) {
+                return;
+            }
+            List<CcSwitchSyncService.SyncItem> selectableItems = filteredItems().stream()
+                .filter(item -> !item.synced())
+                .toList();
+            boolean allSelected = !selectableItems.isEmpty()
+                && selectableItems.stream().allMatch(item -> selections.contains(itemKey(item)));
+            updatingSelectAllCheckBox = true;
+            selectAllCheckBox.setSelected(allSelected);
+            selectAllCheckBox.setEnabled(!selectableItems.isEmpty());
+            updatingSelectAllCheckBox = false;
+        }
+
+        private void updateStatusSummary() {
+            if (statusLabel == null || listModel == null) {
+                return;
+            }
+            setStatus(I18n.t(
+                "settings.sync.status.summary",
+                selectedItems().size(),
+                listModel.getSize(),
+                allItems.size()
+            ), false);
         }
 
         private String currentStatusFilterValue() {
@@ -1899,21 +1959,47 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             };
         }
 
-        private String formatDetails(CcSwitchSyncService.SyncItem item) {
-            return I18n.t("settings.sync.details.template",
-                item.name(),
-                item.cliType().getDisplayName(),
-                CcSwitchSyncService.getInstance().scopeDisplayName(item.scope()),
-                item.direction() == CcSwitchSyncService.SyncDirection.TO_CC_SWITCH
-                    ? I18n.t("settings.sync.direction.toCcSwitch")
-                    : I18n.t("settings.sync.direction.toCodingSwitch"),
-                item.synced()
-                    ? I18n.t("settings.sync.status.synced")
-                    : I18n.t("settings.sync.status.unsynced"),
-                selections.contains(itemKey(item))
-                    ? I18n.t("settings.sync.selected.yes")
-                    : I18n.t("settings.sync.selected.no")
-            );
+        private String formatConfigPreview(CcSwitchSyncService.SyncItem item) {
+            try {
+                JsonObject config = CcSwitchSyncService.getInstance().loadSourceSettingsConfig(item);
+                return switch (item.cliType()) {
+                    case CLAUDE -> formatJsonConfigPreview("settings.json", config);
+                    case CODEX -> formatCodexConfigPreview(config);
+                    case OPENCODE -> formatOpenCodeConfigPreview(config);
+                    default -> formatJsonConfigPreview("config.json", config);
+                };
+            } catch (Exception e) {
+                return I18n.t("settings.sync.preview.unavailable", e.getMessage());
+            }
+        }
+
+        private String formatJsonConfigPreview(String fileName, JsonObject config) {
+            return "// " + fileName + "\n"
+                + PREVIEW_GSON.toJson(config == null ? new JsonObject() : config)
+                + "\n";
+        }
+
+        private String formatCodexConfigPreview(JsonObject config) {
+            StringBuilder sb = new StringBuilder();
+            JsonObject safeConfig = config == null ? new JsonObject() : config;
+            if (safeConfig.has("auth") && safeConfig.get("auth").isJsonObject()) {
+                sb.append("// auth.json\n");
+                sb.append(PREVIEW_GSON.toJson(safeConfig.getAsJsonObject("auth"))).append("\n\n");
+            }
+            if (safeConfig.has("config") && !safeConfig.get("config").isJsonNull()) {
+                sb.append("// config.toml\n");
+                sb.append(safeConfig.get("config").getAsString()).append("\n");
+            }
+            if (sb.length() == 0) {
+                return formatJsonConfigPreview("codex.json", safeConfig);
+            }
+            return sb.toString();
+        }
+
+        private String formatOpenCodeConfigPreview(JsonObject config) {
+            JsonObject preview = new JsonObject();
+            preview.add("provider", config == null ? new JsonObject() : config);
+            return formatJsonConfigPreview("opencode.json (provider)", preview);
         }
 
         private String itemMeta(CcSwitchSyncService.SyncItem item) {
@@ -1925,6 +2011,17 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
                 + CcSwitchSyncService.getInstance().scopeDisplayName(item.scope())
                 + " · "
                 + status;
+        }
+
+        private java.awt.Color itemForeground(
+            JList<? extends ExtensionSyncListItem> list,
+            ExtensionSyncListItem value,
+            boolean isSelected
+        ) {
+            if (value != null && value.item().synced()) {
+                return JBColor.GREEN;
+            }
+            return isSelected ? list.getSelectionForeground() : list.getForeground();
         }
 
         private void setStatus(String text, boolean error) {

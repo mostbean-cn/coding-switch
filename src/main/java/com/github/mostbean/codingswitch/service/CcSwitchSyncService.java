@@ -49,8 +49,7 @@ public final class CcSwitchSyncService {
     }
 
     public enum SyncScope {
-        SAVED_PROVIDER,
-        LIVE_CONFIG
+        SAVED_PROVIDER
     }
 
     public record SyncItem(
@@ -88,20 +87,6 @@ public final class CcSwitchSyncService {
             JsonObject settingsConfig) {
     }
 
-    private record RemoteLiveRecord(
-            String settingsKey,
-            CliType cliType,
-            String name,
-            JsonObject settingsConfig) {
-    }
-
-    private record LocalLiveRecord(
-            String id,
-            CliType cliType,
-            String name,
-            JsonObject settingsConfig) {
-    }
-
     public static CcSwitchSyncService getInstance() {
         return ApplicationManager.getApplication().getService(CcSwitchSyncService.class);
     }
@@ -117,8 +102,6 @@ public final class CcSwitchSyncService {
 
         List<LocalProviderRecord> localProviders = loadLocalProviders();
         List<RemoteProviderRecord> remoteProviders = loadRemoteProviders();
-        List<LocalLiveRecord> localLiveRecords = loadLocalLiveRecords();
-        List<RemoteLiveRecord> remoteLiveRecords = loadRemoteLiveRecords();
         List<SyncItem> items = new ArrayList<>();
 
         for (LocalProviderRecord local : localProviders) {
@@ -143,31 +126,8 @@ public final class CcSwitchSyncService {
                     local != null && areEquivalent(local.settingsConfig(), remote.settingsConfig(), remote.cliType())));
         }
 
-        for (LocalLiveRecord local : localLiveRecords) {
-            RemoteLiveRecord remote = findRemoteLiveMatch(remoteLiveRecords, local.cliType());
-            items.add(new SyncItem(
-                    local.id(),
-                    local.cliType(),
-                    local.name(),
-                    SyncScope.LIVE_CONFIG,
-                    SyncDirection.TO_CC_SWITCH,
-                    remote != null && areEquivalent(local.settingsConfig(), remote.settingsConfig(), local.cliType())));
-        }
-
-        for (RemoteLiveRecord remote : remoteLiveRecords) {
-            LocalLiveRecord local = findLocalLiveMatch(localLiveRecords, remote.cliType());
-            items.add(new SyncItem(
-                    remote.settingsKey(),
-                    remote.cliType(),
-                    remote.name(),
-                    SyncScope.LIVE_CONFIG,
-                    SyncDirection.TO_CODING_SWITCH,
-                    local != null && areEquivalent(local.settingsConfig(), remote.settingsConfig(), remote.cliType())));
-        }
-
         items.sort(Comparator
                 .comparing((SyncItem item) -> item.cliType().getDisplayName(), String.CASE_INSENSITIVE_ORDER)
-                .thenComparing(item -> item.scope() == SyncScope.LIVE_CONFIG ? 0 : 1)
                 .thenComparing(SyncItem::name, String.CASE_INSENSITIVE_ORDER)
                 .thenComparing(item -> item.direction() == SyncDirection.TO_CC_SWITCH ? 0 : 1));
         return items;
@@ -208,19 +168,13 @@ public final class CcSwitchSyncService {
 
     public void syncItem(SyncItem item) throws IOException, SQLException {
         requireCcSwitchAvailable();
-        if (item.scope() == SyncScope.SAVED_PROVIDER) {
-            if (item.direction() == SyncDirection.TO_CC_SWITCH) {
-                syncLocalProviderToCcSwitch(item.sourceId());
-            } else {
-                importCcSwitchProvider(item.sourceId());
-            }
-            return;
+        if (item.scope() != SyncScope.SAVED_PROVIDER) {
+            throw new IOException("Unsupported sync scope: " + item.scope());
         }
-
         if (item.direction() == SyncDirection.TO_CC_SWITCH) {
-            syncLocalLiveToCcSwitch(item.cliType());
+            syncLocalProviderToCcSwitch(item.sourceId());
         } else {
-            importCcSwitchLive(item.sourceId(), item.cliType());
+            importCcSwitchProvider(item.sourceId());
         }
     }
 
@@ -232,9 +186,29 @@ public final class CcSwitchSyncService {
     }
 
     public String scopeDisplayName(SyncScope scope) {
-        return scope == SyncScope.LIVE_CONFIG
-                ? I18n.t("settings.sync.scope.live")
-                : I18n.t("settings.sync.scope.saved");
+        return I18n.t("settings.sync.scope.saved");
+    }
+
+    public JsonObject loadSourceSettingsConfig(SyncItem item) throws IOException, SQLException {
+        if (item.scope() != SyncScope.SAVED_PROVIDER) {
+            throw new IOException("Unsupported sync scope: " + item.scope());
+        }
+        if (item.direction() == SyncDirection.TO_CC_SWITCH) {
+            return loadLocalProviders().stream()
+                    .filter(source -> Objects.equals(item.sourceId(), source.id()))
+                    .findFirst()
+                    .map(record -> record.settingsConfig().deepCopy())
+                    .orElseThrow(() -> new IOException("Local provider not found: " + item.sourceId()));
+        }
+
+        try (Connection connection = openCcSwitchConnection()) {
+            ensureCcSwitchSchema(connection);
+            RemoteProviderRecord remote = findRemoteProviderById(connection, item.sourceId());
+            if (remote == null) {
+                throw new SQLException("Remote provider not found: " + item.sourceId());
+            }
+            return remote.settingsConfig().deepCopy();
+        }
     }
 
     private void syncLocalProviderToCcSwitch(String providerId) throws IOException, SQLException {
@@ -312,29 +286,6 @@ public final class CcSwitchSyncService {
         providerService.notifyStateChanged();
     }
 
-    private void syncLocalLiveToCcSwitch(CliType cliType) throws IOException, SQLException {
-        LocalLiveRecord local = loadLocalLiveRecords().stream()
-                .filter(record -> record.cliType() == cliType)
-                .findFirst()
-                .orElseThrow(() -> new IOException("Local live config not found: " + cliType));
-        try (Connection connection = openCcSwitchConnection()) {
-            ensureCcSwitchSchema(connection);
-            upsertRemoteLiveConfig(connection, local);
-        }
-    }
-
-    private void importCcSwitchLive(String settingsKey, CliType cliType) throws IOException, SQLException {
-        RemoteLiveRecord remote;
-        try (Connection connection = openCcSwitchConnection()) {
-            ensureCcSwitchSchema(connection);
-            remote = findRemoteLiveByKey(connection, settingsKey);
-        }
-        if (remote == null || remote.cliType() != cliType) {
-            throw new SQLException("Remote live config not found: " + settingsKey);
-        }
-        writeLocalLiveConfig(remote.cliType(), remote.settingsConfig());
-    }
-
     private List<LocalProviderRecord> loadLocalProviders() {
         List<LocalProviderRecord> localProviders = new ArrayList<>();
         for (Provider provider : ProviderService.getInstance().getProviders().stream()
@@ -391,40 +342,6 @@ public final class CcSwitchSyncService {
         return result;
     }
 
-    private List<LocalLiveRecord> loadLocalLiveRecords() {
-        List<LocalLiveRecord> records = new ArrayList<>();
-        LocalLiveRecord claude = readClaudeLiveRecord();
-        if (claude != null) {
-            records.add(claude);
-        }
-        LocalLiveRecord codex = readCodexLiveRecord();
-        if (codex != null) {
-            records.add(codex);
-        }
-        LocalLiveRecord opencode = readOpenCodeLiveRecord();
-        if (opencode != null) {
-            records.add(opencode);
-        }
-        return records;
-    }
-
-    private List<RemoteLiveRecord> loadRemoteLiveRecords() {
-        List<RemoteLiveRecord> records = new ArrayList<>();
-        try (Connection connection = openCcSwitchConnection()) {
-            ensureCcSwitchSchema(connection);
-            for (CliType cliType : List.of(CliType.CLAUDE, CliType.CODEX, CliType.OPENCODE)) {
-                String key = remoteSettingsKey(cliType);
-                RemoteLiveRecord record = findRemoteLiveByKey(connection, key);
-                if (record != null && !isEmptyLiveConfig(cliType, record.settingsConfig())) {
-                    records.add(record);
-                }
-            }
-        } catch (Exception e) {
-            LOG.warn("Failed to load cc-switch common configs", e);
-        }
-        return records;
-    }
-
     private @Nullable RemoteProviderRecord findRemoteProviderMatch(List<RemoteProviderRecord> remoteProviders, LocalProviderRecord local) {
         RemoteProviderRecord byId = remoteProviders.stream()
                 .filter(remote -> local.cliType() == remote.cliType())
@@ -457,138 +374,8 @@ public final class CcSwitchSyncService {
                 .orElse(null);
     }
 
-    private @Nullable RemoteLiveRecord findRemoteLiveMatch(List<RemoteLiveRecord> remoteRecords, CliType cliType) {
-        return remoteRecords.stream()
-                .filter(record -> record.cliType() == cliType)
-                .findFirst()
-                .orElse(null);
-    }
-
-    private @Nullable LocalLiveRecord findLocalLiveMatch(List<LocalLiveRecord> localRecords, CliType cliType) {
-        return localRecords.stream()
-                .filter(record -> record.cliType() == cliType)
-                .findFirst()
-                .orElse(null);
-    }
-
     private boolean areEquivalent(JsonObject left, JsonObject right, CliType cliType) {
         return canonicalSettings(cliType, left).equals(canonicalSettings(cliType, right));
-    }
-
-    private @Nullable LocalLiveRecord readClaudeLiveRecord() {
-        ConfigFileService configFileService = ConfigFileService.getInstance();
-        JsonObject root = configFileService.readJsonFile(configFileService.getProviderConfigPath(CliType.CLAUDE));
-        JsonObject normalized = extractClaudeLiveConfig(root);
-        if (isEmptyLiveConfig(CliType.CLAUDE, normalized)) {
-            return null;
-        }
-        return new LocalLiveRecord(
-                "live:claude",
-                CliType.CLAUDE,
-                I18n.t("settings.sync.liveName", CliType.CLAUDE.getDisplayName()),
-                normalized);
-    }
-
-    private @Nullable LocalLiveRecord readCodexLiveRecord() {
-        ConfigFileService configFileService = ConfigFileService.getInstance();
-        JsonObject root = new JsonObject();
-        String config = configFileService.readFile(configFileService.getConfigDir(CliType.CODEX).resolve("config.toml"));
-        root.addProperty("config", config == null ? "" : config);
-        JsonObject normalized = extractCodexLiveConfig(root);
-        if (isEmptyLiveConfig(CliType.CODEX, normalized)) {
-            return null;
-        }
-        return new LocalLiveRecord(
-                "live:codex",
-                CliType.CODEX,
-                I18n.t("settings.sync.liveName", CliType.CODEX.getDisplayName()),
-                normalized);
-    }
-
-    private @Nullable LocalLiveRecord readOpenCodeLiveRecord() {
-        ConfigFileService configFileService = ConfigFileService.getInstance();
-        JsonObject root = configFileService.readJsonFile(configFileService.getProviderConfigPath(CliType.OPENCODE));
-        JsonObject normalized = extractOpenCodeLiveConfig(root);
-        if (isEmptyLiveConfig(CliType.OPENCODE, normalized)) {
-            return null;
-        }
-        return new LocalLiveRecord(
-                "live:opencode",
-                CliType.OPENCODE,
-                I18n.t("settings.sync.liveName", CliType.OPENCODE.getDisplayName()),
-                normalized);
-    }
-
-    private JsonObject extractClaudeLiveConfig(JsonObject root) {
-        JsonObject normalized = new JsonObject();
-        copyBoolean(root, normalized, "dangerouslySkipPermissions");
-        copyBoolean(root, normalized, "skipDangerousModePermissionPrompt");
-        copyString(root, normalized, "effortLevel");
-        return normalized;
-    }
-
-    private JsonObject extractCodexLiveConfig(JsonObject root) {
-        JsonObject normalized = new JsonObject();
-        JsonObject auth = root.has("auth") && root.get("auth").isJsonObject()
-                ? root.getAsJsonObject("auth").deepCopy()
-                : new JsonObject();
-        if (!auth.keySet().isEmpty()) {
-            normalized.add("auth", auth);
-        }
-        String config = root.has("config") && !root.get("config").isJsonNull()
-                ? root.get("config").getAsString()
-                : "";
-        normalized.addProperty("config", normalizeToml(config));
-        return normalized;
-    }
-
-    private JsonObject extractOpenCodeLiveConfig(JsonObject root) {
-        JsonObject normalized = root == null ? new JsonObject() : root.deepCopy();
-        normalized.remove("provider");
-        return normalized;
-    }
-
-    private void writeLocalLiveConfig(CliType cliType, JsonObject config) throws IOException {
-        ConfigFileService svc = ConfigFileService.getInstance();
-        switch (cliType) {
-            case CLAUDE -> writeClaudeLiveConfig(svc, config);
-            case CODEX -> writeCodexLiveConfig(svc, config);
-            case OPENCODE -> writeOpenCodeLiveConfig(svc, config);
-            default -> throw new IOException("Unsupported live config type: " + cliType);
-        }
-    }
-
-    private void writeClaudeLiveConfig(ConfigFileService svc, JsonObject config) throws IOException {
-        Path path = svc.getProviderConfigPath(CliType.CLAUDE);
-        JsonObject existing = svc.readJsonFile(path);
-        mergeOptionalField(existing, config, "effortLevel");
-        mergeOptionalBoolean(existing, config, "dangerouslySkipPermissions");
-        mergeOptionalBoolean(existing, config, "skipDangerousModePermissionPrompt");
-        svc.writeJsonFile(path, existing);
-    }
-
-    private void writeCodexLiveConfig(ConfigFileService svc, JsonObject config) throws IOException {
-        Path tomlPath = svc.getConfigDir(CliType.CODEX).resolve("config.toml");
-        String text = config.has("config") && !config.get("config").isJsonNull()
-                ? normalizeToml(config.get("config").getAsString())
-                : "";
-        if (text.isBlank() && Files.exists(tomlPath)) {
-            svc.writeFile(tomlPath, "");
-            return;
-        }
-        if (!text.isBlank()) {
-            svc.writeFile(tomlPath, text + "\n");
-        }
-    }
-
-    private void writeOpenCodeLiveConfig(ConfigFileService svc, JsonObject config) throws IOException {
-        Path path = svc.getProviderConfigPath(CliType.OPENCODE);
-        JsonObject existing = svc.readJsonFile(path);
-        JsonObject next = config == null ? new JsonObject() : config.deepCopy();
-        if (existing.has("provider")) {
-            next.add("provider", existing.get("provider").deepCopy());
-        }
-        svc.writeJsonFile(path, next);
     }
 
     private Connection openCcSwitchConnection() throws SQLException, IOException {
@@ -673,49 +460,6 @@ public final class CcSwitchSyncService {
                         rs.getLong("sort_index"),
                         nullableText(rs.getString("meta"), "{}"));
             }
-        }
-    }
-
-    private @Nullable RemoteLiveRecord findRemoteLiveByKey(Connection connection, String key) throws SQLException {
-        String sql = "select key, value from settings where key = ?";
-        try (PreparedStatement ps = connection.prepareStatement(sql)) {
-            ps.setString(1, key);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) {
-                    return null;
-                }
-                CliType cliType = cliTypeFromSettingsKey(key);
-                if (cliType == null) {
-                    return null;
-                }
-                JsonObject config = parseRemoteLiveConfig(cliType, rs.getString("value"));
-                if (config == null) {
-                    return null;
-                }
-                return new RemoteLiveRecord(
-                        rs.getString("key"),
-                        cliType,
-                        I18n.t("settings.sync.liveName", cliType.getDisplayName()),
-                        config);
-            }
-        }
-    }
-
-    private void upsertRemoteLiveConfig(Connection connection, LocalLiveRecord record) throws SQLException {
-        String key = remoteSettingsKey(record.cliType());
-        String value = serializeRemoteLiveConfig(record.cliType(), record.settingsConfig());
-        try (PreparedStatement ps = connection.prepareStatement("update settings set value = ? where key = ?")) {
-            ps.setString(1, value);
-            ps.setString(2, key);
-            if (ps.executeUpdate() > 0) {
-                return;
-            }
-        }
-
-        try (PreparedStatement ps = connection.prepareStatement("insert into settings (key, value) values (?, ?)")) {
-            ps.setString(1, key);
-            ps.setString(2, value);
-            ps.executeUpdate();
         }
     }
 
@@ -806,51 +550,6 @@ public final class CcSwitchSyncService {
             LOG.warn("Failed to parse JSON object", e);
             return null;
         }
-    }
-
-    private @Nullable JsonObject parseRemoteLiveConfig(CliType cliType, @Nullable String raw) {
-        if (raw == null || raw.isBlank()) {
-            return new JsonObject();
-        }
-        try {
-            if (cliType == CliType.CODEX) {
-                JsonObject root = new JsonObject();
-                root.addProperty("config", normalizeToml(raw));
-                return root;
-            }
-            JsonObject parsed = JsonParser.parseString(raw).getAsJsonObject();
-            return cliType == CliType.OPENCODE ? extractOpenCodeLiveConfig(parsed) : parsed;
-        } catch (Exception e) {
-            LOG.warn("Failed to parse remote live config: " + cliType, e);
-            return null;
-        }
-    }
-
-    private String serializeRemoteLiveConfig(CliType cliType, JsonObject config) {
-        if (cliType == CliType.CODEX) {
-            return config.has("config") && !config.get("config").isJsonNull()
-                    ? normalizeToml(config.get("config").getAsString())
-                    : "";
-        }
-        return GSON.toJson(config == null ? new JsonObject() : config);
-    }
-
-    private @Nullable CliType cliTypeFromSettingsKey(String key) {
-        return switch (key) {
-            case "common_config_claude" -> CliType.CLAUDE;
-            case "common_config_codex" -> CliType.CODEX;
-            case "common_config_opencode" -> CliType.OPENCODE;
-            default -> null;
-        };
-    }
-
-    private String remoteSettingsKey(CliType cliType) {
-        return switch (cliType) {
-            case CLAUDE -> "common_config_claude";
-            case CODEX -> "common_config_codex";
-            case OPENCODE -> "common_config_opencode";
-            default -> throw new IllegalArgumentException("Unsupported settings key type: " + cliType);
-        };
     }
 
     private @Nullable CliType mapRemoteCliType(@Nullable String appType) {
@@ -982,68 +681,6 @@ public final class CcSwitchSyncService {
             }
             default -> true;
         };
-    }
-
-    private boolean isEmptyLiveConfig(CliType cliType, JsonObject config) {
-        if (config == null || config.keySet().isEmpty()) {
-            return true;
-        }
-        return switch (cliType) {
-            case CLAUDE -> {
-                boolean hasFlags = hasTrueBoolean(config, "dangerouslySkipPermissions")
-                        || hasTrueBoolean(config, "skipDangerousModePermissionPrompt")
-                        || hasNonBlankString(config, "effortLevel");
-                yield !hasFlags;
-            }
-            case CODEX -> {
-                String toml = config.has("config") && !config.get("config").isJsonNull()
-                        ? normalizeToml(config.get("config").getAsString())
-                        : "";
-                yield toml.isBlank();
-            }
-            case OPENCODE -> {
-                JsonObject withoutProvider = config.deepCopy();
-                withoutProvider.remove("provider");
-                yield withoutProvider.keySet().isEmpty();
-            }
-            default -> true;
-        };
-    }
-
-    private boolean hasTrueBoolean(JsonObject json, String key) {
-        return json.has(key) && !json.get(key).isJsonNull() && json.get(key).getAsBoolean();
-    }
-
-    private boolean hasNonBlankString(JsonObject json, String key) {
-        return json.has(key) && !json.get(key).isJsonNull() && !json.get(key).getAsString().isBlank();
-    }
-
-    private void copyBoolean(JsonObject source, JsonObject target, String key) {
-        if (source.has(key) && !source.get(key).isJsonNull()) {
-            target.addProperty(key, source.get(key).getAsBoolean());
-        }
-    }
-
-    private void copyString(JsonObject source, JsonObject target, String key) {
-        if (source.has(key) && !source.get(key).isJsonNull()) {
-            target.addProperty(key, source.get(key).getAsString());
-        }
-    }
-
-    private void mergeOptionalField(JsonObject target, JsonObject source, String key) {
-        if (source.has(key) && !source.get(key).isJsonNull() && !source.get(key).getAsString().isBlank()) {
-            target.add(key, source.get(key));
-        } else {
-            target.remove(key);
-        }
-    }
-
-    private void mergeOptionalBoolean(JsonObject target, JsonObject source, String key) {
-        if (source.has(key) && !source.get(key).isJsonNull() && source.get(key).getAsBoolean()) {
-            target.addProperty(key, true);
-        } else {
-            target.remove(key);
-        }
     }
 
     private Path getCcSwitchRootDir() {
