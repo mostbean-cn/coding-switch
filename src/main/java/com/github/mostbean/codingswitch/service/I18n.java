@@ -147,6 +147,7 @@ public final class I18n {
                 m.put("settings.sync.invertFilteredSelection", "反选");
                 m.put("settings.sync.details.empty", "请选择左侧同步项查看配置预览。");
                 m.put("settings.sync.preview.unavailable", "配置预览不可用: {0}");
+                m.put("settings.sync.note.overwriteSynced", "已同步项也可勾选，执行后会覆盖更新目标配置。");
                 m.put("settings.dialog.extensionSync.importTitle", "从 cc-switch 导入");
                 m.put("settings.dialog.extensionSync.exportTitle", "导出到 cc-switch");
                 m.put("settings.dialog.extensionSync.noSelection", "请先勾选需要同步的配置。");
@@ -745,6 +746,7 @@ public final class I18n {
                 m.put("settings.sync.invertFilteredSelection", "Invert Selection");
                 m.put("settings.sync.details.empty", "Select a sync item on the left to preview its configuration.");
                 m.put("settings.sync.preview.unavailable", "Configuration preview unavailable: {0}");
+                m.put("settings.sync.note.overwriteSynced", "Synced items can also be selected and will overwrite the target configuration.");
                 m.put("settings.dialog.extensionSync.importTitle", "Import from cc-switch");
                 m.put("settings.dialog.extensionSync.exportTitle", "Export to cc-switch");
                 m.put("settings.dialog.extensionSync.noSelection", "Select at least one configuration to sync.");

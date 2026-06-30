@@ -1820,7 +1820,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
             JCheckBox checkBox = new JCheckBox();
             checkBox.setSelected(value != null && selections.contains(itemKey(value.item())));
-            checkBox.setEnabled(value != null && !value.item().synced());
             checkBox.setOpaque(false);
             panel.add(checkBox, BorderLayout.WEST);
 
@@ -1843,9 +1842,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         }
 
         private void toggleSelection(CcSwitchSyncService.SyncItem item) {
-            if (item.synced()) {
-                return;
-            }
             toggleSelectionKey(item);
             itemList.repaint();
             updateSelectAllButton();
@@ -1856,9 +1852,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         private void toggleFilteredSelections() {
             boolean invertSelection = areAllFilteredSelectionsSelected();
             for (CcSwitchSyncService.SyncItem item : filteredItems()) {
-                if (item.synced()) {
-                    continue;
-                }
                 if (invertSelection) {
                     toggleSelectionKey(item);
                     continue;
@@ -1896,7 +1889,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         private List<CcSwitchSyncService.SyncItem> selectedItems() {
             List<CcSwitchSyncService.SyncItem> selected = new ArrayList<>();
             for (CcSwitchSyncService.SyncItem item : allItems) {
-                if (!item.synced() && selections.contains(itemKey(item))) {
+                if (selections.contains(itemKey(item))) {
                     selected.add(item);
                 }
             }
@@ -1912,7 +1905,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         }
 
         private boolean hasSelectableFilteredItems() {
-            return filteredItems().stream().anyMatch(item -> !item.synced());
+            return !filteredItems().isEmpty();
         }
 
         private void updateSelectAllButton() {
@@ -1928,7 +1921,6 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
         private boolean areAllFilteredSelectionsSelected() {
             List<CcSwitchSyncService.SyncItem> selectableItems = filteredItems().stream()
-                .filter(item -> !item.synced())
                 .toList();
             return !selectableItems.isEmpty()
                 && selectableItems.stream().allMatch(item -> selections.contains(itemKey(item)));
@@ -1966,12 +1958,13 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         private String formatConfigPreview(CcSwitchSyncService.SyncItem item) {
             try {
                 JsonObject config = CcSwitchSyncService.getInstance().loadSourceSettingsConfig(item);
-                return switch (item.cliType()) {
+                String preview = switch (item.cliType()) {
                     case CLAUDE -> formatJsonConfigPreview("settings.json", config);
                     case CODEX -> formatCodexConfigPreview(config);
                     case OPENCODE -> formatOpenCodeConfigPreview(config);
                     default -> formatJsonConfigPreview("config.json", config);
                 };
+                return "// " + I18n.t("settings.sync.note.overwriteSynced") + "\n\n" + preview;
             } catch (Exception e) {
                 return I18n.t("settings.sync.preview.unavailable", e.getMessage());
             }
