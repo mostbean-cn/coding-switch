@@ -118,6 +118,7 @@ public final class I18n {
                 m.put("settings.label.featureSelection", "功能选择:");
                 m.put("settings.label.cliSelection", "CLI配置:");
                 m.put("settings.label.codeCompletion", "代码补全:");
+                m.put("settings.label.ccSwitch", "CC Switch:");
                 m.put("settings.label.extensionSync", "与 cc-switch 数据同步:");
                 m.put("settings.button.show", "显示");
                 m.put("settings.button.hide", "隐藏");
@@ -135,6 +136,7 @@ public final class I18n {
                 m.put("settings.hint.featureSelection", "用于控制顶部标签显示。");
                 m.put("settings.hint.cliSelection", "用于控制本页“版本检测”和“安装/更新命令”中显示哪些 CLI。未选中时默认显示全部 CLI。");
                 m.put("settings.hint.codeCompletion", "配置 IDE 内代码补全、补全模型、Git 提交信息模型、自动触发和手动触发快捷键。");
+                m.put("settings.hint.ccSwitch", "打开 IDE 设置页底部的“拓展功能”，配置与 cc-switch 的数据导入导出。");
                 m.put("settings.hint.extensionSync", "同步 Claude Code、Codex、OpenCode 与 cc-switch 之间已保存的非订阅配置。cc-switch 未安装或未初始化时不会创建数据库，也不会执行同步。");
                 m.put("settings.option.allCli", "全部 CLI");
                 m.put("settings.option.syncStatus.all", "全部状态");
@@ -352,6 +354,7 @@ public final class I18n {
                 m.put("provider.table.col.model", "模型");
                 m.put("provider.table.officialLogin", "官方登录");
                 m.put("provider.status.active", "已激活");
+                m.put("provider.status.added", "已添加");
                 m.put("provider.status.pendingActivation", "待激活");
                 m.put("provider.action.duplicate", "复制");
                 m.put("provider.action.duplicate.tooltip", "复制选中的配置");
@@ -359,6 +362,8 @@ public final class I18n {
                 m.put("provider.action.refresh.tooltip", "同步其他 IDE 的配置修改");
                 m.put("provider.action.activate", "激活");
                 m.put("provider.action.activate.tooltip", "激活选中的配置并同步到 CLI");
+                m.put("provider.action.removeOpenCode", "移除");
+                m.put("provider.action.removeOpenCode.tooltip", "仅从 OpenCode 配置中移除选中的配置，插件列表会保留");
                 m.put("provider.action.tempLaunch", "临时启动");
                 m.put("provider.action.tempLaunch.tooltip", "不激活、不写入本地配置，仅用此 Claude 配置启动 IDE 终端");
                 m.put("provider.action.tempLaunch.disabledTooltip", "临时启动仅支持 Claude Code 配置");
@@ -367,6 +372,10 @@ public final class I18n {
                 m.put("provider.dialog.activateSuccess", "配置 \"{0}\" 已激活\n已同步到 {1}");
                 m.put("provider.dialog.activateTitle", "激活成功");
                 m.put("provider.dialog.activateFailed", "激活失败: {0}");
+                m.put("provider.dialog.openCodeAddSuccess", "配置 \"{0}\" 已添加到 OpenCode。");
+                m.put("provider.dialog.removeOpenCodeSuccess", "配置 \"{0}\" 已从 OpenCode 中移除，插件列表中的配置已保留。");
+                m.put("provider.dialog.removeOpenCodeSkipped", "配置 \"{0}\" 当前未添加到 OpenCode，无需移除。插件列表中的配置已保留。");
+                m.put("provider.dialog.removeOpenCodeFailed", "移除 OpenCode 配置失败: {0}");
                 m.put("provider.dialog.tempLaunch.title", "临时启动");
                 m.put("provider.dialog.tempLaunch.onlyClaude", "临时启动仅支持 Claude Code 配置。");
                 m.put("provider.dialog.tempLaunch.noProject", "当前未打开项目，无法启动 IDE 终端。");
@@ -727,6 +736,7 @@ public final class I18n {
                 m.put("settings.label.featureSelection", "Feature Selection:");
                 m.put("settings.label.cliSelection", "CLI Config:");
                 m.put("settings.label.codeCompletion", "Code Completion:");
+                m.put("settings.label.ccSwitch", "CC Switch:");
                 m.put("settings.label.extensionSync", "cc-switch Data Sync:");
                 m.put("settings.button.show", "Show");
                 m.put("settings.button.hide", "Hide");
@@ -744,6 +754,7 @@ public final class I18n {
                 m.put("settings.hint.featureSelection", "Controls which top tabs are visible.");
                 m.put("settings.hint.cliSelection", "Controls which CLI entries are shown in the version check and install/update command sections on this page. If none are selected, all CLIs are shown by default.");
                 m.put("settings.hint.codeCompletion", "Configure IDE code completion, completion models, Git commit message models, automatic triggering, and manual trigger shortcuts.");
+                m.put("settings.hint.ccSwitch", "Open the Extensions section at the bottom of the IDE settings page to configure cc-switch data import and export.");
                 m.put("settings.hint.extensionSync", "Sync saved non-subscription configurations between Claude Code, Codex, OpenCode, and cc-switch. No database is created when cc-switch is not installed or initialized.");
                 m.put("settings.option.allCli", "All CLI");
                 m.put("settings.option.syncStatus.all", "All Status");
@@ -964,6 +975,7 @@ public final class I18n {
                 m.put("provider.table.col.model", "Model");
                 m.put("provider.table.officialLogin", "Official Login");
                 m.put("provider.status.active", "Active");
+                m.put("provider.status.added", "Added");
                 m.put("provider.status.pendingActivation", "Pending Activation");
                 m.put("provider.action.duplicate", "Duplicate");
                 m.put("provider.action.duplicate.tooltip", "Duplicate selected config");
@@ -971,6 +983,8 @@ public final class I18n {
                 m.put("provider.action.refresh.tooltip", "Sync config changes from other IDEs");
                 m.put("provider.action.activate", "Activate");
                 m.put("provider.action.activate.tooltip", "Activate selected config and sync to CLI");
+                m.put("provider.action.removeOpenCode", "Remove");
+                m.put("provider.action.removeOpenCode.tooltip", "Remove the selected config from OpenCode only; keep it in the plugin list");
                 m.put("provider.action.tempLaunch", "Temporary Launch");
                 m.put("provider.action.tempLaunch.tooltip", "Launch an IDE terminal with this Claude config without activating or writing local config files");
                 m.put("provider.action.tempLaunch.disabledTooltip", "Temporary launch only supports Claude Code configs");
@@ -979,6 +993,10 @@ public final class I18n {
                 m.put("provider.dialog.activateSuccess", "Config \"{0}\" activated\nSynced to {1}");
                 m.put("provider.dialog.activateTitle", "Activation Successful");
                 m.put("provider.dialog.activateFailed", "Activation failed: {0}");
+                m.put("provider.dialog.openCodeAddSuccess", "Config \"{0}\" has been added to OpenCode.");
+                m.put("provider.dialog.removeOpenCodeSuccess", "Config \"{0}\" has been removed from OpenCode and kept in the plugin list.");
+                m.put("provider.dialog.removeOpenCodeSkipped", "Config \"{0}\" is not currently added to OpenCode. The plugin list is unchanged.");
+                m.put("provider.dialog.removeOpenCodeFailed", "Failed to remove OpenCode config: {0}");
                 m.put("provider.dialog.tempLaunch.title", "Temporary Launch");
                 m.put("provider.dialog.tempLaunch.onlyClaude", "Temporary launch only supports Claude Code configs.");
                 m.put("provider.dialog.tempLaunch.noProject", "No project is open, so an IDE terminal cannot be started.");

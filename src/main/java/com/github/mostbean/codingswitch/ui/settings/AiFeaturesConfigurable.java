@@ -121,6 +121,8 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     private JComboBox<ProfileTypeFilter> profileTypeFilterCombo;
     private final List<Integer> visibleProfileIndexes = new ArrayList<>();
     private JPanel rootPanel;
+    private JComponent extensionSection;
+    private static boolean scrollToExtensionSectionRequested = false;
 
     private final List<AiModelProfile> profiles = new ArrayList<>();
     private final Map<String, String> editedApiKeys = new HashMap<>();
@@ -144,7 +146,12 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         scrollPane.setBorder(JBUI.Borders.empty());
         rootPanel.add(scrollPane, BorderLayout.CENTER);
         reset();
+        scrollToExtensionSectionIfRequested();
         return rootPanel;
+    }
+
+    public static void requestScrollToExtensionSection() {
+        scrollToExtensionSectionRequested = true;
     }
 
     private JPanel buildContent() {
@@ -264,6 +271,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
     private JPanel buildExtensionSection() {
         JPanel section = createSection(I18n.t("settings.section.extension"));
+        extensionSection = section;
         section.add(wrappedHint(I18n.t("settings.hint.extensionSync")));
 
         JPanel buttonRow = rowPanel();
@@ -278,6 +286,21 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         buttonRow.add(exportButton);
         section.add(buttonRow);
         return section;
+    }
+
+    private void scrollToExtensionSectionIfRequested() {
+        if (!scrollToExtensionSectionRequested) {
+            return;
+        }
+        scrollToExtensionSectionRequested = false;
+        if (extensionSection == null) {
+            return;
+        }
+        SwingUtilities.invokeLater(() ->
+            SwingUtilities.invokeLater(() ->
+                extensionSection.scrollRectToVisible(new Rectangle(0, 0, 1, 1))
+            )
+        );
     }
 
     private JPanel buildCompletionSection() {

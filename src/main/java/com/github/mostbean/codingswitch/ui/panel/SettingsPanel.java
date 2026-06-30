@@ -448,7 +448,20 @@ public class SettingsPanel extends JPanel {
         codeCompletionRow.add(codeCompletionConfigBtn);
         content.add(codeCompletionRow);
 
-        // ========== 4. CLI 快速启动 ==========
+        // ========== 4. CC Switch ==========
+        JPanel ccSwitchRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
+        ccSwitchRow.add(createInfoHintIcon(
+            I18n.t("settings.hint.ccSwitch"),
+            I18n.t("settings.label.ccSwitch")
+        ));
+        ccSwitchRow.add(new JBLabel(I18n.t("settings.label.ccSwitch")));
+
+        JButton ccSwitchConfigBtn = new JButton(I18n.t("settings.button.codeCompletionConfig"));
+        ccSwitchConfigBtn.addActionListener(e -> openCcSwitchSettings());
+        ccSwitchRow.add(ccSwitchConfigBtn);
+        content.add(ccSwitchRow);
+
+        // ========== 5. CLI 快速启动 ==========
         JPanel cliQuickLaunchRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
         cliQuickLaunchRow.add(createInfoHintIcon(
             I18n.t("settings.hint.cliQuickLaunch"),
@@ -562,6 +575,11 @@ public class SettingsPanel extends JPanel {
     }
 
     private void openCodeCompletionSettings() {
+        ShowSettingsUtil.getInstance().showSettingsDialog(project, AiFeaturesConfigurable.class);
+    }
+
+    private void openCcSwitchSettings() {
+        AiFeaturesConfigurable.requestScrollToExtensionSection();
         ShowSettingsUtil.getInstance().showSettingsDialog(project, AiFeaturesConfigurable.class);
     }
 
