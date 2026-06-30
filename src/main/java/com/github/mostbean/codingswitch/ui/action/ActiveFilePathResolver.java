@@ -2,10 +2,13 @@ package com.github.mostbean.codingswitch.ui.action;
 
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
+import com.intellij.openapi.actionSystem.LangDataKeys;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiFileSystemItem;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import org.jetbrains.annotations.NotNull;
@@ -98,12 +101,35 @@ public final class ActiveFilePathResolver {
         if (selectedFiles != null && selectedFiles.length == 1) {
             return selectedFiles[0];
         }
-        return e.getData(CommonDataKeys.VIRTUAL_FILE);
+
+        VirtualFile selectedFile = e.getData(CommonDataKeys.VIRTUAL_FILE);
+        if (selectedFile != null) {
+            return selectedFile;
+        }
+
+        PsiElement[] selectedElements = e.getData(LangDataKeys.PSI_ELEMENT_ARRAY);
+        if (selectedElements != null && selectedElements.length == 1) {
+            return resolveVirtualFile(selectedElements[0]);
+        }
+
+        return resolveVirtualFile(e.getData(LangDataKeys.PSI_ELEMENT));
     }
 
     private static boolean hasMultipleContextFiles(@NotNull AnActionEvent e) {
         VirtualFile[] selectedFiles = e.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY);
-        return selectedFiles != null && selectedFiles.length > 1;
+        if (selectedFiles != null && selectedFiles.length > 1) {
+            return true;
+        }
+
+        PsiElement[] selectedElements = e.getData(LangDataKeys.PSI_ELEMENT_ARRAY);
+        return selectedElements != null && selectedElements.length > 1;
+    }
+
+    private static @Nullable VirtualFile resolveVirtualFile(@Nullable PsiElement element) {
+        if (element instanceof PsiFileSystemItem fileSystemItem) {
+            return fileSystemItem.getVirtualFile();
+        }
+        return null;
     }
 
     private static @Nullable VirtualFile resolveSelectedEditorFile(@NotNull Project project) {
