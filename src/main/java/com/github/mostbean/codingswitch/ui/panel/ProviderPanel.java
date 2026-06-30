@@ -30,7 +30,9 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Provider 管理面板。
@@ -107,7 +109,7 @@ public class ProviderPanel extends JPanel {
         providerTable.getColumnModel().getColumn(2).setPreferredWidth(80); // Status
         providerTable.getColumnModel().getColumn(3).setPreferredWidth(250); // Model
 
-        // Status 列自定义渲染器：绿色高亮 Active
+        // Status 列自定义渲染器：绿色高亮 Active / 已添加
         providerTable.getColumnModel().getColumn(2).setCellRenderer(new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value,
@@ -115,7 +117,8 @@ public class ProviderPanel extends JPanel {
                     int row, int column) {
                 Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
                 if (!isSelected) {
-                    if (I18n.t("provider.status.active").equals(value)) {
+                    if (I18n.t("provider.status.active").equals(value)
+                            || I18n.t("provider.status.added").equals(value)) {
                         c.setForeground(new Color(66, 160, 83)); // 柔和的绿色
                         setFont(getFont().deriveFont(Font.BOLD));
                     } else if (I18n.t("provider.status.pendingActivation").equals(value)) {
@@ -176,6 +179,25 @@ public class ProviderPanel extends JPanel {
                             @Override
                             public void update(@NotNull AnActionEvent e) {
                                 e.getPresentation().setEnabled(providerTable.getSelectedRow() != -1);
+                            }
+                        })
+                .addExtraAction(
+                        new AnAction(I18n.t("provider.action.removeOpenCode"),
+                                I18n.t("provider.action.removeOpenCode.tooltip"),
+                                AllIcons.General.Remove) {
+                            @Override
+                            public void actionPerformed(@NotNull AnActionEvent e) {
+                                onRemoveOpenCodeLiveProvider();
+                            }
+
+                            @Override
+                            public void update(@NotNull AnActionEvent e) {
+                                Provider selected = getSelectedProvider();
+                                boolean visible = tableModel.hasOpenCodeProviders();
+                                boolean enabled = selected != null
+                                        && selected.getCliType() == CliType.OPENCODE;
+                                e.getPresentation().setVisible(visible);
+                                e.getPresentation().setEnabled(enabled);
                             }
                         })
                 .addExtraAction(
@@ -265,11 +287,37 @@ public class ProviderPanel extends JPanel {
             CodexActivationResult codexResult = ProviderService.getInstance().getLastCodexActivationResult();
             AntigravityAuthSnapshotService.RestoreResult antigravityResult =
                     ProviderService.getInstance().getLastAntigravityActivationResult();
+            refreshTable();
+            restoreSelection(selected.getId());
             Messages.showInfoMessage(
                     buildActivationMessage(selected, codexResult, antigravityResult),
-                    I18n.t("provider.status.active"));
+                    selected.getCliType() == CliType.OPENCODE
+                            ? I18n.t("provider.status.added")
+                            : I18n.t("provider.status.active"));
         } catch (IOException ex) {
             Messages.showErrorDialog(I18n.t("provider.dialog.activateFailed", ex.getMessage()),
+                    I18n.t("provider.dialog.error"));
+        }
+    }
+
+    private void onRemoveOpenCodeLiveProvider() {
+        Provider selected = getSelectedProvider();
+        if (selected == null || selected.getCliType() != CliType.OPENCODE) {
+            return;
+        }
+
+        try {
+            boolean removed = ProviderService.getInstance().removeOpenCodeLiveProvider(selected.getId());
+            refreshTable();
+            restoreSelection(selected.getId());
+            Messages.showInfoMessage(
+                    removed
+                            ? I18n.t("provider.dialog.removeOpenCodeSuccess", selected.getName())
+                            : I18n.t("provider.dialog.removeOpenCodeSkipped", selected.getName()),
+                    I18n.t("provider.action.removeOpenCode"));
+        } catch (IOException ex) {
+            Messages.showErrorDialog(
+                    I18n.t("provider.dialog.removeOpenCodeFailed", ex.getMessage()),
                     I18n.t("provider.dialog.error"));
         }
     }
@@ -342,7 +390,11 @@ public class ProviderPanel extends JPanel {
         } else {
             providers = ProviderService.getInstance().getProvidersByType(filter);
         }
-        tableModel.setProviders(providers);
+        Set<String> openCodeLiveProviderNames = providers.stream()
+                .anyMatch(provider -> provider.getCliType() == CliType.OPENCODE)
+                ? ProviderService.getInstance().getOpenCodeLiveProviderNames()
+                : Set.of();
+        tableModel.setProviders(providers, openCodeLiveProviderNames);
     }
 
     private void restoreSelection(String providerId) {
@@ -365,6 +417,9 @@ public class ProviderPanel extends JPanel {
             AntigravityAuthSnapshotService.RestoreResult antigravityResult) {
         String base = I18n.t("provider.dialog.activateSuccess", provider.getName(),
                 provider.getCliType().getDisplayName());
+        if (provider.getCliType() == CliType.OPENCODE) {
+            return I18n.t("provider.dialog.openCodeAddSuccess", provider.getName());
+        }
 
         if (provider.getCliType() == CliType.CODEX
                 && provider.getAuthMode() == Provider.AuthMode.OFFICIAL_LOGIN
@@ -404,14 +459,26 @@ public class ProviderPanel extends JPanel {
         private final String[] COLUMNS = { I18n.t("provider.table.col.name"), I18n.t("provider.table.col.cli"),
                 I18n.t("provider.table.col.status"), I18n.t("provider.table.col.model") };
         private List<Provider> data = new ArrayList<>();
+        private Set<String> openCodeLiveProviderNames = new HashSet<>();
 
-        public void setProviders(List<Provider> providers) {
+        public void setProviders(List<Provider> providers, Set<String> openCodeLiveProviderNames) {
             this.data = new ArrayList<>(providers);
+            this.openCodeLiveProviderNames = new HashSet<>(openCodeLiveProviderNames);
             fireTableDataChanged();
         }
 
         public Provider getProviderAt(int row) {
             return data.get(row);
+        }
+
+        public boolean hasOpenCodeProviders() {
+            return data.stream().anyMatch(provider -> provider.getCliType() == CliType.OPENCODE);
+        }
+
+        public boolean isOpenCodeAdded(Provider provider) {
+            return provider != null
+                    && provider.getCliType() == CliType.OPENCODE
+                    && openCodeLiveProviderNames.contains(provider.getName());
         }
 
         @Override
@@ -436,6 +503,9 @@ public class ProviderPanel extends JPanel {
                 case 0 -> p.getName();
                 case 1 -> p.getCliType().getDisplayName();
                 case 2 -> {
+                    if (p.getCliType() == CliType.OPENCODE) {
+                        yield isOpenCodeAdded(p) ? I18n.t("provider.status.added") : "-";
+                    }
                     if (p.isPendingActivation()) {
                         yield I18n.t("provider.status.pendingActivation");
                     }

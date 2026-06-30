@@ -177,10 +177,10 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         captureCurrentCodexSnapshot(target, activeCodex);
         captureCurrentAntigravitySnapshot(target, activeAntigravity);
 
-        // 同一 CLI 类型下只能有一个 active（OpenCode 除外，它是 additive 模式）
+        // 同一 CLI 类型下只能有一个 active。OpenCode 是 additive 模式，状态以 live 配置为准。
         for (Provider p : providers) {
             if (p.getCliType() == target.getCliType()) {
-                boolean shouldActivate = p.getId().equals(providerId);
+                boolean shouldActivate = target.getCliType() != CliType.OPENCODE && p.getId().equals(providerId);
                 p.setActive(shouldActivate);
                 p.setPendingActivation(false);
             }
@@ -190,6 +190,29 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         writeToLiveConfig(target);
         lastCodexActivationResult = switchCodexAuthStateIfNeeded(target);
         lastAntigravityActivationResult = switchAntigravityAuthStateIfNeeded(target);
+    }
+
+    public Set<String> getOpenCodeLiveProviderNames() {
+        JsonObject existing = ConfigFileService.getInstance()
+                .readJsonFile(ConfigFileService.getInstance().getProviderConfigPath(CliType.OPENCODE));
+        if (!existing.has("provider") || !existing.get("provider").isJsonObject()) {
+            return Set.of();
+        }
+        return new HashSet<>(existing.getAsJsonObject("provider").keySet());
+    }
+
+    public boolean removeOpenCodeLiveProvider(String providerId) throws IOException {
+        Provider target = getProviders().stream()
+                .filter(provider -> provider.getCliType() == CliType.OPENCODE)
+                .filter(provider -> Objects.equals(provider.getId(), providerId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("OpenCode provider not found: " + providerId));
+
+        boolean removed = removeOpenCodeLiveProviderByName(target.getName());
+        if (removed) {
+            fireChanged();
+        }
+        return removed;
     }
 
     public CodexActivationResult getLastCodexActivationResult() {
@@ -396,6 +419,33 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         svc.writeJsonFile(path, existing);
     }
 
+    private boolean removeOpenCodeLiveProviderByName(String name) throws IOException {
+        if (name == null || name.isBlank()) {
+            return false;
+        }
+
+        ConfigFileService svc = ConfigFileService.getInstance();
+        Path path = svc.getProviderConfigPath(CliType.OPENCODE);
+        JsonObject existing = svc.readJsonFile(path);
+        if (!existing.has("provider") || !existing.get("provider").isJsonObject()) {
+            return false;
+        }
+
+        JsonObject provider = existing.getAsJsonObject("provider");
+        if (!provider.has(name)) {
+            return false;
+        }
+        provider.remove(name);
+        if (provider.keySet().isEmpty()) {
+            existing.remove("provider");
+        } else {
+            existing.add("provider", provider);
+        }
+
+        svc.writeJsonFile(path, existing);
+        return true;
+    }
+
     // =====================================================================
     // 内部工具
     // =====================================================================
@@ -484,6 +534,10 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             provider.setAuthMode(Provider.AuthMode.OFFICIAL_LOGIN);
         } else if (provider.getStoredAuthMode() == null) {
             provider.setAuthMode(Provider.inferAuthMode(provider.getCliType(), provider.getSettingsConfig()));
+        }
+        if (provider.getCliType() == CliType.OPENCODE) {
+            provider.setActive(false);
+            provider.setPendingActivation(false);
         }
         if (provider.getAuthBindingKey() == null || provider.getAuthBindingKey().isBlank()) {
             provider.setAuthBindingKey(provider.getId());
