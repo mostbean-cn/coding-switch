@@ -168,6 +168,8 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         public String providerFilterCliId = "";
         public String sessionFilterCliId = "";
         public String promptFilterCliId = "";
+        public String extensionSyncFilterCliId = "";
+        public String extensionSyncStatusFilter = "all";
     }
 
     private State state = new State();
@@ -311,6 +313,27 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         saveActiveState(active);
     }
 
+    public CliType getExtensionSyncFilterCli() {
+        return CliType.fromId(getActiveState().extensionSyncFilterCliId);
+    }
+
+    public void setExtensionSyncFilterCli(CliType cliType) {
+        State active = getActiveState();
+        active.extensionSyncFilterCliId = cliType == null ? "" : cliType.getId();
+        saveActiveState(active);
+    }
+
+    public String getExtensionSyncStatusFilter() {
+        String value = getActiveState().extensionSyncStatusFilter;
+        return value == null || value.isBlank() ? "all" : value;
+    }
+
+    public void setExtensionSyncStatusFilter(String filter) {
+        State active = getActiveState();
+        active.extensionSyncStatusFilter = filter == null || filter.isBlank() ? "all" : filter;
+        saveActiveState(active);
+    }
+
     public boolean isChinese() {
         return I18n.currentLanguage() == Language.ZH;
     }
@@ -341,6 +364,8 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         snapshot.providerFilterCliId = active.providerFilterCliId;
         snapshot.sessionFilterCliId = active.sessionFilterCliId;
         snapshot.promptFilterCliId = active.promptFilterCliId;
+        snapshot.extensionSyncFilterCliId = active.extensionSyncFilterCliId;
+        snapshot.extensionSyncStatusFilter = active.extensionSyncStatusFilter;
         return normalizeState(snapshot);
     }
 
@@ -402,6 +427,8 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         snapshot.providerFilterCliId = state.providerFilterCliId;
         snapshot.sessionFilterCliId = state.sessionFilterCliId;
         snapshot.promptFilterCliId = state.promptFilterCliId;
+        snapshot.extensionSyncFilterCliId = state.extensionSyncFilterCliId;
+        snapshot.extensionSyncStatusFilter = state.extensionSyncStatusFilter;
         return normalizeState(snapshot);
     }
 
@@ -436,6 +463,12 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         }
         if (normalized.promptFilterCliId == null) {
             normalized.promptFilterCliId = "";
+        }
+        if (normalized.extensionSyncFilterCliId == null) {
+            normalized.extensionSyncFilterCliId = "";
+        }
+        if (normalized.extensionSyncStatusFilter == null || normalized.extensionSyncStatusFilter.isBlank()) {
+            normalized.extensionSyncStatusFilter = "all";
         }
         return normalized;
     }

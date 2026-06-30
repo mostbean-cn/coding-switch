@@ -3,8 +3,10 @@ package com.github.mostbean.codingswitch.ui.settings;
 import com.github.mostbean.codingswitch.model.AiModelFormat;
 import com.github.mostbean.codingswitch.model.AiModelProfile;
 import com.github.mostbean.codingswitch.model.AiCompletionLengthLevel;
+import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.service.AiFeatureSettings;
 import com.github.mostbean.codingswitch.service.AiModelConnectionTestService;
+import com.github.mostbean.codingswitch.service.CcSwitchSyncService;
 import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.PluginDataStorage;
 import com.github.mostbean.codingswitch.service.PluginSettings;
@@ -57,9 +59,11 @@ import java.util.UUID;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.DefaultListCellRenderer;
+import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
@@ -69,11 +73,13 @@ import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.Scrollable;
+import javax.swing.JSplitPane;
 import javax.swing.JSpinner;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
+import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.UIManager;
@@ -147,6 +153,8 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         content.add(buildCompletionSection());
         content.add(Box.createVerticalStrut(12));
         content.add(buildPreferenceSection());
+        content.add(Box.createVerticalStrut(12));
+        content.add(buildExtensionSection());
         content.add(Box.createVerticalGlue());
         return content;
     }
@@ -247,6 +255,24 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         );
         storageRow.add(openStorageDirButton);
         section.add(storageRow);
+        return section;
+    }
+
+    private JPanel buildExtensionSection() {
+        JPanel section = createSection(I18n.t("settings.section.extension"));
+        section.add(wrappedHint(I18n.t("settings.hint.extensionSync")));
+
+        JPanel buttonRow = rowPanel();
+        buttonRow.add(new JBLabel(I18n.t("settings.label.extensionSync")));
+
+        JButton importButton = new JButton(I18n.t("settings.button.importFromCcSwitch"));
+        importButton.addActionListener(e -> showExtensionSyncDialog(CcSwitchSyncService.SyncDirection.TO_CODING_SWITCH));
+        buttonRow.add(importButton);
+
+        JButton exportButton = new JButton(I18n.t("settings.button.exportToCcSwitch"));
+        exportButton.addActionListener(e -> showExtensionSyncDialog(CcSwitchSyncService.SyncDirection.TO_CC_SWITCH));
+        buttonRow.add(exportButton);
+        section.add(buttonRow);
         return section;
     }
 
@@ -601,6 +627,10 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         JPanel row = rowPanel();
         row.add(checkBox);
         return row;
+    }
+
+    private void showExtensionSyncDialog(CcSwitchSyncService.SyncDirection direction) {
+        new ExtensionSyncDialog(direction).show();
     }
 
     private JPanel wrappedHint(String text) {
@@ -1522,6 +1552,392 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         }
 
         abstract boolean matchesFormat(AiModelFormat format);
+    }
+
+    private record ExtensionSyncListItem(CcSwitchSyncService.SyncItem item) {
+        @Override
+        public String toString() {
+            return item == null ? "" : item.name();
+        }
+    }
+
+    private static final class ExtensionSyncDialog extends DialogWrapper {
+
+        private final CcSwitchSyncService.SyncDirection direction;
+        private final List<CcSwitchSyncService.SyncItem> allItems = new ArrayList<>();
+        private final Set<String> selections = new HashSet<>();
+        private JComboBox<CliType> cliFilterCombo;
+        private JComboBox<String> statusFilterCombo;
+        private DefaultListModel<ExtensionSyncListItem> listModel;
+        private JList<ExtensionSyncListItem> itemList;
+        private JTextArea detailsArea;
+        private JBLabel statusLabel;
+        private Action syncCurrentAction;
+
+        private ExtensionSyncDialog(CcSwitchSyncService.SyncDirection direction) {
+            super(true);
+            this.direction = direction;
+            setTitle(direction == CcSwitchSyncService.SyncDirection.TO_CC_SWITCH
+                ? I18n.t("settings.dialog.extensionSync.exportTitle")
+                : I18n.t("settings.dialog.extensionSync.importTitle"));
+            setResizable(true);
+            init();
+        }
+
+        @Override
+        protected @Nullable JComponent createCenterPanel() {
+            JPanel panel = new JPanel(new BorderLayout(0, 10));
+            panel.setBorder(JBUI.Borders.empty(8));
+
+            JPanel filterRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+            filterRow.add(new JBLabel(I18n.t("settings.label.extensionSync")));
+            cliFilterCombo = new JComboBox<>();
+            cliFilterCombo.addItem(null);
+            cliFilterCombo.addItem(CliType.CLAUDE);
+            cliFilterCombo.addItem(CliType.CODEX);
+            cliFilterCombo.addItem(CliType.OPENCODE);
+            cliFilterCombo.setRenderer(new DefaultListCellRenderer() {
+                @Override
+                public Component getListCellRendererComponent(
+                    JList<?> list,
+                    Object value,
+                    int index,
+                    boolean isSelected,
+                    boolean cellHasFocus
+                ) {
+                    super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                    if (value == null) {
+                        setText(I18n.t("settings.option.allCli"));
+                    } else if (value instanceof CliType cliType) {
+                        setText(cliType.getDisplayName());
+                    }
+                    return this;
+                }
+            });
+            cliFilterCombo.setSelectedItem(PluginSettings.getInstance().getExtensionSyncFilterCli());
+            cliFilterCombo.addActionListener(e -> {
+                PluginSettings.getInstance().setExtensionSyncFilterCli((CliType) cliFilterCombo.getSelectedItem());
+                applyFilters();
+            });
+            filterRow.add(cliFilterCombo);
+
+            statusFilterCombo = new JComboBox<>(new String[] {
+                I18n.t("settings.option.syncStatus.all"),
+                I18n.t("settings.option.syncStatus.synced"),
+                I18n.t("settings.option.syncStatus.unsynced")
+            });
+            statusFilterCombo.setSelectedIndex(resolveStatusFilterIndex(
+                PluginSettings.getInstance().getExtensionSyncStatusFilter()
+            ));
+            statusFilterCombo.addActionListener(e -> {
+                PluginSettings.getInstance().setExtensionSyncStatusFilter(currentStatusFilterValue());
+                applyFilters();
+            });
+            filterRow.add(statusFilterCombo);
+            panel.add(filterRow, BorderLayout.NORTH);
+
+            listModel = new DefaultListModel<>();
+            itemList = new JList<>(listModel);
+            itemList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+            itemList.setVisibleRowCount(12);
+            itemList.setCellRenderer((list, value, index, isSelected, cellHasFocus) ->
+                renderItem(list, value, isSelected)
+            );
+            itemList.addListSelectionListener(e -> {
+                if (!e.getValueIsAdjusting()) {
+                    updateDetails();
+                }
+            });
+            itemList.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    int index = itemList.locationToIndex(e.getPoint());
+                    if (index >= 0 && itemList.getCellBounds(index, index).contains(e.getPoint())) {
+                        toggleSelection(listModel.getElementAt(index).item());
+                    }
+                }
+            });
+
+            detailsArea = new JTextArea(I18n.t("settings.sync.details.empty"));
+            detailsArea.setEditable(false);
+            detailsArea.setLineWrap(true);
+            detailsArea.setWrapStyleWord(true);
+            detailsArea.setBorder(JBUI.Borders.empty(8));
+
+            JSplitPane splitPane = new JSplitPane(
+                JSplitPane.HORIZONTAL_SPLIT,
+                new JBScrollPane(itemList),
+                new JBScrollPane(detailsArea)
+            );
+            splitPane.setResizeWeight(0.46);
+            splitPane.setPreferredSize(new Dimension(JBUI.scale(760), JBUI.scale(380)));
+            panel.add(splitPane, BorderLayout.CENTER);
+
+            statusLabel = new JBLabel(" ");
+            statusLabel.setForeground(JBColor.GRAY);
+            panel.add(statusLabel, BorderLayout.SOUTH);
+
+            reloadItems();
+            return panel;
+        }
+
+        @Override
+        protected Action[] createActions() {
+            syncCurrentAction = new AbstractAction(I18n.t("settings.button.syncCurrent")) {
+                @Override
+                public void actionPerformed(java.awt.event.ActionEvent e) {
+                    syncCurrentItem();
+                }
+            };
+            return new Action[] { getOKAction(), syncCurrentAction, getCancelAction() };
+        }
+
+        @Override
+        protected void doOKAction() {
+            List<CcSwitchSyncService.SyncItem> selected = selectedItems();
+            if (selected.isEmpty()) {
+                Messages.showInfoMessage(
+                    I18n.t("settings.dialog.extensionSync.noSelection"),
+                    I18n.t("settings.section.extension")
+                );
+                return;
+            }
+            syncItems(selected);
+        }
+
+        private void syncCurrentItem() {
+            CcSwitchSyncService.SyncItem current = selectedItem();
+            if (current == null) {
+                Messages.showInfoMessage(
+                    I18n.t("settings.dialog.extensionSync.noCurrentRow"),
+                    I18n.t("settings.section.extension")
+                );
+                return;
+            }
+            syncItems(List.of(current));
+        }
+
+        private void syncItems(List<CcSwitchSyncService.SyncItem> items) {
+            setActionsEnabled(false);
+            setStatus(I18n.t("settings.sync.status.syncing"), false);
+            ApplicationManager.getApplication().executeOnPooledThread(() -> {
+                CcSwitchSyncService.SyncResult result = CcSwitchSyncService.getInstance().syncItems(items);
+                SwingUtilities.invokeLater(() -> {
+                    setActionsEnabled(true);
+                    if (result.failureCount() == 0) {
+                        Messages.showInfoMessage(
+                            I18n.t("settings.dialog.extensionSync.success", result.successCount()),
+                            I18n.t("settings.section.extension")
+                        );
+                        close(OK_EXIT_CODE);
+                        return;
+                    }
+                    Messages.showWarningDialog(
+                        I18n.t(
+                            "settings.dialog.extensionSync.partial",
+                            result.successCount(),
+                            result.failureCount(),
+                            result.message()
+                        ),
+                        I18n.t("settings.section.extension")
+                    );
+                    reloadItems();
+                });
+            });
+        }
+
+        private void setActionsEnabled(boolean enabled) {
+            getOKAction().setEnabled(enabled);
+            getCancelAction().setEnabled(enabled);
+            if (syncCurrentAction != null) {
+                syncCurrentAction.setEnabled(enabled);
+            }
+        }
+
+        @Override
+        protected void init() {
+            super.init();
+            setOKButtonText(direction == CcSwitchSyncService.SyncDirection.TO_CC_SWITCH
+                ? I18n.t("settings.button.exportToCcSwitch")
+                : I18n.t("settings.button.importFromCcSwitch"));
+            setCancelButtonText(I18n.t("common.button.cancel"));
+        }
+
+        private void reloadItems() {
+            setStatus(I18n.t("settings.sync.status.loading"), false);
+            ApplicationManager.getApplication().executeOnPooledThread(() -> {
+                List<CcSwitchSyncService.SyncItem> items = CcSwitchSyncService.getInstance().loadSyncItems().stream()
+                    .filter(item -> item.direction() == direction)
+                    .toList();
+                SwingUtilities.invokeLater(() -> {
+                    allItems.clear();
+                    allItems.addAll(items);
+                    selections.clear();
+                    applyFilters();
+                    if (items.isEmpty() && !CcSwitchSyncService.getInstance().isCcSwitchAvailable()) {
+                        setStatus(I18n.t("settings.dialog.extensionSync.unavailable"), true);
+                    } else {
+                        setStatus(I18n.t("settings.sync.status.loaded", items.size()), false);
+                    }
+                });
+            });
+        }
+
+        private void applyFilters() {
+            if (listModel == null) {
+                return;
+            }
+            CcSwitchSyncService.SyncItem selected = selectedItem();
+            List<CcSwitchSyncService.SyncItem> filtered = CcSwitchSyncService.getInstance().filterItems(
+                allItems,
+                (CliType) cliFilterCombo.getSelectedItem(),
+                currentStatusFilterValue()
+            );
+            listModel.clear();
+            for (CcSwitchSyncService.SyncItem item : filtered) {
+                listModel.addElement(new ExtensionSyncListItem(item));
+            }
+            selectItem(selected);
+            updateDetails();
+        }
+
+        private void selectItem(@Nullable CcSwitchSyncService.SyncItem selected) {
+            if (selected != null) {
+                String key = itemKey(selected);
+                for (int i = 0; i < listModel.getSize(); i++) {
+                    if (itemKey(listModel.getElementAt(i).item()).equals(key)) {
+                        itemList.setSelectedIndex(i);
+                        return;
+                    }
+                }
+            }
+            if (listModel.getSize() > 0) {
+                itemList.setSelectedIndex(0);
+            }
+        }
+
+        private Component renderItem(
+            JList<? extends ExtensionSyncListItem> list,
+            ExtensionSyncListItem value,
+            boolean isSelected
+        ) {
+            JPanel panel = new JPanel(new BorderLayout(8, 0));
+            panel.setOpaque(true);
+            panel.setBackground(isSelected ? list.getSelectionBackground() : list.getBackground());
+            panel.setBorder(JBUI.Borders.empty(4, 6));
+
+            JCheckBox checkBox = new JCheckBox();
+            checkBox.setSelected(value != null && selections.contains(itemKey(value.item())));
+            checkBox.setOpaque(false);
+            panel.add(checkBox, BorderLayout.WEST);
+
+            JPanel textPanel = new JPanel();
+            textPanel.setOpaque(false);
+            textPanel.setLayout(new BoxLayout(textPanel, BoxLayout.Y_AXIS));
+
+            JLabel title = new JLabel(value == null ? "" : value.item().name());
+            title.setForeground(isSelected ? list.getSelectionForeground() : list.getForeground());
+            textPanel.add(title);
+
+            JLabel meta = new JLabel(value == null ? "" : itemMeta(value.item()));
+            meta.setForeground(isSelected ? list.getSelectionForeground() : JBColor.GRAY);
+            meta.setFont(meta.getFont().deriveFont(meta.getFont().getSize2D() - 1f));
+            textPanel.add(meta);
+
+            panel.add(textPanel, BorderLayout.CENTER);
+            return panel;
+        }
+
+        private void toggleSelection(CcSwitchSyncService.SyncItem item) {
+            String key = itemKey(item);
+            if (!selections.remove(key)) {
+                selections.add(key);
+            }
+            itemList.repaint();
+            updateDetails();
+        }
+
+        private void updateDetails() {
+            CcSwitchSyncService.SyncItem item = selectedItem();
+            if (item == null) {
+                detailsArea.setText(I18n.t("settings.sync.details.empty"));
+                return;
+            }
+            detailsArea.setText(formatDetails(item));
+            detailsArea.setCaretPosition(0);
+        }
+
+        private @Nullable CcSwitchSyncService.SyncItem selectedItem() {
+            ExtensionSyncListItem selected = itemList == null ? null : itemList.getSelectedValue();
+            return selected == null ? null : selected.item();
+        }
+
+        private List<CcSwitchSyncService.SyncItem> selectedItems() {
+            List<CcSwitchSyncService.SyncItem> selected = new ArrayList<>();
+            for (CcSwitchSyncService.SyncItem item : allItems) {
+                if (selections.contains(itemKey(item))) {
+                    selected.add(item);
+                }
+            }
+            return selected;
+        }
+
+        private String currentStatusFilterValue() {
+            int index = statusFilterCombo == null ? 0 : statusFilterCombo.getSelectedIndex();
+            return switch (index) {
+                case 1 -> "synced";
+                case 2 -> "unsynced";
+                default -> "all";
+            };
+        }
+
+        private int resolveStatusFilterIndex(String filterValue) {
+            return switch (CcSwitchSyncService.getInstance().normalizeStatusFilter(filterValue)) {
+                case "synced" -> 1;
+                case "unsynced" -> 2;
+                default -> 0;
+            };
+        }
+
+        private String formatDetails(CcSwitchSyncService.SyncItem item) {
+            return I18n.t("settings.sync.details.template",
+                item.name(),
+                item.cliType().getDisplayName(),
+                CcSwitchSyncService.getInstance().scopeDisplayName(item.scope()),
+                item.direction() == CcSwitchSyncService.SyncDirection.TO_CC_SWITCH
+                    ? I18n.t("settings.sync.direction.toCcSwitch")
+                    : I18n.t("settings.sync.direction.toCodingSwitch"),
+                item.synced()
+                    ? I18n.t("settings.sync.status.synced")
+                    : I18n.t("settings.sync.status.unsynced"),
+                selections.contains(itemKey(item))
+                    ? I18n.t("settings.sync.selected.yes")
+                    : I18n.t("settings.sync.selected.no")
+            );
+        }
+
+        private String itemMeta(CcSwitchSyncService.SyncItem item) {
+            String status = item.synced()
+                ? I18n.t("settings.sync.status.synced")
+                : I18n.t("settings.sync.status.unsynced");
+            return item.cliType().getDisplayName()
+                + " · "
+                + CcSwitchSyncService.getInstance().scopeDisplayName(item.scope())
+                + " · "
+                + status;
+        }
+
+        private void setStatus(String text, boolean error) {
+            if (statusLabel == null) {
+                return;
+            }
+            statusLabel.setText(text == null || text.isBlank() ? " " : text);
+            statusLabel.setForeground(error ? JBColor.RED : JBColor.GRAY);
+        }
+
+        private String itemKey(CcSwitchSyncService.SyncItem item) {
+            return item.scope().name() + ":" + item.direction().name() + ":" + item.sourceId();
+        }
     }
 
     private static final class VerticalScrollablePanel extends JPanel implements Scrollable {

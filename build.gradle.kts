@@ -29,6 +29,9 @@ dependencies {
     // TOML processing (for Codex config.toml)
     implementation(libs.toml4j)
 
+    // SQLite access (for cc-switch data sync)
+    implementation(libs.sqlite)
+
     // Test
     testImplementation(libs.junit)
 
