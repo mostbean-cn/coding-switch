@@ -16,6 +16,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.intellij.icons.AllIcons;
+import com.intellij.ide.BrowserUtil;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.actionSystem.KeyboardShortcut;
@@ -96,6 +97,7 @@ import org.jetbrains.annotations.Nullable;
 public class AiFeaturesConfigurable implements SearchableConfigurable {
 
     private static final Gson PREVIEW_GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final String CC_SWITCH_OFFICIAL_URL = "https://ccswitch.io";
 
     private JCheckBox codeCompletionEnabled;
     private JCheckBox gitCommitMessageEnabled;
@@ -273,6 +275,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         JPanel section = createSection(I18n.t("settings.section.extension"));
         extensionSection = section;
         section.add(wrappedHint(I18n.t("settings.hint.extensionSync")));
+        section.add(linkRow(CC_SWITCH_OFFICIAL_URL));
 
         JPanel buttonRow = rowPanel();
         buttonRow.add(new JBLabel(I18n.t("settings.label.extensionSync")));
@@ -675,6 +678,22 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         hint.setBorder(JBUI.Borders.empty());
         hint.setColumns(20);
         row.add(hint, BorderLayout.CENTER);
+        return row;
+    }
+
+    private JPanel linkRow(String url) {
+        JPanel row = rowPanel();
+        row.setBorder(JBUI.Borders.empty(0, 10, 4, 10));
+
+        JBLabel link = new JBLabel("<html><a href=\"" + url + "\">" + url + "</a></html>");
+        link.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        link.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                BrowserUtil.browse(url);
+            }
+        });
+        row.add(link);
         return row;
     }
 

@@ -137,7 +137,7 @@ public final class I18n {
                 m.put("settings.hint.cliSelection", "用于控制本页“版本检测”和“安装/更新命令”中显示哪些 CLI。未选中时默认显示全部 CLI。");
                 m.put("settings.hint.codeCompletion", "配置 IDE 内代码补全、补全模型、Git 提交信息模型、自动触发和手动触发快捷键。");
                 m.put("settings.hint.ccSwitch", "打开 IDE 设置页底部的“拓展功能”，配置与 cc-switch 的数据导入导出。");
-                m.put("settings.hint.extensionSync", "同步 Claude Code、Codex、OpenCode 与 cc-switch 之间已保存的非订阅配置。cc-switch 未安装或未初始化时不会创建数据库，也不会执行同步。");
+                m.put("settings.hint.extensionSync", "同步 Claude Code、Codex、OpenCode 与 cc-switch 之间已保存的非订阅配置。");
                 m.put("settings.option.allCli", "全部 CLI");
                 m.put("settings.option.syncStatus.all", "全部状态");
                 m.put("settings.option.syncStatus.synced", "已同步");
@@ -755,7 +755,7 @@ public final class I18n {
                 m.put("settings.hint.cliSelection", "Controls which CLI entries are shown in the version check and install/update command sections on this page. If none are selected, all CLIs are shown by default.");
                 m.put("settings.hint.codeCompletion", "Configure IDE code completion, completion models, Git commit message models, automatic triggering, and manual trigger shortcuts.");
                 m.put("settings.hint.ccSwitch", "Open the Extensions section at the bottom of the IDE settings page to configure cc-switch data import and export.");
-                m.put("settings.hint.extensionSync", "Sync saved non-subscription configurations between Claude Code, Codex, OpenCode, and cc-switch. No database is created when cc-switch is not installed or initialized.");
+                m.put("settings.hint.extensionSync", "Sync saved non-subscription configurations between Claude Code, Codex, OpenCode, and cc-switch.");
                 m.put("settings.option.allCli", "All CLI");
                 m.put("settings.option.syncStatus.all", "All Status");
                 m.put("settings.option.syncStatus.synced", "Synced");
