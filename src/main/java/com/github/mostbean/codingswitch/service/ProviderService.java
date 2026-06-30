@@ -584,7 +584,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         }
 
         Set<String> managedProviderNames = extractManagedProviderNames(managedProviderToml);
-        Set<String> managedRootKeys = Set.of(
+        Set<String> managedRootKeys = new HashSet<>(Set.of(
                 "model_provider",
                 "model",
                 "model_reasoning_effort",
@@ -595,7 +595,8 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
                 "fast_mode",
                 "disable_response_storage",
                 "approval_policy",
-                "sandbox_mode");
+                "sandbox_mode"));
+        managedRootKeys.addAll(extractRootTomlKeys(managedProviderToml));
 
         StringBuilder out = new StringBuilder();
         String currentSection = null;
@@ -660,6 +661,26 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             }
         }
         return names;
+    }
+
+    private static Set<String> extractRootTomlKeys(String toml) {
+        Set<String> keys = new HashSet<>();
+        if (toml == null || toml.isBlank()) {
+            return keys;
+        }
+        String currentSection = null;
+        for (String rawLine : toml.split("\n")) {
+            String line = rawLine.trim();
+            if (line.startsWith("[") && line.endsWith("]")) {
+                currentSection = line.substring(1, line.length() - 1).trim();
+                continue;
+            }
+            String key = parseTomlKey(rawLine);
+            if (currentSection == null && key != null) {
+                keys.add(key);
+            }
+        }
+        return keys;
     }
 
     private static boolean isManagedProviderSection(String section, Set<String> managedProviderNames) {
