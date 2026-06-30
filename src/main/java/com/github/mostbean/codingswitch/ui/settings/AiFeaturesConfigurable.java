@@ -1708,14 +1708,30 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
                 );
                 return;
             }
-            syncItems(selected);
+            SyncConfirmResult confirmResult = confirmSync(selected);
+            if (!confirmResult.confirmed()) {
+                return;
+            }
+            syncItems(selected, confirmResult.enableCommonConfig());
         }
 
-        private void syncItems(List<CcSwitchSyncService.SyncItem> items) {
+        private SyncConfirmResult confirmSync(List<CcSwitchSyncService.SyncItem> selected) {
+            int overwriteCount = direction == CcSwitchSyncService.SyncDirection.TO_CC_SWITCH
+                ? CcSwitchSyncService.getInstance().countExistingExportTargets(selected)
+                : CcSwitchSyncService.getInstance().countExistingImportTargets(selected);
+            SyncConfirmDialog dialog = new SyncConfirmDialog(direction, selected.size(), overwriteCount);
+            boolean confirmed = dialog.showAndGet();
+            return new SyncConfirmResult(confirmed, dialog.isCommonConfigEnabled());
+        }
+
+        private void syncItems(List<CcSwitchSyncService.SyncItem> items, boolean enableCcSwitchCommonConfig) {
             setActionsEnabled(false);
             setStatus(I18n.t("settings.sync.status.syncing"), false);
             ApplicationManager.getApplication().executeOnPooledThread(() -> {
-                CcSwitchSyncService.SyncResult result = CcSwitchSyncService.getInstance().syncItems(items);
+                CcSwitchSyncService.SyncResult result = CcSwitchSyncService.getInstance().syncItems(
+                    items,
+                    enableCcSwitchCommonConfig
+                );
                 SwingUtilities.invokeLater(() -> {
                     setActionsEnabled(true);
                     if (result.failureCount() == 0) {
@@ -2031,6 +2047,58 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
         private String itemKey(CcSwitchSyncService.SyncItem item) {
             return item.scope().name() + ":" + item.direction().name() + ":" + item.sourceId();
+        }
+
+        private record SyncConfirmResult(boolean confirmed, boolean enableCommonConfig) {
+        }
+
+        private static final class SyncConfirmDialog extends DialogWrapper {
+
+            private final CcSwitchSyncService.SyncDirection direction;
+            private final int totalCount;
+            private final int overwriteCount;
+            private JCheckBox commonConfigCheckBox;
+
+            private SyncConfirmDialog(
+                CcSwitchSyncService.SyncDirection direction,
+                int totalCount,
+                int overwriteCount
+            ) {
+                super(true);
+                this.direction = direction;
+                this.totalCount = totalCount;
+                this.overwriteCount = overwriteCount;
+                setTitle(direction == CcSwitchSyncService.SyncDirection.TO_CC_SWITCH
+                    ? I18n.t("settings.dialog.extensionSync.exportConfirmTitle")
+                    : I18n.t("settings.dialog.extensionSync.importConfirmTitle"));
+                init();
+                setOKButtonText(direction == CcSwitchSyncService.SyncDirection.TO_CC_SWITCH
+                    ? I18n.t("settings.button.exportToCcSwitch")
+                    : I18n.t("settings.button.importFromCcSwitch"));
+                setCancelButtonText(I18n.t("common.button.cancel"));
+            }
+
+            @Override
+            protected @Nullable JComponent createCenterPanel() {
+                JPanel panel = new JPanel(new BorderLayout(0, 8));
+                panel.setBorder(JBUI.Borders.empty(8));
+                panel.add(new JBLabel(I18n.t(
+                    direction == CcSwitchSyncService.SyncDirection.TO_CC_SWITCH
+                        ? "settings.dialog.extensionSync.exportConfirm"
+                        : "settings.dialog.extensionSync.importConfirm",
+                    totalCount,
+                    overwriteCount
+                )), BorderLayout.NORTH);
+                if (direction == CcSwitchSyncService.SyncDirection.TO_CC_SWITCH) {
+                    commonConfigCheckBox = new JCheckBox(I18n.t("settings.dialog.extensionSync.enableCommonConfig"));
+                    panel.add(commonConfigCheckBox, BorderLayout.CENTER);
+                }
+                return panel;
+            }
+
+            private boolean isCommonConfigEnabled() {
+                return commonConfigCheckBox != null && commonConfigCheckBox.isSelected();
+            }
         }
     }
 

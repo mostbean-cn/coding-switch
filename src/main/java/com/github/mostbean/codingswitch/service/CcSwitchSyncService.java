@@ -152,11 +152,15 @@ public final class CcSwitchSyncService {
     }
 
     public SyncResult syncItems(List<SyncItem> items) {
+        return syncItems(items, false);
+    }
+
+    public SyncResult syncItems(List<SyncItem> items, boolean enableCcSwitchCommonConfig) {
         int success = 0;
         List<String> failures = new ArrayList<>();
         for (SyncItem item : items) {
             try {
-                syncItem(item);
+                syncItem(item, enableCcSwitchCommonConfig);
                 success++;
             } catch (Exception e) {
                 LOG.warn("Failed to sync item: " + item.name() + " / " + item.cliType(), e);
@@ -167,12 +171,16 @@ public final class CcSwitchSyncService {
     }
 
     public void syncItem(SyncItem item) throws IOException, SQLException {
+        syncItem(item, false);
+    }
+
+    private void syncItem(SyncItem item, boolean enableCcSwitchCommonConfig) throws IOException, SQLException {
         requireCcSwitchAvailable();
         if (item.scope() != SyncScope.SAVED_PROVIDER) {
             throw new IOException("Unsupported sync scope: " + item.scope());
         }
         if (item.direction() == SyncDirection.TO_CC_SWITCH) {
-            syncLocalProviderToCcSwitch(item.sourceId());
+            syncLocalProviderToCcSwitch(item.sourceId(), enableCcSwitchCommonConfig);
         } else {
             importCcSwitchProvider(item.sourceId());
         }
@@ -187,6 +195,50 @@ public final class CcSwitchSyncService {
 
     public String scopeDisplayName(SyncScope scope) {
         return I18n.t("settings.sync.scope.saved");
+    }
+
+    public int countExistingExportTargets(List<SyncItem> items) {
+        if (items == null || items.isEmpty() || !isCcSwitchAvailable()) {
+            return 0;
+        }
+        List<LocalProviderRecord> localProviders = loadLocalProviders();
+        List<RemoteProviderRecord> remoteProviders = loadRemoteProviders();
+        int count = 0;
+        for (SyncItem item : items) {
+            if (item.direction() != SyncDirection.TO_CC_SWITCH || item.scope() != SyncScope.SAVED_PROVIDER) {
+                continue;
+            }
+            LocalProviderRecord local = localProviders.stream()
+                    .filter(source -> Objects.equals(item.sourceId(), source.id()))
+                    .findFirst()
+                    .orElse(null);
+            if (local != null && findRemoteProviderMatch(remoteProviders, local) != null) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    public int countExistingImportTargets(List<SyncItem> items) {
+        if (items == null || items.isEmpty() || !isCcSwitchAvailable()) {
+            return 0;
+        }
+        List<LocalProviderRecord> localProviders = loadLocalProviders();
+        List<RemoteProviderRecord> remoteProviders = loadRemoteProviders();
+        int count = 0;
+        for (SyncItem item : items) {
+            if (item.direction() != SyncDirection.TO_CODING_SWITCH || item.scope() != SyncScope.SAVED_PROVIDER) {
+                continue;
+            }
+            RemoteProviderRecord remote = remoteProviders.stream()
+                    .filter(source -> Objects.equals(item.sourceId(), source.id()))
+                    .findFirst()
+                    .orElse(null);
+            if (remote != null && findLocalProviderMatch(localProviders, remote) != null) {
+                count++;
+            }
+        }
+        return count;
     }
 
     public JsonObject loadSourceSettingsConfig(SyncItem item) throws IOException, SQLException {
@@ -211,7 +263,7 @@ public final class CcSwitchSyncService {
         }
     }
 
-    private void syncLocalProviderToCcSwitch(String providerId) throws IOException, SQLException {
+    private void syncLocalProviderToCcSwitch(String providerId, boolean enableCcSwitchCommonConfig) throws IOException, SQLException {
         LocalProviderRecord local = loadLocalProviders().stream()
                 .filter(source -> Objects.equals(providerId, source.id()))
                 .findFirst()
@@ -224,6 +276,9 @@ public final class CcSwitchSyncService {
             long sortIndex = existing != null ? existing.sortIndex() : nextSortIndex(connection, local.cliType());
             String targetId = existing != null ? existing.id() : local.id();
             String metaJson = existing != null ? existing.metaJson() : "{}";
+            if (enableCcSwitchCommonConfig) {
+                metaJson = withCommonConfigEnabled(metaJson);
+            }
 
             upsertRemoteProvider(connection, targetId, local, createdAt, sortIndex, metaJson);
         }
@@ -550,6 +605,15 @@ public final class CcSwitchSyncService {
             LOG.warn("Failed to parse JSON object", e);
             return null;
         }
+    }
+
+    private String withCommonConfigEnabled(String metaJson) {
+        JsonObject meta = parseJsonObject(nullableText(metaJson, "{}"));
+        if (meta == null) {
+            meta = new JsonObject();
+        }
+        meta.addProperty("commonConfigEnabled", true);
+        return GSON.toJson(meta);
     }
 
     private @Nullable CliType mapRemoteCliType(@Nullable String appType) {

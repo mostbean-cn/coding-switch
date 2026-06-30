@@ -152,6 +152,11 @@ public final class I18n {
                 m.put("settings.dialog.extensionSync.exportTitle", "导出到 cc-switch");
                 m.put("settings.dialog.extensionSync.noSelection", "请先勾选需要同步的配置。");
                 m.put("settings.dialog.extensionSync.unavailable", "未检测到 cc-switch 数据库，请先安装并初始化 cc-switch。");
+                m.put("settings.dialog.extensionSync.exportConfirmTitle", "确认导出到 cc-switch");
+                m.put("settings.dialog.extensionSync.exportConfirm", "即将导出 {0} 条配置，其中 {1} 条已导出配置将覆盖更新。是否继续？");
+                m.put("settings.dialog.extensionSync.importConfirmTitle", "确认从 cc-switch 导入");
+                m.put("settings.dialog.extensionSync.importConfirm", "即将导入 {0} 条配置，其中 {1} 条本地已有配置将覆盖更新。是否继续？");
+                m.put("settings.dialog.extensionSync.enableCommonConfig", "启用 cc-switch 写入通用配置选项");
                 m.put("settings.dialog.extensionSync.success", "同步完成，成功 {0} 项。");
                 m.put("settings.dialog.extensionSync.partial", "同步完成，成功 {0} 项，失败 {1} 项。\n\n失败详情：\n{2}");
                 m.put("settings.githubToken.title", "设置");
@@ -751,6 +756,11 @@ public final class I18n {
                 m.put("settings.dialog.extensionSync.exportTitle", "Export to cc-switch");
                 m.put("settings.dialog.extensionSync.noSelection", "Select at least one configuration to sync.");
                 m.put("settings.dialog.extensionSync.unavailable", "cc-switch database was not found. Install and initialize cc-switch first.");
+                m.put("settings.dialog.extensionSync.exportConfirmTitle", "Confirm Export to cc-switch");
+                m.put("settings.dialog.extensionSync.exportConfirm", "Export {0} configuration(s). {1} already-exported configuration(s) will be overwritten. Continue?");
+                m.put("settings.dialog.extensionSync.importConfirmTitle", "Confirm Import from cc-switch");
+                m.put("settings.dialog.extensionSync.importConfirm", "Import {0} configuration(s). {1} existing local configuration(s) will be overwritten. Continue?");
+                m.put("settings.dialog.extensionSync.enableCommonConfig", "Enable cc-switch write common config option");
                 m.put("settings.dialog.extensionSync.success", "Sync completed. {0} item(s) succeeded.");
                 m.put("settings.dialog.extensionSync.partial", "Sync completed. Success: {0}, Failed: {1}.\n\nFailure details:\n{2}");
                 m.put("settings.githubToken.title", "Settings");
