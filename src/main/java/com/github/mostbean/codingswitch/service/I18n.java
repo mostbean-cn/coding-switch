@@ -120,6 +120,7 @@ public final class I18n {
                 m.put("settings.label.codeCompletion", "代码补全:");
                 m.put("settings.label.ccSwitch", "CC Switch:");
                 m.put("settings.label.extensionSync", "与 cc-switch 数据同步:");
+                m.put("settings.label.ccSwitchOfficial", "cc-switch官网:");
                 m.put("settings.button.show", "显示");
                 m.put("settings.button.hide", "隐藏");
                 m.put("settings.button.configure", "功能配置");
@@ -738,6 +739,7 @@ public final class I18n {
                 m.put("settings.label.codeCompletion", "Code Completion:");
                 m.put("settings.label.ccSwitch", "CC Switch:");
                 m.put("settings.label.extensionSync", "cc-switch Data Sync:");
+                m.put("settings.label.ccSwitchOfficial", "cc-switch official site:");
                 m.put("settings.button.show", "Show");
                 m.put("settings.button.hide", "Hide");
                 m.put("settings.button.configure", "Feature Config");

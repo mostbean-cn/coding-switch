@@ -274,8 +274,11 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     private JPanel buildExtensionSection() {
         JPanel section = createSection(I18n.t("settings.section.extension"));
         extensionSection = section;
-        section.add(wrappedHint(I18n.t("settings.hint.extensionSync")));
-        section.add(linkRow(CC_SWITCH_OFFICIAL_URL));
+        section.add(wrappedHintWithLink(
+            I18n.t("settings.hint.extensionSync"),
+            I18n.t("settings.label.ccSwitchOfficial"),
+            CC_SWITCH_OFFICIAL_URL
+        ));
 
         JPanel buttonRow = rowPanel();
         buttonRow.add(new JBLabel(I18n.t("settings.label.extensionSync")));
@@ -663,28 +666,23 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         new ExtensionSyncDialog(direction).show();
     }
 
-    private JPanel wrappedHint(String text) {
-        JPanel row = new JPanel(new BorderLayout());
+    private JPanel wrappedHintWithLink(String text, String linkLabel, String url) {
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         row.setBorder(JBUI.Borders.empty(0, 10, 8, 10));
         row.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JTextArea hint = new JTextArea(text);
         hint.setEditable(false);
-        hint.setLineWrap(true);
-        hint.setWrapStyleWord(true);
+        hint.setLineWrap(false);
         hint.setOpaque(false);
         hint.setFocusable(false);
         hint.setForeground(JBColor.GRAY);
         hint.setBorder(JBUI.Borders.empty());
-        hint.setColumns(20);
-        row.add(hint, BorderLayout.CENTER);
-        return row;
-    }
+        row.add(hint);
 
-    private JPanel linkRow(String url) {
-        JPanel row = rowPanel();
-        row.setBorder(JBUI.Borders.empty(0, 10, 4, 10));
-
+        JBLabel label = new JBLabel(" " + linkLabel + " ");
+        label.setForeground(JBColor.GRAY);
+        row.add(label);
         JBLabel link = new JBLabel("<html><a href=\"" + url + "\">" + url + "</a></html>");
         link.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         link.addMouseListener(new MouseAdapter() {
