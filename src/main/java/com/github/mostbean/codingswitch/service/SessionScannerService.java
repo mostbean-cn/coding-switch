@@ -853,102 +853,76 @@ public final class SessionScannerService {
 
     private List<SessionMeta> scanAntigravitySessions() {
         List<SessionMeta> sessions = new ArrayList<>();
-        
-        // 只扫描 CLI 目录
-        Path cliBrainDir = Path.of(System.getProperty("user.home"), ".gemini", "antigravity-cli", "brain");
-        scanAntigravityDir(cliBrainDir, "CLI", sessions);
-        
+
+        // 会话正文自 2026 年 6 月起存于 conversations/<id>.db（SQLite），
+        // 旧版会话为加密的 conversations/<id>.pb；brain/<id> 仅保留工件（用于推断项目目录）。
+        Path cliRoot = Path.of(System.getProperty("user.home"), ".gemini", "antigravity-cli");
+        scanAntigravityConversations(cliRoot.resolve("conversations"), cliRoot.resolve("brain"), "CLI", sessions);
+
         return sessions;
     }
 
-    private void scanAntigravityDir(Path brainDir, String sourceLabel, List<SessionMeta> resultList) {
-        if (!Files.isDirectory(brainDir)) {
+    private void scanAntigravityConversations(
+            Path conversationsDir, Path brainDir, String sourceLabel, List<SessionMeta> resultList) {
+        if (!Files.isDirectory(conversationsDir)) {
             return;
         }
 
-        try (Stream<Path> subDirs = Files.list(brainDir)) {
-            List<Path> paths = subDirs.filter(Files::isDirectory).toList();
-            for (Path path : paths) {
-                String dirName = path.getFileName().toString();
-                Path logFile = path.resolve(".system_generated").resolve("logs").resolve("transcript.jsonl");
-                if (!Files.exists(logFile)) {
-                    logFile = path.resolve("transcript.jsonl");
-                }
-                if (!Files.exists(logFile)) {
-                    continue;
-                }
-
-                SessionMeta meta = parseAntigravitySession(dirName, path, logFile, sourceLabel);
+        try (Stream<Path> files = Files.list(conversationsDir)) {
+            List<Path> convFiles = files.filter(Files::isRegularFile)
+                    .filter(p -> {
+                        String name = p.getFileName().toString();
+                        return name.endsWith(".db") || name.endsWith(".pb");
+                    })
+                    .toList();
+            for (Path file : convFiles) {
+                SessionMeta meta = parseAntigravitySession(file, brainDir, sourceLabel);
                 if (meta != null) {
                     resultList.add(meta);
                 }
             }
         } catch (IOException e) {
-            LOG.warn("Failed to scan Antigravity sessions in: " + brainDir, e);
+            LOG.warn("Failed to scan Antigravity conversations in: " + conversationsDir, e);
         }
     }
 
-    private SessionMeta parseAntigravitySession(String sessionId, Path sessionDir, Path logFile, String sourceLabel) {
+    private SessionMeta parseAntigravitySession(Path convFile, Path brainDir, String sourceLabel) {
         try {
-            List<String> headLines = readHeadLines(logFile, 15);
-            List<String> tailLines = readTailLines(logFile, 30);
+            String fileName = convFile.getFileName().toString();
+            boolean encrypted = fileName.endsWith(".pb");
+            String sessionId = fileName.replaceFirst("\\.(db|pb)$", "");
+
+            String summary = null;
+            if (!encrypted) {
+                String firstUser = AntigravityDbParser.readFirstUserText(convFile);
+                if (firstUser != null && !firstUser.isBlank()) {
+                    String cleaned = cleanAntigravityText(firstUser);
+                    if (cleaned != null && !cleaned.isBlank()) {
+                        summary = truncate(cleaned, 160);
+                    }
+                }
+            }
+
+            Long createdAt = null;
+            Long lastActiveAt = null;
+            try {
+                BasicFileAttributes attrs = Files.readAttributes(convFile, BasicFileAttributes.class);
+                createdAt = attrs.creationTime().toMillis();
+                lastActiveAt = attrs.lastModifiedTime().toMillis();
+            } catch (IOException ignored) {}
 
             String projectDir = null;
-            Long createdAt = null;
-
-            for (String line : headLines) {
-                JsonObject obj = parseJsonLine(line);
-                if (obj == null) continue;
-                if (createdAt == null && obj.has("created_at")) {
-                    createdAt = parseTimestamp(obj.get("created_at"));
+            if (brainDir != null) {
+                Path sessionBrainDir = brainDir.resolve(sessionId);
+                if (Files.isDirectory(sessionBrainDir)) {
+                    projectDir = inferProjectDirFromArtifacts(sessionBrainDir);
                 }
-                if (projectDir == null) {
-                    projectDir = findProjectDirInJson(obj);
-                }
-            }
-
-            Long lastActiveAt = null;
-            String summary = null;
-            for (int i = tailLines.size() - 1; i >= 0; i--) {
-                JsonObject obj = parseJsonLine(tailLines.get(i));
-                if (obj == null) continue;
-                if (lastActiveAt == null && obj.has("created_at")) {
-                    lastActiveAt = parseTimestamp(obj.get("created_at"));
-                }
-                if (summary == null && obj.has("content")) {
-                    String content = obj.get("content").getAsString();
-                    String text = cleanAntigravityText(content);
-                    if (text != null && !text.isBlank()) {
-                        summary = truncate(text, 160);
-                    }
-                }
-                if (projectDir == null) {
-                    projectDir = findProjectDirInJson(obj);
-                }
-            }
-
-            if (createdAt == null || lastActiveAt == null) {
-                try {
-                    BasicFileAttributes attrs = Files.readAttributes(logFile, BasicFileAttributes.class);
-                    if (createdAt == null) {
-                        createdAt = attrs.creationTime().toMillis();
-                    }
-                    if (lastActiveAt == null) {
-                        lastActiveAt = attrs.lastModifiedTime().toMillis();
-                    }
-                } catch (IOException ignored) {}
-            }
-
-            if (projectDir == null) {
-                projectDir = inferProjectDirFromArtifacts(sessionDir);
             }
 
             if (summary == null || summary.isBlank()) {
-                if (headLines.isEmpty() && tailLines.isEmpty()) {
-                    summary = "Antigravity CLI Session (Native CLI - No transcript available)";
-                } else {
-                    summary = "Antigravity CLI Session: " + sessionId;
-                }
+                summary = encrypted
+                        ? "旧版加密会话（.pb），无法预览内容"
+                        : "Antigravity CLI 会话: " + sessionId;
             }
 
             SessionMeta meta = new SessionMeta("agy", sessionId);
@@ -957,13 +931,13 @@ public final class SessionScannerService {
             meta.setProjectDir(projectDir);
             meta.setCreatedAt(createdAt);
             meta.setLastActiveAt(lastActiveAt != null ? lastActiveAt : createdAt);
-            meta.setSourcePath(logFile.toAbsolutePath().toString());
-            meta.setDeletePath(sessionDir.toAbsolutePath().toString());
+            meta.setSourcePath(convFile.toAbsolutePath().toString());
+            meta.setDeletePath(convFile.toAbsolutePath().toString());
             meta.setResumeCommand("agy --conversation " + sessionId);
             meta.setClientSource(sourceLabel);
             return meta;
         } catch (Exception e) {
-            LOG.debug("Failed to parse Antigravity session: " + logFile, e);
+            LOG.debug("Failed to parse Antigravity session: " + convFile, e);
             return null;
         }
     }
@@ -1111,43 +1085,36 @@ public final class SessionScannerService {
     }
 
     private List<SessionMessage> loadAntigravityMessages(Path file) {
-        List<SessionMessage> messages = new ArrayList<>();
-        try (BufferedReader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                JsonObject obj = parseJsonLine(line);
-                if (obj == null) continue;
-                String type = getStr(obj, "type", "");
-                String source = getStr(obj, "source", "");
-                String content = getStr(obj, "content", "");
+        String fileName = file.getFileName().toString();
 
-                if ("USER_INPUT".equals(type) && "USER_EXPLICIT".equals(source)) {
-                    String cleanText = cleanAntigravityText(content);
-                    Long ts = obj.has("created_at") ? parseTimestamp(obj.get("created_at")) : null;
-                    messages.add(new SessionMessage("user", cleanText, ts));
-                }
-                else if ("PLANNER_RESPONSE".equals(type) && "MODEL".equals(source)) {
-                    String cleanText = cleanAntigravityText(content);
-                    if (cleanText.isBlank() && obj.has("tool_calls")) {
-                        cleanText = formatToolCallsForDisplay(obj.getAsJsonArray("tool_calls"));
-                    }
-                    if (cleanText.isBlank()) {
-                        continue;
-                    }
-                    Long ts = obj.has("created_at") ? parseTimestamp(obj.get("created_at")) : null;
-                    messages.add(new SessionMessage("assistant", cleanText, ts));
-                }
+        // 旧版加密会话（.pb）无法解析内容
+        if (fileName.endsWith(".pb")) {
+            List<SessionMessage> messages = new ArrayList<>();
+            String sessionId = fileName.replaceFirst("\\.pb$", "");
+            messages.add(new SessionMessage(
+                    "system",
+                    "该会话为 Antigravity CLI 早期版本（2026 年 6 月之前）生成的加密会话，"
+                            + "本地文件（.pb）经过加密，无法解析预览。\n\n"
+                            + "可在终端使用以下命令继续该会话查看内容：\nagy --conversation " + sessionId,
+                    System.currentTimeMillis()));
+            return messages;
+        }
+
+        // 新版会话（.db，SQLite）：逐步骤还原用户输入与模型回复
+        List<SessionMessage> messages = new ArrayList<>();
+        for (SessionMessage raw : AntigravityDbParser.loadMessages(file)) {
+            String cleaned = cleanAntigravityText(raw.getContent());
+            if (cleaned == null || cleaned.isBlank()) {
+                continue;
             }
-        } catch (IOException e) {
-            LOG.warn("Failed to load Antigravity messages: " + file, e);
+            messages.add(new SessionMessage(raw.getRole(), cleaned, raw.getTimestamp()));
         }
 
         if (messages.isEmpty()) {
-            boolean isCliSource = file.toAbsolutePath().toString().contains("antigravity-cli");
-            String tip = isCliSource
-                    ? "该会话为 Antigravity CLI 本地运行的 Native 会话，其详细内容保存在本地加密/二进制文件中。"
-                    : "未找到对话内容（可能由于会话正在进行中，或者日志文件尚未刷写）。";
-            messages.add(new SessionMessage("system", tip, System.currentTimeMillis()));
+            messages.add(new SessionMessage(
+                    "system",
+                    "未找到对话内容（可能由于会话正在进行中，或者数据库尚未写入完整）。",
+                    System.currentTimeMillis()));
         }
 
         return messages;
