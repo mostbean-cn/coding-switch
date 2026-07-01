@@ -91,10 +91,6 @@ public class SettingsPanel extends JPanel {
 
     // CLI Quick Launch UI components
     private JComboBox<String> cliQuickLaunchEnabledCombo;
-    private JTable cliCommandTable;
-    private DefaultTableModel cliCommandTableModel;
-    private JScrollPane cliCommandTableScrollPane;
-    private JPanel cliCommandTableContainer;
     private JButton configCliCommandBtn;
     private JButton featureSelectionButton;
     private JButton cliSelectionButton;
@@ -453,20 +449,7 @@ public class SettingsPanel extends JPanel {
         storageRow.add(openStorageDirBtn);
         content.add(storageRow);
 
-        // ========== 3. 更多设置 ==========
-        JPanel moreSettingsRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
-        moreSettingsRow.add(createInfoHintIcon(
-            I18n.t("settings.hint.moreSettings"),
-            I18n.t("settings.label.moreSettings")
-        ));
-        moreSettingsRow.add(new JBLabel(I18n.t("settings.label.moreSettings")));
-
-        JButton moreSettingsConfigBtn = new JButton(I18n.t("settings.button.codeCompletionConfig"));
-        moreSettingsConfigBtn.addActionListener(e -> openMoreSettings());
-        moreSettingsRow.add(moreSettingsConfigBtn);
-        content.add(moreSettingsRow);
-
-        // ========== 4. CLI 快速启动 ==========
+        // ========== 3. CLI 快速启动 ==========
         JPanel cliQuickLaunchRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
         cliQuickLaunchRow.add(createInfoHintIcon(
             I18n.t("settings.hint.cliQuickLaunch"),
@@ -496,256 +479,36 @@ public class SettingsPanel extends JPanel {
         cliQuickLaunchRow.add(cliQuickLaunchEnabledCombo);
 
         configCliCommandBtn = new JButton(I18n.t("settings.button.configCliCommand"));
-        configCliCommandBtn.addActionListener(e -> toggleCliCommandTableArea());
+        configCliCommandBtn.addActionListener(e -> showCliCommandManagerDialog());
         cliQuickLaunchRow.add(configCliCommandBtn);
 
         content.add(cliQuickLaunchRow);
 
-        // 命令列表区域
-        JPanel tableArea = new JPanel(new BorderLayout(0, 4));
-        tableArea.setBorder(JBUI.Borders.empty(4, 20, 0, 0));
+        // ========== 4. 更多设置（放到最底部） ==========
+        JPanel moreSettingsRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
+        moreSettingsRow.add(createInfoHintIcon(
+            I18n.t("settings.hint.moreSettings"),
+            I18n.t("settings.label.moreSettings")
+        ));
+        moreSettingsRow.add(new JBLabel(I18n.t("settings.label.moreSettings")));
 
-        // 表格：名称 | 命令
-        String[] columns = {
-            I18n.t("settings.table.col.name"),
-            I18n.t("settings.table.col.command")
-        };
-        cliCommandTableModel = new DefaultTableModel(columns, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) { return false; }
-        };
-        loadCliCommandsToTable();
-
-        cliCommandTable = new JTable(cliCommandTableModel);
-        cliCommandTable.setRowHeight(JBUI.scale(24));
-        cliCommandTable.getColumnModel().getColumn(0).setPreferredWidth(JBUI.scale(120));
-        cliCommandTable.getColumnModel().getColumn(1).setPreferredWidth(JBUI.scale(200));
-        cliCommandTable.getTableHeader().setReorderingAllowed(false);
-
-        cliCommandTableScrollPane = new JScrollPane(cliCommandTable);
-        updateCliCommandTableViewportHeight();
-
-        // 按钮行
-        JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
-
-        JButton addButton = new JButton(I18n.t("settings.button.addCliCommand"));
-        addButton.setIcon(AllIcons.General.Add);
-        addButton.addActionListener(e -> showAddOrEditDialog(-1));
-        btnRow.add(addButton);
-
-        JButton editButton = new JButton(I18n.t("settings.button.editCliCommand"));
-        editButton.setIcon(AllIcons.Actions.Edit);
-        editButton.addActionListener(e -> {
-            int row = cliCommandTable.getSelectedRow();
-            if (row >= 0) showAddOrEditDialog(row);
-        });
-        btnRow.add(editButton);
-
-        JButton removeButton = new JButton(I18n.t("settings.button.removeCliCommand"));
-        removeButton.setIcon(AllIcons.General.Delete);
-        removeButton.addActionListener(e -> {
-            int row = cliCommandTable.getSelectedRow();
-            if (row >= 0) {
-                cliCommandTableModel.removeRow(row);
-                updateCliCommandTableViewportHeight();
-            }
-        });
-        btnRow.add(removeButton);
-
-        JButton saveBtn = new JButton(I18n.t("settings.button.saveCliQuickLaunch"));
-        saveBtn.addActionListener(e -> saveCliQuickLaunchConfig());
-        btnRow.add(saveBtn);
-
-        btnRow.add(Box.createHorizontalGlue());
-
-        cliCommandTableContainer = new JPanel(new BorderLayout(0, 4));
-        cliCommandTableContainer.add(cliCommandTableScrollPane, BorderLayout.CENTER);
-        cliCommandTableContainer.add(btnRow, BorderLayout.SOUTH);
-        tableArea.add(cliCommandTableContainer, BorderLayout.CENTER);
-
-        content.add(tableArea);
-        cliCommandTableContainer.setVisible(false);
-        updateCliCommandTableCollapsedState();
+        JButton moreSettingsConfigBtn = new JButton(I18n.t("settings.button.codeCompletionConfig"));
+        moreSettingsConfigBtn.addActionListener(e -> openMoreSettings());
+        moreSettingsRow.add(moreSettingsConfigBtn);
+        content.add(moreSettingsRow);
 
         section.add(content, BorderLayout.NORTH);
         return section;
     }
 
-    private void loadCliCommandsToTable() {
-        cliCommandTableModel.setRowCount(0);
-        for (PluginSettings.CliQuickLaunchItem item : PluginSettings.getInstance().getCliQuickLaunchItems()) {
-            cliCommandTableModel.addRow(new Object[]{item.name, item.command});
-        }
-        updateCliCommandTableViewportHeight();
+    private void showCliCommandManagerDialog() {
+        com.github.mostbean.codingswitch.ui.dialog.CliCommandManagerDialog dialog =
+            new com.github.mostbean.codingswitch.ui.dialog.CliCommandManagerDialog(this);
+        dialog.show();
     }
 
     private void openMoreSettings() {
         ShowSettingsUtil.getInstance().showSettingsDialog(project, AiFeaturesConfigurable.class);
-    }
-
-    private void showAddOrEditDialog(int editRowIndex) {
-        String title = editRowIndex < 0
-            ? I18n.t("settings.dialog.cliCommand.addTitle")
-            : I18n.t("settings.dialog.cliCommand.editTitle");
-
-        String defaultName = "";
-        String defaultCmd = "";
-        if (editRowIndex >= 0) {
-            defaultName = String.valueOf(cliCommandTableModel.getValueAt(editRowIndex, 0));
-            defaultCmd = String.valueOf(cliCommandTableModel.getValueAt(editRowIndex, 1));
-        }
-
-        JTextField nameField = new JTextField(defaultName, 16);
-        JTextField cmdField = new JTextField(defaultCmd, 30);
-
-        JPanel panel = new JPanel(new GridBagLayout());
-        panel.setBorder(JBUI.Borders.empty(12));
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = JBUI.insets(4, 8);
-        gbc.anchor = GridBagConstraints.WEST;
-
-        gbc.gridy = 0;
-        gbc.gridx = 0;
-        panel.add(new JLabel(I18n.t("settings.dialog.cliCommand.name")), gbc);
-        gbc.gridx = 1;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.weightx = 1.0;
-        panel.add(nameField, gbc);
-
-        gbc.gridy = 1;
-        gbc.gridx = 0;
-        gbc.fill = GridBagConstraints.NONE;
-        gbc.weightx = 0;
-        panel.add(new JLabel(I18n.t("settings.dialog.cliCommand.command")), gbc);
-        gbc.gridx = 1;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.weightx = 1.0;
-        panel.add(cmdField, gbc);
-
-        JPanel presetsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        addCliCommandPresetButton(presetsPanel, nameField, cmdField,
-            "Claude", "claude --dangerously-skip-permissions");
-        addCliCommandPresetButton(presetsPanel, nameField, cmdField, "Codex", "codex");
-        addCliCommandPresetButton(presetsPanel, nameField, cmdField, "OpenCode", "opencode");
-        addCliCommandPresetButton(presetsPanel, nameField, cmdField,
-            "Antigravity CLI", "agy --dangerously-skip-permissions");
-
-        gbc.gridy = 2;
-        gbc.gridx = 0;
-        gbc.fill = GridBagConstraints.NONE;
-        gbc.weightx = 0;
-        panel.add(new JLabel(I18n.t("settings.dialog.cliCommand.presets")), gbc);
-        gbc.gridx = 1;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.weightx = 1.0;
-        panel.add(presetsPanel, gbc);
-
-        int result = JOptionPane.showConfirmDialog(
-            this,
-            panel,
-            title,
-            JOptionPane.OK_CANCEL_OPTION,
-            JOptionPane.PLAIN_MESSAGE
-        );
-
-        if (result == JOptionPane.OK_OPTION) {
-            String name = nameField.getText().trim();
-            String command = cmdField.getText().trim();
-            if (name.isEmpty() || command.isEmpty()) {
-                return;
-            }
-            if (editRowIndex >= 0) {
-                cliCommandTableModel.setValueAt(name, editRowIndex, 0);
-                cliCommandTableModel.setValueAt(command, editRowIndex, 1);
-            } else {
-                cliCommandTableModel.addRow(new Object[]{name, command});
-                updateCliCommandTableViewportHeight();
-            }
-        }
-    }
-
-    private void addCliCommandPresetButton(
-        JPanel presetsPanel,
-        JTextField nameField,
-        JTextField cmdField,
-        String name,
-        String command
-    ) {
-        JButton button = new JButton(name);
-        button.addActionListener(e -> {
-            nameField.setText(name);
-            cmdField.setText(command);
-        });
-        presetsPanel.add(button);
-    }
-
-
-    private void updateCliCommandTableViewportHeight() {
-        if (cliCommandTable == null || cliCommandTableScrollPane == null) {
-            return;
-        }
-
-        int visibleRows = Math.max(1, Math.min(cliCommandTable.getRowCount(), 4));
-        int headerHeight = cliCommandTable.getTableHeader() == null
-            ? 0
-            : cliCommandTable.getTableHeader().getPreferredSize().height;
-        int height = headerHeight + cliCommandTable.getRowHeight() * visibleRows + JBUI.scale(2);
-
-        cliCommandTableScrollPane.setPreferredSize(new Dimension(0, height));
-        cliCommandTableScrollPane.revalidate();
-    }
-
-    private void toggleCliCommandTableArea() {
-        if (cliCommandTableContainer == null) {
-            return;
-        }
-        cliCommandTableContainer.setVisible(!cliCommandTableContainer.isVisible());
-        updateCliCommandTableCollapsedState();
-    }
-
-    private void updateCliCommandTableCollapsedState() {
-        if (cliCommandTableContainer == null || configCliCommandBtn == null) {
-            return;
-        }
-        boolean expanded = cliCommandTableContainer.isVisible();
-        configCliCommandBtn.setText(
-            I18n.t(expanded ? "settings.button.closeCliCommandConfig" : "settings.button.configCliCommand")
-        );
-        revalidate();
-        repaint();
-    }
-
-    private void saveCliQuickLaunchConfig() {
-        java.util.List<PluginSettings.CliQuickLaunchItem> items = new java.util.ArrayList<>();
-        for (int i = 0; i < cliCommandTableModel.getRowCount(); i++) {
-            String name = String.valueOf(cliCommandTableModel.getValueAt(i, 0)).trim();
-            String command = String.valueOf(cliCommandTableModel.getValueAt(i, 1)).trim();
-            if (!name.isEmpty() && !command.isEmpty()) {
-                items.add(new PluginSettings.CliQuickLaunchItem(name, command));
-            }
-        }
-
-        PluginSettings settings = PluginSettings.getInstance();
-        settings.setCliQuickLaunchItems(items);
-
-        String selectedCmd = settings.getCliQuickLaunchSelectedCommand();
-        boolean selectedExists = false;
-        for (PluginSettings.CliQuickLaunchItem item : items) {
-            if (item.command.equals(selectedCmd)) {
-                selectedExists = true;
-                break;
-            }
-        }
-        if (items.isEmpty()) {
-            settings.setCliQuickLaunchSelectedCommand("");
-        } else if (selectedCmd == null || selectedCmd.isEmpty() || !selectedExists) {
-            settings.setCliQuickLaunchSelectedCommand(items.get(0).command);
-        }
-
-        Messages.showInfoMessage(
-            I18n.t("cliQuickLaunch.saved"),
-            I18n.t("cliQuickLaunch.savedTitle")
-        );
     }
 
     private void showFeatureSelectionDialog() {
