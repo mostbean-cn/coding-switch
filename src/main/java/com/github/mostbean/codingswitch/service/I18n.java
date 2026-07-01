@@ -134,7 +134,7 @@ public final class I18n {
                 m.put("settings.button.importFromCcSwitch", "导入");
                 m.put("settings.button.exportToCcSwitch", "导出");
                 m.put("settings.hint.githubToken", "可选。配置 GitHub 令牌可提升 API 速率限制（仅影响 GitHub Skills 仓库）。");
-                m.put("settings.hint.dataStorageMode", "Coding Switch 默认将配置数据保存在当前 IDE 的本地目录中。如需在 JetBrains 全家桶之间共享配置，请切换到“用户级共享”。");
+                m.put("settings.hint.dataStorageMode", "Coding Switch 默认将配置数据保存在当前 IDE 的本地目录中。如需在 JetBrains 全家桶之间共享配置, 请切换到\"用户级共享\"。");
                 m.put("settings.hint.featureSelection", "用于控制顶部标签显示。");
                 m.put("settings.hint.cliSelection", "用于控制本页“版本检测”和“安装/更新命令”中显示哪些 CLI。未选中时默认显示全部 CLI。");
                 m.put("settings.hint.moreSettings", "在此可配置：\n1. Git 信息提交：Git 提交信息生成模型。\n2. 代码补全：IDE 内代码补全、补全模型、自动触发和手动触发快捷键。\n3. CC Switch 数据同步：桌面端数据同步，与 CC Switch 的配置导入导出。");
@@ -266,7 +266,7 @@ public final class I18n {
                 m.put("session.loading.scanning", "正在扫描会话...");
                 m.put("session.empty.noMessages", "暂无消息记录");
                 m.put("session.empty.noSessions",
-                                "<html><center>未发现任何会话<br><br><font size='2' color='gray'>请确保已安装并使用过 Claude Code、Codex<br>或 OpenCode 中的至少一个工具。</font></center></html>");
+                                "<html><center>暂无会话记录<br><br><font size='2' color='gray'>请先安装并使用 Claude Code、Codex 或 OpenCode<br>任意一款工具，插件将自动读取会话历史。</font></center></html>");
                 m.put("session.button.batchDelete", "批量删除");
                 m.put("session.button.continueConversation", "继续对话");
                 m.put("session.button.delete", "删除会话");
@@ -662,7 +662,7 @@ public final class I18n {
                 m.put("settings.dialog.cliCommand.name", "名称:");
                 m.put("settings.dialog.cliCommand.command", "命令:");
                 m.put("settings.dialog.cliCommand.presets", "预设:");
-                m.put("settings.hint.cliQuickLaunch", "开启后，IDE 顶部工具栏将显示快速启动控件。单击：打开菜单。双击：快速启动当前选中的 CLI。通过本插件启动的 CLI，将支持通过 IDE 右键悬浮菜单插入文件路径和代码行号功能。");
+                m.put("settings.hint.cliQuickLaunch", "开启后，IDE 顶部工具栏将显示快速启动控件。\n• 单击：打开菜单选择命令\n• 双击：快速启动当前选中的 CLI\n\n通过插件启动的终端会话支持右键菜单插入文件路径和代码行号。");
                 m.put("settings.table.col.name", "名称");
                 m.put("settings.table.col.command", "命令");
                 m.put("cliQuickLaunch.noCommand", "未配置命令");
@@ -754,7 +754,7 @@ public final class I18n {
                 m.put("settings.button.importFromCcSwitch", "Import");
                 m.put("settings.button.exportToCcSwitch", "Export");
                 m.put("settings.hint.githubToken", "Optional. Increases GitHub API rate limit (only affects GitHub Skills repositories).");
-                m.put("settings.hint.dataStorageMode", "Coding Switch stores configuration data in the current IDE's local directory by default. Switch to \"User Shared\" if you want to reuse configuration across JetBrains IDEs.");
+                m.put("settings.hint.dataStorageMode", "Configuration data storage location:\n• IDE Local: each IDE stores its own configuration (default)\n• User Shared: share configuration across JetBrains IDEs\n\nExisting configuration will be migrated automatically when switching.");
                 m.put("settings.hint.featureSelection", "Controls which top tabs are visible.");
                 m.put("settings.hint.cliSelection", "Controls which CLI entries are shown in the version check and install/update command sections on this page. If none are selected, all CLIs are shown by default.");
                 m.put("settings.hint.moreSettings", "Configure the following here:\n1. Git Commit Message: the Git commit message generation model.\n2. Code Completion: IDE code completion, completion models, automatic triggering, and manual trigger shortcuts.\n3. CC Switch Data Sync: desktop data sync, importing and exporting configuration with CC Switch.");
@@ -1302,7 +1302,7 @@ public final class I18n {
                 m.put("settings.dialog.cliCommand.name", "Name:");
                 m.put("settings.dialog.cliCommand.command", "Command:");
                 m.put("settings.dialog.cliCommand.presets", "Presets:");
-                m.put("settings.hint.cliQuickLaunch", "When enabled, a quick launch widget appears in the IDE toolbar. Single-click: open the menu. Double-click: quickly launch the currently selected CLI. CLIs launched through this plugin also support inserting file paths and code line numbers from the IDE right-click floating menu.");
+                m.put("settings.hint.cliQuickLaunch", "When enabled, a quick launch widget appears in the IDE toolbar.\n• Single-click: open command menu\n• Double-click: quickly launch the selected CLI\n\nTerminal sessions launched via this plugin support inserting file paths and line numbers from the right-click menu.");
                 m.put("settings.table.col.name", "Name");
                 m.put("settings.table.col.command", "Command");
                 m.put("cliQuickLaunch.noCommand", "No command configured");
