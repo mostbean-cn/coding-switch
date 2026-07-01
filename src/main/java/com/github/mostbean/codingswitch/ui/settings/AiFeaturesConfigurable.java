@@ -2177,6 +2177,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
                 )), BorderLayout.NORTH);
                 if (direction == CcSwitchSyncService.SyncDirection.TO_CC_SWITCH) {
                     commonConfigCheckBox = new JCheckBox(I18n.t("settings.dialog.extensionSync.enableCommonConfig"));
+                    commonConfigCheckBox.setSelected(true);
                     panel.add(commonConfigCheckBox, BorderLayout.CENTER);
                 }
                 return panel;
