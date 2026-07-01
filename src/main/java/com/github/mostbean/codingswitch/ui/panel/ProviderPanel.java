@@ -184,7 +184,7 @@ public class ProviderPanel extends JPanel {
                 .addExtraAction(
                         new AnAction(I18n.t("provider.action.removeOpenCode"),
                                 I18n.t("provider.action.removeOpenCode.tooltip"),
-                                AllIcons.General.Remove) {
+                                AllIcons.Actions.Cancel) {
                             @Override
                             public void actionPerformed(@NotNull AnActionEvent e) {
                                 onRemoveOpenCodeLiveProvider();
