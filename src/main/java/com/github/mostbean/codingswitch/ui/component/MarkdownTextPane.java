@@ -51,7 +51,6 @@ public class MarkdownTextPane extends JTextPane {
         // 代码样式
         codeStyle = styleContext.addStyle("code", defaultStyle);
         StyleConstants.setFontFamily(codeStyle, "Monospaced");
-        StyleConstants.setBackground(codeStyle, new Color(240, 240, 240));
         StyleConstants.setForeground(codeStyle, new Color(199, 37, 78));
 
         // 标题样式
