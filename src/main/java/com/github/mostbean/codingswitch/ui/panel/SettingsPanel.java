@@ -453,33 +453,20 @@ public class SettingsPanel extends JPanel {
         storageRow.add(openStorageDirBtn);
         content.add(storageRow);
 
-        // ========== 3. 代码补全 ==========
-        JPanel codeCompletionRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
-        codeCompletionRow.add(createInfoHintIcon(
-            I18n.t("settings.hint.codeCompletion"),
-            I18n.t("settings.label.codeCompletion")
+        // ========== 3. 更多设置 ==========
+        JPanel moreSettingsRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
+        moreSettingsRow.add(createInfoHintIcon(
+            I18n.t("settings.hint.moreSettings"),
+            I18n.t("settings.label.moreSettings")
         ));
-        codeCompletionRow.add(new JBLabel(I18n.t("settings.label.codeCompletion")));
+        moreSettingsRow.add(new JBLabel(I18n.t("settings.label.moreSettings")));
 
-        JButton codeCompletionConfigBtn = new JButton(I18n.t("settings.button.codeCompletionConfig"));
-        codeCompletionConfigBtn.addActionListener(e -> openCodeCompletionSettings());
-        codeCompletionRow.add(codeCompletionConfigBtn);
-        content.add(codeCompletionRow);
+        JButton moreSettingsConfigBtn = new JButton(I18n.t("settings.button.codeCompletionConfig"));
+        moreSettingsConfigBtn.addActionListener(e -> openMoreSettings());
+        moreSettingsRow.add(moreSettingsConfigBtn);
+        content.add(moreSettingsRow);
 
-        // ========== 4. CC Switch ==========
-        JPanel ccSwitchRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
-        ccSwitchRow.add(createInfoHintIcon(
-            I18n.t("settings.hint.ccSwitch"),
-            I18n.t("settings.label.ccSwitch")
-        ));
-        ccSwitchRow.add(new JBLabel(I18n.t("settings.label.ccSwitch")));
-
-        JButton ccSwitchConfigBtn = new JButton(I18n.t("settings.button.codeCompletionConfig"));
-        ccSwitchConfigBtn.addActionListener(e -> openCcSwitchSettings());
-        ccSwitchRow.add(ccSwitchConfigBtn);
-        content.add(ccSwitchRow);
-
-        // ========== 5. CLI 快速启动 ==========
+        // ========== 4. CLI 快速启动 ==========
         JPanel cliQuickLaunchRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
         cliQuickLaunchRow.add(createInfoHintIcon(
             I18n.t("settings.hint.cliQuickLaunch"),
@@ -592,12 +579,7 @@ public class SettingsPanel extends JPanel {
         updateCliCommandTableViewportHeight();
     }
 
-    private void openCodeCompletionSettings() {
-        ShowSettingsUtil.getInstance().showSettingsDialog(project, AiFeaturesConfigurable.class);
-    }
-
-    private void openCcSwitchSettings() {
-        AiFeaturesConfigurable.requestScrollToExtensionSection();
+    private void openMoreSettings() {
         ShowSettingsUtil.getInstance().showSettingsDialog(project, AiFeaturesConfigurable.class);
     }
 

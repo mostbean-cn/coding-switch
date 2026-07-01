@@ -117,8 +117,7 @@ public final class I18n {
                 m.put("settings.label.dataStorageMode", "存储位置:");
                 m.put("settings.label.featureSelection", "功能选择:");
                 m.put("settings.label.cliSelection", "CLI配置:");
-                m.put("settings.label.codeCompletion", "代码补全:");
-                m.put("settings.label.ccSwitch", "CC Switch:");
+                m.put("settings.label.moreSettings", "更多设置:");
                 m.put("settings.label.extensionSync", "与 CC Switch 数据同步:");
                 m.put("settings.label.ccSwitchOfficial", "CC Switch官网:");
                 m.put("settings.label.ccSwitchConfigDirectory", "CC Switch 配置目录:");
@@ -138,8 +137,7 @@ public final class I18n {
                 m.put("settings.hint.dataStorageMode", "Coding Switch 默认将配置数据保存在当前 IDE 的本地目录中。如需在 JetBrains 全家桶之间共享配置，请切换到“用户级共享”。");
                 m.put("settings.hint.featureSelection", "用于控制顶部标签显示。");
                 m.put("settings.hint.cliSelection", "用于控制本页“版本检测”和“安装/更新命令”中显示哪些 CLI。未选中时默认显示全部 CLI。");
-                m.put("settings.hint.codeCompletion", "配置 IDE 内代码补全、补全模型、Git 提交信息模型、自动触发和手动触发快捷键。");
-                m.put("settings.hint.ccSwitch", "桌面端数据同步，配置与 CC Switch 的数据导入导出。");
+                m.put("settings.hint.moreSettings", "在此可配置：\n1. Git 信息提交：Git 提交信息生成模型。\n2. 代码补全：IDE 内代码补全、补全模型、自动触发和手动触发快捷键。\n3. CC Switch 数据同步：桌面端数据同步，与 CC Switch 的配置导入导出。");
                 m.put("settings.hint.extensionSync", "同步 Claude Code、Codex、OpenCode 与 CC Switch 之间已保存的非订阅配置。");
                 m.put("settings.option.allCli", "全部 CLI");
                 m.put("settings.option.syncStatus.all", "全部状态");
@@ -739,8 +737,7 @@ public final class I18n {
                 m.put("settings.label.dataStorageMode", "Storage Location:");
                 m.put("settings.label.featureSelection", "Feature Selection:");
                 m.put("settings.label.cliSelection", "CLI Config:");
-                m.put("settings.label.codeCompletion", "Code Completion:");
-                m.put("settings.label.ccSwitch", "CC Switch:");
+                m.put("settings.label.moreSettings", "More Settings:");
                 m.put("settings.label.extensionSync", "CC Switch Data Sync:");
                 m.put("settings.label.ccSwitchOfficial", "CC Switch official site:");
                 m.put("settings.label.ccSwitchConfigDirectory", "CC Switch config directory:");
@@ -760,8 +757,7 @@ public final class I18n {
                 m.put("settings.hint.dataStorageMode", "Coding Switch stores configuration data in the current IDE's local directory by default. Switch to \"User Shared\" if you want to reuse configuration across JetBrains IDEs.");
                 m.put("settings.hint.featureSelection", "Controls which top tabs are visible.");
                 m.put("settings.hint.cliSelection", "Controls which CLI entries are shown in the version check and install/update command sections on this page. If none are selected, all CLIs are shown by default.");
-                m.put("settings.hint.codeCompletion", "Configure IDE code completion, completion models, Git commit message models, automatic triggering, and manual trigger shortcuts.");
-                m.put("settings.hint.ccSwitch", "Desktop data sync. Configure data import and export with CC Switch.");
+                m.put("settings.hint.moreSettings", "Configure the following here:\n1. Git Commit Message: the Git commit message generation model.\n2. Code Completion: IDE code completion, completion models, automatic triggering, and manual trigger shortcuts.\n3. CC Switch Data Sync: desktop data sync, importing and exporting configuration with CC Switch.");
                 m.put("settings.hint.extensionSync", "Sync saved non-subscription configurations between Claude Code, Codex, OpenCode, and CC Switch.");
                 m.put("settings.option.allCli", "All CLI");
                 m.put("settings.option.syncStatus.all", "All Status");
