@@ -83,13 +83,14 @@ public final class ConfigFileService {
      * Claude → ~/.claude/CLAUDE.md
      * Codex → ~/.codex/AGENTS.md
      * OpenCode → ~/.config/opencode/agents/ (目录)
+     * Antigravity → ~/.gemini/config/AGENTS.md
      */
     public Path getPromptFilePath(CliType cliType) {
         return switch (cliType) {
             case CLAUDE -> getConfigDir(cliType).resolve("CLAUDE.md");
             case CODEX -> getConfigDir(cliType).resolve("AGENTS.md");
             case OPENCODE -> getConfigDir(cliType).resolve("agents");
-            case ANTIGRAVITY -> getConfigDir(cliType).resolve("ANTIGRAVITY.md");
+            case ANTIGRAVITY -> userHome().resolve(".gemini").resolve("config").resolve("AGENTS.md");
         };
     }
 
