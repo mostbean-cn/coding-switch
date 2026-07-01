@@ -13,7 +13,8 @@
         <li><b>AI CLI 配置管理</b> — 统一管理多个 AI CLI 的 API Key、模型和接入点，支持官方接口和第三方兼容接口，一键切换配置，无需手动编辑本地文件。</li>
         <li><b>CLI 快速启动与版本检测</b> — 在 IDE 内查看 CLI 安装状态 and 版本信息，并可使用选中的配置快速启动终端会话，减少命令行准备成本。</li>
         <li><b>行内 AI 代码补全</b> — 支持灰字行内补全、自动触发、手动触发、逐行采纳和 Tab 全量采纳，补全模型优先支持 FIM Completions 与 FIM Chat Completions。</li>
-        <li><b>Git 与编辑器辅助</b> — 基于选中变更生成 Conventional Commits 风格提交信息，并支持从编辑器右键快速插入文件路径或带行号的代码位置。</li>
+        <li><b>代码路径与行号快速插入</b> — 从编辑器、项目树右键菜单一键插入文件路径或带行号的代码片段位置到 CLI 终端，快速定位上下文。</li>
+        <li><b>Git 提交信息生成</b> — 基于选中变更生成 Conventional Commits 风格提交信息，提升提交规范性。</li>
         <li><b>MCP、技能与提示词管理</b> — 集中维护 Model Context Protocol (MCP) 服务器、Claude Skills 等技能包和 Markdown 提示词预设，统一扩展 AI 编程助手能力。</li>
     </ul>
 
