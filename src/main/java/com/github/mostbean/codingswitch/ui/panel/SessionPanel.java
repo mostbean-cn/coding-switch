@@ -7,6 +7,7 @@ import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.SessionScannerService;
 import com.github.mostbean.codingswitch.ui.action.TerminalSessionService;
+import com.github.mostbean.codingswitch.ui.component.MarkdownTextPane;
 import com.github.mostbean.codingswitch.ui.dialog.BatchDeleteSessionsDialog;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.application.ApplicationManager;
@@ -475,7 +476,7 @@ public class SessionPanel extends JPanel {
 
     private JPanel createStaticMessageCard(SessionMessage message, String content) {
         JPanel card = createCardShell(message);
-        card.add(createMessageTextArea(normalizeDisplayContent(content, MESSAGE_TRUNCATE_CHARS)), BorderLayout.CENTER);
+        card.add(createMessageTextPane(normalizeDisplayContent(content, MESSAGE_TRUNCATE_CHARS)), BorderLayout.CENTER);
         return wrapMessageCard(message, card);
     }
 
@@ -489,22 +490,21 @@ public class SessionPanel extends JPanel {
         JPanel bodyPanel = new JPanel(new BorderLayout(0, 4));
         bodyPanel.setOpaque(false);
 
-        JTextArea textArea = createMessageTextArea(previewContent);
+        MarkdownTextPane textPane = createMessageTextPane(previewContent);
         JButton toggleButton = createInlineToggleButton(I18n.t("session.content.expand"));
         boolean[] expanded = {false};
         JPanel[] wrapperRef = new JPanel[1];
 
         toggleButton.addActionListener(e -> {
             expanded[0] = !expanded[0];
-            textArea.setText(expanded[0] ? fullContent : previewContent);
-            textArea.setCaretPosition(0);
+            textPane.setMarkdownText(expanded[0] ? fullContent : previewContent);
             toggleButton.setText(expanded[0]
                     ? I18n.t("session.content.collapse")
                     : I18n.t("session.content.expand"));
             refreshMessageWrapper(wrapperRef[0]);
         });
 
-        bodyPanel.add(textArea, BorderLayout.CENTER);
+        bodyPanel.add(textPane, BorderLayout.CENTER);
         bodyPanel.add(toggleButton, BorderLayout.SOUTH);
         card.add(bodyPanel, BorderLayout.CENTER);
 
@@ -523,8 +523,8 @@ public class SessionPanel extends JPanel {
         summaryLabel.setForeground(UIUtil.getInactiveTextColor());
         summaryLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
-        JTextArea textArea = createMessageTextArea(normalizeDisplayContent(message.getContent(), MESSAGE_TRUNCATE_CHARS));
-        textArea.setVisible(false);
+        MarkdownTextPane textPane = createMessageTextPane(normalizeDisplayContent(message.getContent(), MESSAGE_TRUNCATE_CHARS));
+        textPane.setVisible(false);
 
         boolean[] expanded = {false};
         JPanel[] wrapperRef = new JPanel[1];
@@ -532,7 +532,7 @@ public class SessionPanel extends JPanel {
             @Override
             public void mouseClicked(MouseEvent e) {
                 expanded[0] = !expanded[0];
-                textArea.setVisible(expanded[0]);
+                textPane.setVisible(expanded[0]);
                 summaryLabel.setText((expanded[0] ? "▼ " : "▶ ")
                         + (expanded[0]
                         ? I18n.t("session.tool.expanded")
@@ -544,7 +544,7 @@ public class SessionPanel extends JPanel {
         bodyPanel.addMouseListener(toggleListener);
 
         bodyPanel.add(summaryLabel, BorderLayout.NORTH);
-        bodyPanel.add(textArea, BorderLayout.CENTER);
+        bodyPanel.add(textPane, BorderLayout.CENTER);
         card.add(bodyPanel, BorderLayout.CENTER);
 
         JPanel wrapper = wrapMessageCard(message, card);
@@ -593,6 +593,12 @@ public class SessionPanel extends JPanel {
 
         card.add(headerPanel, BorderLayout.NORTH);
         return card;
+    }
+
+    private MarkdownTextPane createMessageTextPane(String content) {
+        MarkdownTextPane textPane = new MarkdownTextPane();
+        textPane.setMarkdownText(content == null ? "" : content);
+        return textPane;
     }
 
     private JTextArea createMessageTextArea(String content) {

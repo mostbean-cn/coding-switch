@@ -32,6 +32,9 @@ dependencies {
     // SQLite access (for cc-switch data sync)
     implementation(libs.sqlite)
 
+    // Markdown rendering
+    implementation(libs.commonmark)
+
     // Test
     testImplementation(libs.junit)
 
