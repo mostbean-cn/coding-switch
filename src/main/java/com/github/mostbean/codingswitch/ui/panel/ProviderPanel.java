@@ -26,6 +26,9 @@ import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
+import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.IOException;
@@ -56,6 +59,11 @@ public class ProviderPanel extends JPanel {
         // 监听数据变化
         ProviderService.getInstance().addChangeListener(this::refreshTable);
         refreshTable();
+
+        // 启用拖拽排序
+        providerTable.setDragEnabled(true);
+        providerTable.setDropMode(DropMode.INSERT_ROWS);
+        providerTable.setTransferHandler(new ProviderTableTransferHandler());
     }
 
     private JPanel createToolbar() {
@@ -545,6 +553,98 @@ public class ProviderPanel extends JPanel {
                 }
             }
             return "N/A";
+        }
+    }
+
+    // =====================================================================
+    // 拖拽排序支持
+    // =====================================================================
+
+    private class ProviderTableTransferHandler extends TransferHandler {
+        private final DataFlavor providerFlavor = new DataFlavor(Integer.class, "Provider Row Index");
+
+        @Override
+        public int getSourceActions(JComponent c) {
+            return MOVE;
+        }
+
+        @Override
+        protected Transferable createTransferable(JComponent c) {
+            int selectedRow = providerTable.getSelectedRow();
+            if (selectedRow == -1) {
+                return null;
+            }
+            return new Transferable() {
+                @Override
+                public DataFlavor[] getTransferDataFlavors() {
+                    return new DataFlavor[]{providerFlavor};
+                }
+
+                @Override
+                public boolean isDataFlavorSupported(DataFlavor flavor) {
+                    return providerFlavor.equals(flavor);
+                }
+
+                @Override
+                public Object getTransferData(DataFlavor flavor) throws UnsupportedFlavorException {
+                    if (!isDataFlavorSupported(flavor)) {
+                        throw new UnsupportedFlavorException(flavor);
+                    }
+                    return selectedRow;
+                }
+            };
+        }
+
+        @Override
+        public boolean canImport(TransferSupport support) {
+            return support.isDrop() && support.isDataFlavorSupported(providerFlavor);
+        }
+
+        @Override
+        public boolean importData(TransferSupport support) {
+            if (!canImport(support)) {
+                return false;
+            }
+
+            try {
+                int fromIndex = (Integer) support.getTransferable().getTransferData(providerFlavor);
+                JTable.DropLocation dl = (JTable.DropLocation) support.getDropLocation();
+                int toIndex = dl.getRow();
+
+                if (fromIndex == toIndex || toIndex == -1) {
+                    return false;
+                }
+
+                // 获取当前过滤后的 Provider 列表
+                List<Provider> currentProviders = new ArrayList<>();
+                for (int i = 0; i < tableModel.getRowCount(); i++) {
+                    currentProviders.add(tableModel.getProviderAt(i));
+                }
+
+                // 调整 toIndex（考虑插入位置的逻辑）
+                if (toIndex > fromIndex) {
+                    toIndex--;
+                }
+
+                // 执行移动
+                Provider movedProvider = currentProviders.remove(fromIndex);
+                currentProviders.add(toIndex, movedProvider);
+
+                // 保存新的顺序
+                List<String> orderedIds = currentProviders.stream()
+                        .map(Provider::getId)
+                        .toList();
+                ProviderService.getInstance().reorderProviders(orderedIds);
+
+                // 刷新表格并恢复选中
+                refreshTable();
+                providerTable.getSelectionModel().setSelectionInterval(toIndex, toIndex);
+                providerTable.scrollRectToVisible(providerTable.getCellRect(toIndex, 0, true));
+
+                return true;
+            } catch (Exception e) {
+                return false;
+            }
         }
     }
 }

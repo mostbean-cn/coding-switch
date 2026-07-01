@@ -80,6 +80,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             providers.sort(Comparator
                     .comparing((Provider p) -> p.getCliType() != null ? p.getCliType().getDisplayName() : "",
                             String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing((Provider p) -> p.getDisplayOrder() != null ? p.getDisplayOrder() : Integer.MAX_VALUE)
                     .thenComparing((Provider p) -> p.getCreatedAt() != null ? p.getCreatedAt() : 0L)
                     .thenComparing(Provider::getId, Comparator.nullsLast(String::compareTo)));
             return providers;
@@ -153,6 +154,21 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
                 .filter(p -> p.getId().equals(providerId))
                 .findFirst()
                 .ifPresent(p -> addProvider(p.copy()));
+    }
+
+    public void reorderProviders(List<String> orderedProviderIds) {
+        List<Provider> providers = new ArrayList<>(getProviders());
+        Map<String, Integer> orderMap = new LinkedHashMap<>();
+        for (int i = 0; i < orderedProviderIds.size(); i++) {
+            orderMap.put(orderedProviderIds.get(i), i);
+        }
+
+        for (Provider provider : providers) {
+            Integer order = orderMap.get(provider.getId());
+            provider.setDisplayOrder(order != null ? order : Integer.MAX_VALUE);
+        }
+
+        saveProviders(providers);
     }
 
     // =====================================================================

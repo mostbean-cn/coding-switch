@@ -34,6 +34,7 @@ public class Provider {
     private boolean active;
     private boolean pendingActivation;
     private Long createdAt;
+    private Integer displayOrder;
 
     public Provider() {
         this.id = UUID.randomUUID().toString();
@@ -139,6 +140,14 @@ public class Provider {
 
     public void setCreatedAt(Long createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Integer getDisplayOrder() {
+        return displayOrder;
+    }
+
+    public void setDisplayOrder(Integer displayOrder) {
+        this.displayOrder = displayOrder;
     }
 
     /**
