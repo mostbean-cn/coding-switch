@@ -138,13 +138,7 @@ public final class PromptService implements PersistentStateComponent<PromptServi
 
         // 写入文件
         Path promptPath = configService.getPromptFilePath(cliType);
-        if (cliType == CliType.OPENCODE) {
-            // OpenCode 写到 agents 目录下的 default.md
-            Path agentFile = promptPath.resolve("default.md");
-            configService.writeFile(agentFile, target.getContent());
-        } else {
-            configService.writeFile(promptPath, target.getContent());
-        }
+        configService.writeFile(promptPath, target.getContent());
 
         savePresets(presets);
     }
@@ -155,10 +149,6 @@ public final class PromptService implements PersistentStateComponent<PromptServi
     public String readCurrentPrompt(CliType cliType) {
         ConfigFileService configService = ConfigFileService.getInstance();
         Path promptPath = configService.getPromptFilePath(cliType);
-        if (cliType == CliType.OPENCODE) {
-            Path agentFile = promptPath.resolve("default.md");
-            return configService.readFile(agentFile);
-        }
         return configService.readFile(promptPath);
     }
 
