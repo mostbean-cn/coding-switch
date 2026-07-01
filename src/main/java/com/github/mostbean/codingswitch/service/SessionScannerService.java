@@ -919,15 +919,29 @@ public final class SessionScannerService {
                 }
             }
 
-            if (summary == null || summary.isBlank()) {
-                summary = encrypted
+            // 标题优先级：1. 首条用户输入摘要  2. 项目目录名  3. 会话 ID 前 8 位
+            String title = null;
+            if (summary != null && !summary.isBlank() && !summary.startsWith("旧版加密会话") && !summary.startsWith("Antigravity CLI 会话")) {
+                title = truncate(summary, 80);
+            }
+            if (title == null && projectDir != null) {
+                title = pathBasename(projectDir);
+            }
+            if (title == null) {
+                title = sessionId.length() > 8 ? sessionId.substring(0, 8) : sessionId;
+            }
+
+            // 详细摘要用于副标题显示
+            String detailedSummary = summary;
+            if (detailedSummary == null || detailedSummary.isBlank()) {
+                detailedSummary = encrypted
                         ? "旧版加密会话（.pb），无法预览内容"
                         : "Antigravity CLI 会话: " + sessionId;
             }
 
             SessionMeta meta = new SessionMeta("agy", sessionId);
-            meta.setTitle(pathBasename(projectDir != null ? projectDir : sessionId));
-            meta.setSummary(summary);
+            meta.setTitle(title);
+            meta.setSummary(detailedSummary);
             meta.setProjectDir(projectDir);
             meta.setCreatedAt(createdAt);
             meta.setLastActiveAt(lastActiveAt != null ? lastActiveAt : createdAt);
