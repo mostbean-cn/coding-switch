@@ -136,7 +136,7 @@ public final class AiInlineCompletionService implements Disposable {
         insertText(project, editor, session, chunk);
         session.consumeVisiblePrefix(chunk);
         session.offset += chunk.length();
-        session.documentStamp = editor.getDocument().getModificationStamp();
+        session.documentStamp = PlatformReadAccess.compute(() -> editor.getDocument().getModificationStamp());
         session.disposeInlays();
         if (session.remainingText.isBlank()) {
             editor.putUserData(SESSION_KEY, null);
@@ -158,8 +158,8 @@ public final class AiInlineCompletionService implements Disposable {
             notifyManualFailure(project, triggerMode, unavailableReason);
             return;
         }
-        int offset = editor.getCaretModel().getOffset();
-        long documentStamp = editor.getDocument().getModificationStamp();
+        int offset = PlatformReadAccess.compute(() -> editor.getCaretModel().getOffset());
+        long documentStamp = PlatformReadAccess.compute(() -> editor.getDocument().getModificationStamp());
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
             AiCompletionService.CompletionResult result;
             StreamAccumulator accumulator = new StreamAccumulator();
@@ -256,7 +256,7 @@ public final class AiInlineCompletionService implements Disposable {
             session.disposeInlays();
             session.consumeVisiblePrefix(inserted);
             session.offset += inserted.length();
-            session.documentStamp = editor.getDocument().getModificationStamp();
+            session.documentStamp = PlatformReadAccess.compute(() -> editor.getDocument().getModificationStamp());
             if (session.remainingText.isBlank()) {
                 editor.putUserData(SESSION_KEY, null);
                 session.detachInvalidationListeners(editor);
@@ -306,8 +306,11 @@ public final class AiInlineCompletionService implements Disposable {
         if (current == null || current != requestId) {
             return;
         }
-        if (editor.getDocument().getModificationStamp() != documentStamp
-            || editor.getCaretModel().getOffset() != offset) {
+        boolean isStale = PlatformReadAccess.compute(() ->
+            editor.getDocument().getModificationStamp() != documentStamp
+                || editor.getCaretModel().getOffset() != offset
+        );
+        if (isStale) {
             return;
         }
         String text = normalizeDelta(delta);
@@ -387,8 +390,8 @@ public final class AiInlineCompletionService implements Disposable {
                 .addInlineElement(session.offset, true, new GhostInlineRenderer(firstLine, acceptLineHint(newline >= 0)));
         }
         if (newline >= 0) {
-            int anchorLine = editor.offsetToLogicalPosition(session.offset).line;
-            int lineStartX = lineStartX(editor, anchorLine);
+            int anchorLine = PlatformReadAccess.compute(() -> editor.offsetToLogicalPosition(session.offset).line);
+            int lineStartX = PlatformReadAccess.compute(() -> lineStartX(editor, anchorLine));
             session.blockInlay = editor.getInlayModel()
                 .addBlockElement(session.offset, true, false, 0, new GhostBlockRenderer(rest, lineStartX));
         }
@@ -399,8 +402,11 @@ public final class AiInlineCompletionService implements Disposable {
         if (session == null || session.remainingText.isBlank()) {
             return null;
         }
-        if (editor.getCaretModel().getOffset() != session.offset
-            || editor.getDocument().getModificationStamp() != session.documentStamp) {
+        boolean isInvalid = PlatformReadAccess.compute(() ->
+            editor.getCaretModel().getOffset() != session.offset
+                || editor.getDocument().getModificationStamp() != session.documentStamp
+        );
+        if (isInvalid) {
             hide(editor);
             return null;
         }
@@ -485,7 +491,10 @@ public final class AiInlineCompletionService implements Disposable {
             caretListener = new CaretListener() {
                 @Override
                 public void caretPositionChanged(CaretEvent event) {
-                    if (editor.getCaretModel().getOffset() != offset) {
+                    boolean offsetChanged = PlatformReadAccess.compute(() ->
+                        editor.getCaretModel().getOffset() != offset
+                    );
+                    if (offsetChanged) {
                         AiInlineCompletionService.getInstance().hide(editor);
                     }
                 }
