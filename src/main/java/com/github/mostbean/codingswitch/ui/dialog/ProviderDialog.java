@@ -74,7 +74,7 @@ public class ProviderDialog extends DialogWrapper {
     private final JComboBox<String> claudeApiKeyField = new JComboBox<>(
             new String[] { "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY" });
     private final JComboBox<String> claudeEffortLevel = createEditableCombo(
-            "", "high", "medium", "low");
+            "", "xhigh", "high", "medium", "low");
     private final JComboBox<String> claudeAutoCompactWindow = createEditableCombo(
             "", "400000", "900000");
     private final JComboBox<String> claudeAlwaysThinkingEnabled = new JComboBox<>(
