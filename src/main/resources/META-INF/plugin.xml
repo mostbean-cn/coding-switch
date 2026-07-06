@@ -41,6 +41,11 @@
     ]]>    </description>
 
     <change-notes><![CDATA[
+    <h3>0.4.5</h3>
+    <ul>
+        <li><b>Claude Fable 模型支持</b> — 新增对 Claude Fable 5 模型的配置支持，可在主模型下拉框中选择 Fable 或 Fable[1m] 变体。</li>
+        <li><b>Claude Code 推理强度扩展</b> — Claude Code 配置的推理强度选项新增 <code>xhigh</code> 档位，并新增"最大强度思考"勾选框支持 <code>max</code> 档位配置。</li>
+    </ul>
     <h3>0.4.4</h3>
     <ul>
         <li><b>cc-switch 数据同步</b> — 设置页新增与 cc-switch 的配置导入/导出弹窗，支持 Claude Code、Codex、OpenCode 已保存配置的勾选式同步、筛选、覆盖确认和配置预览。</li>

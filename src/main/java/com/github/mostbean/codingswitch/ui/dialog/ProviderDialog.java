@@ -82,6 +82,7 @@ public class ProviderDialog extends DialogWrapper {
     private final JCheckBox claudeTeamModeEnabled = new JCheckBox();
     private final JCheckBox claudeToolSearchEnabled = new JCheckBox();
     private final JCheckBox claudeDisableAutoUpdaterEnabled = new JCheckBox();
+    private final JCheckBox claudeMaxEffortEnabled = new JCheckBox();
     private final JComboBox<String> claudeDangerousMode = new JComboBox<>(new String[] {
             DEFAULT_OPTION_LABEL, I18n.t("providerDialog.dangerousMode.skipPermissions"),
             I18n.t("providerDialog.dangerousMode.skipAll") });
@@ -418,6 +419,9 @@ public class ProviderDialog extends DialogWrapper {
             if (!updatingFromPreview) updatePreview();
         });
         claudeDisableAutoUpdaterEnabled.addActionListener(e -> {
+            if (!updatingFromPreview) updatePreview();
+        });
+        claudeMaxEffortEnabled.addActionListener(e -> {
             if (!updatingFromPreview) updatePreview();
         });
         claudeDangerousMode.addActionListener(e -> {
@@ -995,6 +999,7 @@ public class ProviderDialog extends DialogWrapper {
                 claudeTeamModeEnabled.setSelected(false);
                 claudeToolSearchEnabled.setSelected(false);
                 claudeDisableAutoUpdaterEnabled.setSelected(false);
+                claudeMaxEffortEnabled.setSelected(false);
                 claudeDangerousMode.setSelectedIndex(0);
                 claudeNoFlickerMode.setSelectedIndex(0);
             }
@@ -1077,6 +1082,8 @@ public class ProviderDialog extends DialogWrapper {
         featureRow.add(createCheckboxWithLabel(claudeToolSearchEnabled, I18n.t("providerDialog.label.toolSearch")));
         featureRow.add(Box.createHorizontalStrut(12));
         featureRow.add(createCheckboxWithLabel(claudeDisableAutoUpdaterEnabled, I18n.t("providerDialog.label.disableAutoUpdater")));
+        featureRow.add(Box.createHorizontalStrut(12));
+        featureRow.add(createCheckboxWithLabel(claudeMaxEffortEnabled, I18n.t("providerDialog.label.maxEffort")));
 
         JPanel form = FormBuilder.createFormBuilder()
                 .addLabeledComponent(I18n.t("providerDialog.label.keyFieldName"), claudeApiKeyField)
@@ -1362,6 +1369,9 @@ public class ProviderDialog extends DialogWrapper {
         boolean disableAutoUpdaterEnabled = env.has("DISABLE_AUTOUPDATER")
                 && "1".equals(env.get("DISABLE_AUTOUPDATER").getAsString());
         claudeDisableAutoUpdaterEnabled.setSelected(disableAutoUpdaterEnabled);
+        boolean maxEffortEnabled = env.has("CLAUDE_CODE_EFFORT_LEVEL")
+                && "max".equalsIgnoreCase(env.get("CLAUDE_CODE_EFFORT_LEVEL").getAsString());
+        claudeMaxEffortEnabled.setSelected(maxEffortEnabled);
         boolean noFlickerEnabled = env.has("CLAUDE_CODE_NO_FLICKER")
                 && "true".equalsIgnoreCase(env.get("CLAUDE_CODE_NO_FLICKER").getAsString());
         boolean disableMouseEnabled = env.has("CLAUDE_CODE_DISABLE_MOUSE")
@@ -1533,6 +1543,9 @@ public class ProviderDialog extends DialogWrapper {
         }
         if (claudeDisableAutoUpdaterEnabled.isSelected()) {
             env.addProperty("DISABLE_AUTOUPDATER", "1");
+        }
+        if (claudeMaxEffortEnabled.isSelected()) {
+            env.addProperty("CLAUDE_CODE_EFFORT_LEVEL", "max");
         }
         String noFlickerMode = (String) claudeNoFlickerMode.getSelectedItem();
         String noFlickerEnabledLabel = I18n.t("providerDialog.noFlickerMode.enabled");
@@ -1763,6 +1776,7 @@ public class ProviderDialog extends DialogWrapper {
                 "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS",
                 "ENABLE_TOOL_SEARCH",
                 "DISABLE_AUTOUPDATER",
+                "CLAUDE_CODE_EFFORT_LEVEL",
                 "CLAUDE_CODE_NO_FLICKER",
                 "CLAUDE_CODE_DISABLE_MOUSE"));
         merged.add("env", mergedEnv);

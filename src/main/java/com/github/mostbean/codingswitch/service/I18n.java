@@ -574,6 +574,7 @@ public final class I18n {
                 m.put("providerDialog.label.teamMode", "Team 模式");
                 m.put("providerDialog.label.toolSearch", "Tool Search");
                 m.put("providerDialog.label.disableAutoUpdater", "禁用自动升级");
+                m.put("providerDialog.label.maxEffort", "最大强度思考");
                 m.put("providerDialog.label.dangerousMode", "危险模式:");
                 m.put("providerDialog.label.noFlickerMode", "TUI:");
                 m.put("providerDialog.option.default", "默认");
@@ -1211,6 +1212,7 @@ public final class I18n {
                 m.put("providerDialog.label.teamMode", "Team Mode");
                 m.put("providerDialog.label.toolSearch", "Tool Search");
                 m.put("providerDialog.label.disableAutoUpdater", "Disable Auto Update");
+                m.put("providerDialog.label.maxEffort", "Max Effort Thinking");
                 m.put("providerDialog.label.dangerousMode", "Dangerous Mode:");
                 m.put("providerDialog.label.noFlickerMode", "TUI:");
                 m.put("providerDialog.option.default", "Default");
