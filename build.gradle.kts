@@ -30,7 +30,8 @@ dependencies {
     implementation(libs.toml4j)
 
     // SQLite access (for cc-switch data sync)
-    implementation(libs.sqlite)
+    // 注意：使用裁剪后的版本，原始依赖在 sqliteOriginal 配置中
+    // implementation(libs.sqlite)
 
     // Markdown rendering
     implementation(libs.commonmark)
@@ -96,8 +97,93 @@ intellijPlatform {
     }
 }
 
+/**
+ * 裁剪 SQLite JDBC 原生库配置。
+ *
+ * sqlite-jdbc 打包了所有平台的原生库（14MB），但 JetBrains IDE 只需要桌面端的几个架构。
+ * 此配置创建一个裁剪版本的依赖，删除用不到的原生库文件，预计减少 7-10MB。
+ *
+ * 保留架构：
+ * - Windows/x86_64
+ * - Mac/x86_64, Mac/aarch64 (Apple Silicon)
+ * - Linux/x86_64, Linux/aarch64
+ */
+configurations {
+    create("sqliteOriginal")
+}
+
+dependencies {
+    // 原始 SQLite 依赖移到单独的配置中，不直接作为 implementation
+    "sqliteOriginal"(libs.sqlite)
+}
+
 tasks {
     wrapper {
         gradleVersion = providers.gradleProperty("gradleVersion").get()
     }
+
+    /**
+     * 裁剪 SQLite JDBC 原生库任务。
+     */
+    val stripSqliteNativeLibs = register<Jar>("stripSqliteNativeLibs") {
+        description = "裁剪 SQLite JDBC 中用不到的原生库以减小插件体积"
+        group = "build"
+
+        archiveBaseName.set("sqlite-jdbc")
+        archiveVersion.set("3.49.1.0-stripped")
+        destinationDirectory.set(layout.buildDirectory.dir("sqlite"))
+
+        // 需要保留的平台路径（注意大小写：Windows/Mac/Linux）
+        val keepPatterns = setOf(
+            "Windows/x86_64",
+            "Mac/x86_64",
+            "Mac/aarch64",
+            "Linux/x86_64",
+            "Linux/aarch64"
+        )
+
+        // 在配置期获取配置，避免配置缓存问题
+        val sqliteFiles = configurations.named("sqliteOriginal")
+        from(sqliteFiles.map { config ->
+            config.files.map { file ->
+                zipTree(file).matching {
+                    exclude { fileTreeElement ->
+                        val path = fileTreeElement.relativePath.pathString
+                        // 排除不需要的原生库
+                        if (path.startsWith("org/sqlite/native/")) {
+                            // 提取平台路径，例如 "org/sqlite/native/Linux/armv7/xxx.so" -> "Linux/armv7"
+                            val nativeRelPath = path.substring("org/sqlite/native/".length)
+                            val segments = nativeRelPath.split("/")
+                            if (segments.size >= 2) {
+                                val platformPath = "${segments[0]}/${segments[1]}"
+                                val shouldKeep = keepPatterns.contains(platformPath)
+                                !shouldKeep
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        }
+                    }
+                }
+            }
+        })
+
+        doLast {
+            val size = archiveFile.get().asFile.length()
+            val originalSize = 14317659L // 原始 sqlite-jdbc-3.49.1.0.jar 大小
+            val saved = originalSize - size
+            logger.lifecycle("✓ SQLite JDBC 裁剪完成: ${size / 1024 / 1024}MB (节省 ${saved / 1024 / 1024}MB)")
+        }
+    }
+
+    // 在编译前生成裁剪后的 SQLite
+    named("compileJava") {
+        dependsOn(stripSqliteNativeLibs)
+    }
+}
+
+// 将裁剪后的 SQLite 作为实现依赖
+dependencies {
+    implementation(files(tasks.named<Jar>("stripSqliteNativeLibs").map { it.archiveFile }))
 }
