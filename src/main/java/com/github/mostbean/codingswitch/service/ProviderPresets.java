@@ -105,11 +105,16 @@ public final class ProviderPresets {
         // =====================================================================
 
         private static Preset claudePreset(String name, String baseUrl, String model) {
-                return claudePreset(name, baseUrl, model, null, null, null);
+                return claudePreset(name, baseUrl, model, null, null, null, null);
         }
 
         private static Preset claudePreset(String name, String baseUrl, String model,
                         String haikuModel, String sonnetModel, String opusModel) {
+                return claudePreset(name, baseUrl, model, haikuModel, sonnetModel, opusModel, null);
+        }
+
+        private static Preset claudePreset(String name, String baseUrl, String model,
+                        String haikuModel, String sonnetModel, String opusModel, String fableModel) {
                 JsonObject config = new JsonObject();
                 JsonObject env = new JsonObject();
                 env.addProperty("ANTHROPIC_BASE_URL", baseUrl);
@@ -123,6 +128,9 @@ public final class ProviderPresets {
                 }
                 if (opusModel != null) {
                         env.addProperty("ANTHROPIC_DEFAULT_OPUS_MODEL", opusModel);
+                }
+                if (fableModel != null) {
+                        env.addProperty("ANTHROPIC_DEFAULT_FABLE_MODEL", fableModel);
                 }
                 config.add("env", env);
                 return new Preset(name, CliType.CLAUDE, config, AuthMode.API_KEY);

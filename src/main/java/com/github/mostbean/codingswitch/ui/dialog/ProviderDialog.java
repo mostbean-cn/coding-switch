@@ -61,13 +61,16 @@ public class ProviderDialog extends DialogWrapper {
             "Sonnet",
             "Sonnet[1m]",
             "Opus",
-            "Opus[1m]");
+            "Opus[1m]",
+            "Fable",
+            "Fable[1m]");
     private final JBLabel claudeApiKeyLabel = requiredLabel("API Key:");
     private final JBLabel claudeBaseUrlLabel = requiredLabel("Base URL:");
     private final JBLabel claudeModelLabel = requiredLabel(I18n.t("providerDialog.label.mainModel"));
     private final JTextField claudeHaiku = new JTextField(30);
     private final JTextField claudeSonnet = new JTextField(30);
     private final JTextField claudeOpus = new JTextField(30);
+    private final JTextField claudeFable = new JTextField(30);
     private final JComboBox<String> claudeApiKeyField = new JComboBox<>(
             new String[] { "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY" });
     private final JComboBox<String> claudeEffortLevel = createEditableCombo(
@@ -394,6 +397,7 @@ public class ProviderDialog extends DialogWrapper {
         addTextFieldListenerWithValidation(claudeHaiku);
         addTextFieldListenerWithValidation(claudeSonnet);
         addTextFieldListenerWithValidation(claudeOpus);
+        addTextFieldListenerWithValidation(claudeFable);
         claudeApiKeyField.addActionListener(e -> {
             if (!updatingFromPreview) updatePreview();
         });
@@ -950,6 +954,7 @@ public class ProviderDialog extends DialogWrapper {
                 claudeHaiku.setEnabled(!officialLogin);
                 claudeSonnet.setEnabled(!officialLogin);
                 claudeOpus.setEnabled(!officialLogin);
+                claudeFable.setEnabled(!officialLogin);
                 setRequiredState(claudeApiKeyLabel, !officialLogin);
                 setRequiredState(claudeBaseUrlLabel, !officialLogin);
                 setRequiredState(claudeModelLabel, !officialLogin);
@@ -983,6 +988,7 @@ public class ProviderDialog extends DialogWrapper {
                 claudeHaiku.setText("");
                 claudeSonnet.setText("");
                 claudeOpus.setText("");
+                claudeFable.setText("");
                 claudeEffortLevel.setSelectedItem("");
                 claudeAutoCompactWindow.setSelectedItem("");
                 claudeAlwaysThinkingEnabled.setSelectedIndex(0);
@@ -1081,6 +1087,7 @@ public class ProviderDialog extends DialogWrapper {
                 .addLabeledComponent("Haiku:", claudeHaiku)
                 .addLabeledComponent("Sonnet:", claudeSonnet)
                 .addLabeledComponent("Opus:", claudeOpus)
+                .addLabeledComponent("Fable:", claudeFable)
                 .addSeparator(8)
                 .addLabeledComponent(I18n.t("providerDialog.label.alwaysThinkingEnabled"), thinkingRow)
                 .addLabeledComponent(I18n.t("providerDialog.label.dangerousMode"), dangerousModeRow)
@@ -1327,6 +1334,7 @@ public class ProviderDialog extends DialogWrapper {
         setFieldFromJson(env, "ANTHROPIC_DEFAULT_HAIKU_MODEL", claudeHaiku);
         setFieldFromJson(env, "ANTHROPIC_DEFAULT_SONNET_MODEL", claudeSonnet);
         setFieldFromJson(env, "ANTHROPIC_DEFAULT_OPUS_MODEL", claudeOpus);
+        setFieldFromJson(env, "ANTHROPIC_DEFAULT_FABLE_MODEL", claudeFable);
         if (config.has("effortLevel") && !config.get("effortLevel").isJsonNull()) {
             claudeEffortLevel.setSelectedItem(config.get("effortLevel").getAsString());
         } else if (env.has("CLAUDE_CODE_EFFORT_LEVEL")) {
@@ -1515,6 +1523,7 @@ public class ProviderDialog extends DialogWrapper {
         addIfNotBlank(env, "ANTHROPIC_DEFAULT_HAIKU_MODEL", claudeHaiku);
         addIfNotBlank(env, "ANTHROPIC_DEFAULT_SONNET_MODEL", claudeSonnet);
         addIfNotBlank(env, "ANTHROPIC_DEFAULT_OPUS_MODEL", claudeOpus);
+        addIfNotBlank(env, "ANTHROPIC_DEFAULT_FABLE_MODEL", claudeFable);
         addIfNotBlank(env, "CLAUDE_CODE_AUTO_COMPACT_WINDOW", getComboText(claudeAutoCompactWindow));
         if (claudeTeamModeEnabled.isSelected()) {
             env.addProperty("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS", "1");
@@ -1749,6 +1758,7 @@ public class ProviderDialog extends DialogWrapper {
                 "ANTHROPIC_DEFAULT_HAIKU_MODEL",
                 "ANTHROPIC_DEFAULT_SONNET_MODEL",
                 "ANTHROPIC_DEFAULT_OPUS_MODEL",
+                "ANTHROPIC_DEFAULT_FABLE_MODEL",
                 "CLAUDE_CODE_AUTO_COMPACT_WINDOW",
                 "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS",
                 "ENABLE_TOOL_SEARCH",
@@ -1862,6 +1872,9 @@ public class ProviderDialog extends DialogWrapper {
         }
         if (isClaudeVariantSelected("opus") && claudeOpus.getText().isBlank()) {
             return new ValidationInfo("Opus " + I18n.t("providerDialog.validate.modelRequired"), claudeOpus);
+        }
+        if (isClaudeVariantSelected("fable") && claudeFable.getText().isBlank()) {
+            return new ValidationInfo("Fable " + I18n.t("providerDialog.validate.modelRequired"), claudeFable);
         }
         return null;
     }
