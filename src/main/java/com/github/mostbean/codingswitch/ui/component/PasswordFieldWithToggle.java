@@ -100,9 +100,11 @@ public class PasswordFieldWithToggle extends JBPasswordField {
         return this;
     }
 
-    /** 返回输入的密码明文。 */
-    @Override
-    public String getText() {
+    /**
+     * 返回输入的密码明文。
+     * 注意：虽然继承自 JPasswordField，但为了兼容外部调用，重写 getText() 返回明文。
+     */
+    public String getTextValue() {
         return new String(getPassword());
     }
 

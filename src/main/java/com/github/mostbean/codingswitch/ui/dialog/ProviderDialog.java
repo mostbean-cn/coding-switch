@@ -1724,7 +1724,7 @@ public class ProviderDialog extends DialogWrapper {
     }
 
     private void addIfNotBlank(JsonObject json, String key, PasswordFieldWithToggle field) {
-        String value = field.getText().trim();
+        String value = field.getTextValue().trim();
         if (!value.isEmpty())
             json.addProperty(key, value);
     }
@@ -1936,7 +1936,7 @@ public class ProviderDialog extends DialogWrapper {
     }
 
     private ValidationInfo validateClaude() {
-        if (claudeApiKey.getText().isBlank()) {
+        if (claudeApiKey.getTextValue().isBlank()) {
             return new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), claudeApiKey);
         }
         if (claudeBaseUrl.getText().isBlank()) {
@@ -1953,7 +1953,7 @@ public class ProviderDialog extends DialogWrapper {
     }
 
     private ValidationInfo validateCodex() {
-        if (codexApiKey.getText().isBlank()) {
+        if (codexApiKey.getTextValue().isBlank()) {
             return new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), codexApiKey);
         }
         if (codexBaseUrl.getText().isBlank()) {
@@ -1966,7 +1966,7 @@ public class ProviderDialog extends DialogWrapper {
     }
 
     private ValidationInfo validateOpenCode() {
-        if (opencodeApiKey.getText().isBlank()) {
+        if (opencodeApiKey.getTextValue().isBlank()) {
             return new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), opencodeApiKey);
         }
         if (opencodeBaseUrl.getText().isBlank()) {
@@ -2097,7 +2097,7 @@ public class ProviderDialog extends DialogWrapper {
     private ValidationInfo validateModelListFields(CliType cliType) {
         return switch (cliType) {
             case CLAUDE -> {
-                if (claudeApiKey.getText().isBlank()) {
+                if (claudeApiKey.getTextValue().isBlank()) {
                     yield new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), claudeApiKey);
                 }
                 if (claudeBaseUrl.getText().isBlank()) {
@@ -2107,7 +2107,7 @@ public class ProviderDialog extends DialogWrapper {
             }
             case ANTIGRAVITY -> null;
             case CODEX -> {
-                if (codexApiKey.getText().isBlank()) {
+                if (codexApiKey.getTextValue().isBlank()) {
                     yield new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), codexApiKey);
                 }
                 if (codexBaseUrl.getText().isBlank()) {
@@ -2116,7 +2116,7 @@ public class ProviderDialog extends DialogWrapper {
                 yield null;
             }
             case OPENCODE -> {
-                if (opencodeApiKey.getText().isBlank()) {
+                if (opencodeApiKey.getTextValue().isBlank()) {
                     yield new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), opencodeApiKey);
                 }
                 if (opencodeBaseUrl.getText().isBlank()) {

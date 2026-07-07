@@ -2599,7 +2599,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         }
 
         private String getApiKey() {
-            return apiKeyField.getText().trim();
+            return apiKeyField.getTextValue().trim();
         }
 
         private String normalizeHeaders(String value) {
