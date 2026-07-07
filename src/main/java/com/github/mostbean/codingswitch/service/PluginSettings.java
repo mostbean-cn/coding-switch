@@ -20,6 +20,10 @@ import org.jetbrains.annotations.NotNull;
 @State(name = "CodingSwitchSettings", storages = @Storage("codingSwitchSettings.xml"))
 public final class PluginSettings implements PersistentStateComponent<PluginSettings.State> {
 
+    private static final String DEFAULT_WEBDAV_REMOTE_PATH = "coding-switch/backup/snapshot.json";
+    private static final int DEFAULT_WEBDAV_INTERVAL_MINUTES = 30;
+    private static final int MIN_WEBDAV_INTERVAL_MINUTES = 1;
+
     public enum DataStorageMode {
         IDE_LOCAL,
         USER_SHARED;
@@ -171,6 +175,14 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         public String extensionSyncFilterCliId = "";
         public String extensionSyncStatusFilter = "all";
         public String ccSwitchConfigDirectory = "";
+        // WebDAV 备份同步配置
+        public String webdavBackupUrl = "";
+        public String webdavBackupUsername = "";
+        public String webdavRemotePath = "coding-switch/backup/snapshot.json";
+        public boolean webdavRememberPassword = false;
+        public boolean webdavAutoUpload = false;
+        public int webdavAutoUploadIntervalMinutes = 30;
+        public boolean webdavEncryptSensitive = true;
     }
 
     private State state = new State();
@@ -346,6 +358,82 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         saveActiveState(active);
     }
 
+    public String getWebdavBackupUrl() {
+        String value = getActiveState().webdavBackupUrl;
+        return value == null ? "" : value.trim();
+    }
+
+    public void setWebdavBackupUrl(String url) {
+        State active = getActiveState();
+        active.webdavBackupUrl = url == null ? "" : url.trim();
+        saveActiveState(active);
+    }
+
+    public String getWebdavBackupUsername() {
+        String value = getActiveState().webdavBackupUsername;
+        return value == null ? "" : value.trim();
+    }
+
+    public void setWebdavBackupUsername(String username) {
+        State active = getActiveState();
+        active.webdavBackupUsername = username == null ? "" : username.trim();
+        saveActiveState(active);
+    }
+
+    public String getWebdavRemotePath() {
+        String value = getActiveState().webdavRemotePath;
+        return value == null || value.isBlank() ? DEFAULT_WEBDAV_REMOTE_PATH : value.trim();
+    }
+
+    public void setWebdavRemotePath(String path) {
+        State active = getActiveState();
+        active.webdavRemotePath = path == null || path.isBlank() ? DEFAULT_WEBDAV_REMOTE_PATH : path.trim();
+        saveActiveState(active);
+    }
+
+    public boolean isWebdavRememberPassword() {
+        return getActiveState().webdavRememberPassword;
+    }
+
+    public void setWebdavRememberPassword(boolean remember) {
+        State active = getActiveState();
+        active.webdavRememberPassword = remember;
+        saveActiveState(active);
+    }
+
+    public boolean isWebdavAutoUpload() {
+        return getActiveState().webdavAutoUpload;
+    }
+
+    public void setWebdavAutoUpload(boolean autoUpload) {
+        State active = getActiveState();
+        active.webdavAutoUpload = autoUpload;
+        saveActiveState(active);
+    }
+
+    public int getWebdavAutoUploadIntervalMinutes() {
+        int value = getActiveState().webdavAutoUploadIntervalMinutes;
+        return value < MIN_WEBDAV_INTERVAL_MINUTES ? DEFAULT_WEBDAV_INTERVAL_MINUTES : value;
+    }
+
+    public void setWebdavAutoUploadIntervalMinutes(int minutes) {
+        State active = getActiveState();
+        active.webdavAutoUploadIntervalMinutes = minutes < MIN_WEBDAV_INTERVAL_MINUTES
+            ? DEFAULT_WEBDAV_INTERVAL_MINUTES
+            : minutes;
+        saveActiveState(active);
+    }
+
+    public boolean isWebdavEncryptSensitive() {
+        return getActiveState().webdavEncryptSensitive;
+    }
+
+    public void setWebdavEncryptSensitive(boolean encrypt) {
+        State active = getActiveState();
+        active.webdavEncryptSensitive = encrypt;
+        saveActiveState(active);
+    }
+
     public boolean isChinese() {
         return I18n.currentLanguage() == Language.ZH;
     }
@@ -379,6 +467,13 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         snapshot.extensionSyncFilterCliId = active.extensionSyncFilterCliId;
         snapshot.extensionSyncStatusFilter = active.extensionSyncStatusFilter;
         snapshot.ccSwitchConfigDirectory = active.ccSwitchConfigDirectory;
+        snapshot.webdavBackupUrl = active.webdavBackupUrl;
+        snapshot.webdavBackupUsername = active.webdavBackupUsername;
+        snapshot.webdavRemotePath = active.webdavRemotePath;
+        snapshot.webdavRememberPassword = active.webdavRememberPassword;
+        snapshot.webdavAutoUpload = active.webdavAutoUpload;
+        snapshot.webdavAutoUploadIntervalMinutes = active.webdavAutoUploadIntervalMinutes;
+        snapshot.webdavEncryptSensitive = active.webdavEncryptSensitive;
         return normalizeState(snapshot);
     }
 
@@ -443,6 +538,13 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
         snapshot.extensionSyncFilterCliId = state.extensionSyncFilterCliId;
         snapshot.extensionSyncStatusFilter = state.extensionSyncStatusFilter;
         snapshot.ccSwitchConfigDirectory = state.ccSwitchConfigDirectory;
+        snapshot.webdavBackupUrl = state.webdavBackupUrl;
+        snapshot.webdavBackupUsername = state.webdavBackupUsername;
+        snapshot.webdavRemotePath = state.webdavRemotePath;
+        snapshot.webdavRememberPassword = state.webdavRememberPassword;
+        snapshot.webdavAutoUpload = state.webdavAutoUpload;
+        snapshot.webdavAutoUploadIntervalMinutes = state.webdavAutoUploadIntervalMinutes;
+        snapshot.webdavEncryptSensitive = state.webdavEncryptSensitive;
         return normalizeState(snapshot);
     }
 
@@ -488,6 +590,24 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
             normalized.ccSwitchConfigDirectory = "";
         } else {
             normalized.ccSwitchConfigDirectory = normalized.ccSwitchConfigDirectory.trim();
+        }
+        if (normalized.webdavBackupUrl == null) {
+            normalized.webdavBackupUrl = "";
+        } else {
+            normalized.webdavBackupUrl = normalized.webdavBackupUrl.trim();
+        }
+        if (normalized.webdavBackupUsername == null) {
+            normalized.webdavBackupUsername = "";
+        } else {
+            normalized.webdavBackupUsername = normalized.webdavBackupUsername.trim();
+        }
+        if (normalized.webdavRemotePath == null || normalized.webdavRemotePath.isBlank()) {
+            normalized.webdavRemotePath = DEFAULT_WEBDAV_REMOTE_PATH;
+        } else {
+            normalized.webdavRemotePath = normalized.webdavRemotePath.trim();
+        }
+        if (normalized.webdavAutoUploadIntervalMinutes < MIN_WEBDAV_INTERVAL_MINUTES) {
+            normalized.webdavAutoUploadIntervalMinutes = DEFAULT_WEBDAV_INTERVAL_MINUTES;
         }
         return normalized;
     }

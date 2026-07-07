@@ -9,6 +9,7 @@ import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.PluginSettings.SecurityPolicy;
 import com.github.mostbean.codingswitch.service.ProviderConnectionTestService;
 import com.github.mostbean.codingswitch.service.ProviderPresets;
+import com.github.mostbean.codingswitch.ui.component.PasswordFieldWithToggle;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
@@ -54,7 +55,7 @@ public class ProviderDialog extends DialogWrapper {
     private final JComboBox<CliType> cliTypeCombo = new JComboBox<>();
     private final JTextField nameField = new JTextField(30);
 
-    private final JTextField claudeApiKey = new JTextField(30);
+    private final PasswordFieldWithToggle claudeApiKey = new PasswordFieldWithToggle(30);
     private final JTextField claudeBaseUrl = new JTextField(30);
     private final JComboBox<String> claudeModel = createEditableCombo(
             "Haiku",
@@ -90,7 +91,7 @@ public class ProviderDialog extends DialogWrapper {
             DEFAULT_OPTION_LABEL, I18n.t("providerDialog.noFlickerMode.enabled"),
             I18n.t("providerDialog.noFlickerMode.enabledDisableMouse") });
 
-    private final JTextField codexApiKey = new JTextField(30);
+    private final PasswordFieldWithToggle codexApiKey = new PasswordFieldWithToggle(30);
     private final JTextField codexBaseUrl = new JTextField(30);
     private final JTextField codexModel = new JTextField(30);
     private final JBLabel codexApiKeyLabel = requiredLabel("API Key:");
@@ -106,7 +107,7 @@ public class ProviderDialog extends DialogWrapper {
     private final JCheckBox codexFastMode = new JCheckBox();
     private static final String CODEX_PROVIDER_SLUG = "custom";
 
-    private final JTextField opencodeApiKey = new JTextField(30);
+    private final PasswordFieldWithToggle opencodeApiKey = new PasswordFieldWithToggle(30);
     private final JTextField opencodeBaseUrl = new JTextField(30);
     private final JPanel opencodeModelsPanel = new JPanel();
     private final List<ModelRow> opencodeModelRows = new ArrayList<>();
@@ -466,6 +467,10 @@ public class ProviderDialog extends DialogWrapper {
 
     private void addTextFieldListener(JTextField field) {
         field.getDocument().addDocumentListener(createDocumentListener());
+    }
+
+    private void addTextFieldListener(PasswordFieldWithToggle field) {
+        field.getActiveField().getDocument().addDocumentListener(createDocumentListener());
     }
 
     private void addTextFieldListenerWithValidation(JTextField field) {
@@ -1700,6 +1705,12 @@ public class ProviderDialog extends DialogWrapper {
         }
     }
 
+    private void setFieldFromJson(JsonObject json, String key, PasswordFieldWithToggle field) {
+        if (json.has(key) && !json.get(key).isJsonNull()) {
+            field.setText(json.get(key).getAsString());
+        }
+    }
+
     private void setComboFromJson(JsonObject json, String key, JComboBox<String> combo) {
         if (json.has(key) && !json.get(key).isJsonNull()) {
             combo.setSelectedItem(json.get(key).getAsString());
@@ -1707,6 +1718,12 @@ public class ProviderDialog extends DialogWrapper {
     }
 
     private void addIfNotBlank(JsonObject json, String key, JTextField field) {
+        String value = field.getText().trim();
+        if (!value.isEmpty())
+            json.addProperty(key, value);
+    }
+
+    private void addIfNotBlank(JsonObject json, String key, PasswordFieldWithToggle field) {
         String value = field.getText().trim();
         if (!value.isEmpty())
             json.addProperty(key, value);

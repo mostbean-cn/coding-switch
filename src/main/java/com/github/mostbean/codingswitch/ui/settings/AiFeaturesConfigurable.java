@@ -11,6 +11,9 @@ import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.PluginDataStorage;
 import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.PluginStorageModeService;
+import com.github.mostbean.codingswitch.service.WebDavBackupService;
+import com.github.mostbean.codingswitch.service.WebDavBackupScheduler;
+import com.github.mostbean.codingswitch.ui.component.PasswordFieldWithToggle;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
@@ -42,6 +45,8 @@ import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 import java.awt.Rectangle;
 import java.awt.Toolkit;
 import java.awt.event.InputEvent;
@@ -129,6 +134,10 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     private JPanel rootPanel;
     private JBScrollPane rootScrollPane;
 
+    // WebDAV 备份同步：外层保留自动上传开关+间隔，其余配置收进「配置」弹窗
+    private JCheckBox webdavAutoUploadCheckBox;
+    private JSpinner webdavIntervalSpinner;
+
     private final List<AiModelProfile> profiles = new ArrayList<>();
     private final Map<String, String> editedApiKeys = new HashMap<>();
     private final Set<String> removedProfileIds = new HashSet<>();
@@ -164,6 +173,8 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         content.add(buildCompletionSection());
         content.add(Box.createVerticalStrut(12));
         content.add(buildPreferenceSection());
+        content.add(Box.createVerticalStrut(12));
+        content.add(buildBackupSyncSection());
         content.add(Box.createVerticalStrut(12));
         content.add(buildExtensionSection());
         content.add(Box.createVerticalGlue());
@@ -269,6 +280,107 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         return section;
     }
 
+    private JPanel buildBackupSyncSection() {
+        JPanel section = new JPanel(new BorderLayout());
+        section.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createEtchedBorder(),
+            I18n.t("settings.section.backupSync")
+        ));
+        section.setAlignmentX(Component.LEFT_ALIGNMENT);
+        section.setMaximumSize(new Dimension(Integer.MAX_VALUE, section.getMaximumSize().height));
+
+        JPanel body = new JPanel(new GridBagLayout());
+        body.setBorder(JBUI.Borders.empty(0, 10, 10, 10));
+        GridBagConstraints constraints = new GridBagConstraints();
+        constraints.gridx = 0;
+        constraints.gridy = 0;
+        constraints.weightx = 1;
+        constraints.fill = GridBagConstraints.HORIZONTAL;
+        constraints.anchor = GridBagConstraints.WEST;
+
+        JTextArea hint = new JTextArea(I18n.t("settings.backup.hint"));
+        hint.setEditable(false);
+        hint.setLineWrap(true);
+        hint.setWrapStyleWord(true);
+        hint.setOpaque(false);
+        hint.setFocusable(false);
+        hint.setForeground(JBColor.GRAY);
+        hint.setFont(hint.getFont().deriveFont(hint.getFont().getSize2D() - 1f));
+        hint.setBorder(JBUI.Borders.empty(0, 0, 8, 0));
+        body.add(hint, constraints);
+
+        PluginSettings settings = PluginSettings.getInstance();
+        JPanel autoRow = backupSyncControlRow(0, 8);
+        webdavAutoUploadCheckBox = new JCheckBox(I18n.t("settings.backup.checkbox.autoUpload"));
+        webdavAutoUploadCheckBox.setSelected(settings.isWebdavAutoUpload());
+        webdavAutoUploadCheckBox.addActionListener(e -> {
+            settings.setWebdavAutoUpload(webdavAutoUploadCheckBox.isSelected());
+            WebDavBackupScheduler.getInstance().reschedule();
+        });
+        autoRow.add(webdavAutoUploadCheckBox);
+
+        autoRow.add(Box.createHorizontalStrut(8));
+        autoRow.add(new JBLabel(I18n.t("settings.backup.label.interval")));
+        webdavIntervalSpinner = new JSpinner(new SpinnerNumberModel(
+            settings.getWebdavAutoUploadIntervalMinutes(), 1, 1440, 1));
+        webdavIntervalSpinner.addChangeListener(e -> {
+            settings.setWebdavAutoUploadIntervalMinutes((Integer) webdavIntervalSpinner.getValue());
+            WebDavBackupScheduler.getInstance().reschedule();
+        });
+        Dimension spinnerSize = webdavIntervalSpinner.getPreferredSize();
+        webdavIntervalSpinner.setPreferredSize(new Dimension(
+            Math.max(spinnerSize.width, JBUI.scale(72)),
+            spinnerSize.height
+        ));
+        autoRow.add(webdavIntervalSpinner);
+        autoRow.add(Box.createHorizontalStrut(4));
+        autoRow.add(new JBLabel(I18n.t("settings.backup.label.intervalUnit")));
+        constraints.gridy++;
+        constraints.fill = GridBagConstraints.NONE;
+        body.add(autoRow, constraints);
+
+        JPanel actionRow = backupSyncControlRow(0, 0);
+        JButton configButton = new JButton(I18n.t("settings.backup.button.config"));
+        configButton.addActionListener(e -> openBackupConfigDialog());
+        actionRow.add(configButton);
+
+        actionRow.add(Box.createHorizontalStrut(8));
+        JButton uploadButton = new JButton(I18n.t("settings.backup.button.upload"));
+        uploadButton.addActionListener(e -> uploadBackupNow());
+        actionRow.add(uploadButton);
+
+        actionRow.add(Box.createHorizontalStrut(8));
+        JButton restoreButton = new JButton(I18n.t("settings.backup.button.restore"));
+        restoreButton.addActionListener(e -> restoreFromRemote());
+        actionRow.add(restoreButton);
+        constraints.gridy++;
+        body.add(actionRow, constraints);
+
+        section.add(body, BorderLayout.NORTH);
+
+        return section;
+    }
+
+    private JPanel backupSyncControlRow(int topInset, int bottomInset) {
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        row.setBorder(JBUI.Borders.empty(topInset, 0, bottomInset, 0));
+        return row;
+    }
+
+    private void openBackupConfigDialog() {
+        WebDavBackupConfigDialog dialog = new WebDavBackupConfigDialog();
+        if (dialog.showAndGet()) {
+            // 弹窗内已直接保存配置并重新调度；同步刷新外层自动上传勾选框和间隔状态
+            if (webdavAutoUploadCheckBox != null) {
+                webdavAutoUploadCheckBox.setSelected(PluginSettings.getInstance().isWebdavAutoUpload());
+            }
+            if (webdavIntervalSpinner != null) {
+                webdavIntervalSpinner.setValue(PluginSettings.getInstance().getWebdavAutoUploadIntervalMinutes());
+            }
+        }
+    }
+
     private JPanel buildExtensionSection() {
         JPanel section = createSection(I18n.t("settings.section.extension"));
         section.add(wrappedHintWithLink(
@@ -352,6 +464,111 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             value.equals(defaultDirectory) ? "" : value
         );
         refreshCcSwitchConfigDirectoryField();
+    }
+
+    private void uploadBackupNow() {
+        PluginSettings settings = PluginSettings.getInstance();
+        String url = settings.getWebdavBackupUrl();
+        String username = settings.getWebdavBackupUsername();
+        String remotePath = settings.getWebdavRemotePath();
+        boolean encrypt = settings.isWebdavEncryptSensitive();
+
+        if (url.isBlank()) {
+            Messages.showWarningDialog(
+                I18n.t("settings.backup.validation.urlRequired"),
+                I18n.t("settings.section.backupSync")
+            );
+            return;
+        }
+
+        WebDavBackupService backupService = WebDavBackupService.getInstance();
+        String password = backupService.loadWebDavPassword();
+        String passphrase = encrypt ? backupService.loadBackupPassphrase() : "";
+
+        ApplicationManager.getApplication().executeOnPooledThread(() -> {
+            WebDavBackupService.UploadResult result = backupService
+                .uploadSnapshot(url, username, password, remotePath, encrypt, passphrase);
+            SwingUtilities.invokeLater(() -> {
+                if (result.success()) {
+                    Messages.showInfoMessage(
+                        result.message(),
+                        I18n.t("settings.section.backupSync")
+                    );
+                } else {
+                    Messages.showWarningDialog(
+                        result.message(),
+                        I18n.t("settings.section.backupSync")
+                    );
+                }
+            });
+        });
+    }
+
+    private void restoreFromRemote() {
+        PluginSettings settings = PluginSettings.getInstance();
+        String url = settings.getWebdavBackupUrl();
+        String username = settings.getWebdavBackupUsername();
+        String remotePath = settings.getWebdavRemotePath();
+        boolean encrypt = settings.isWebdavEncryptSensitive();
+
+        if (url.isBlank()) {
+            Messages.showWarningDialog(
+                I18n.t("settings.backup.validation.urlRequired"),
+                I18n.t("settings.section.backupSync")
+            );
+            return;
+        }
+
+        WebDavBackupService backupService = WebDavBackupService.getInstance();
+        String password = backupService.loadWebDavPassword();
+        String passphrase = encrypt ? backupService.loadBackupPassphrase() : "";
+
+        ApplicationManager.getApplication().executeOnPooledThread(() -> {
+            WebDavBackupService.RestoreResult result = backupService
+                .downloadSnapshot(url, username, password, remotePath, encrypt, passphrase);
+            SwingUtilities.invokeLater(() -> {
+                if (!result.success()) {
+                    Messages.showWarningDialog(
+                        result.errorMessage(),
+                        I18n.t("settings.section.backupSync")
+                    );
+                    return;
+                }
+
+                WebDavBackupService.BackupSnapshot snapshot = result.snapshot();
+                int providerCount = snapshot.providers == null ? 0 : snapshot.providers.size();
+                int mcpCount = snapshot.mcpServers == null ? 0 : snapshot.mcpServers.size();
+                int skillCount = snapshot.skills == null ? 0 : snapshot.skills.size();
+                int promptCount = snapshot.prompts == null ? 0 : snapshot.prompts.size();
+
+                String confirmMessage = I18n.t(
+                    "settings.backup.restore.confirm",
+                    snapshot.createdAt,
+                    snapshot.sourceHost,
+                    providerCount,
+                    mcpCount,
+                    skillCount,
+                    promptCount
+                );
+
+                int choice = Messages.showYesNoDialog(
+                    confirmMessage,
+                    I18n.t("settings.backup.restore.confirmTitle"),
+                    I18n.t("settings.backup.restore.confirmYes"),
+                    I18n.t("common.button.cancel"),
+                    Messages.getWarningIcon()
+                );
+
+                if (choice == Messages.YES) {
+                    backupService.applySnapshot(snapshot);
+                    reset();  // 刷新 UI
+                    Messages.showInfoMessage(
+                        I18n.t("settings.backup.restore.success"),
+                        I18n.t("settings.section.backupSync")
+                    );
+                }
+            });
+        });
     }
 
     private JPanel buildCompletionSection() {
@@ -1068,6 +1285,12 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         selectProfile(activeGitCommitProfileCombo, state.activeGitCommitProfileId);
         removedProfileIds.clear();
         editedApiKeys.clear();
+        if (webdavAutoUploadCheckBox != null) {
+            webdavAutoUploadCheckBox.setSelected(PluginSettings.getInstance().isWebdavAutoUpload());
+        }
+        if (webdavIntervalSpinner != null) {
+            webdavIntervalSpinner.setValue(PluginSettings.getInstance().getWebdavAutoUploadIntervalMinutes());
+        }
         updateFeatureAvailability();
     }
 
@@ -2226,7 +2449,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         private JComboBox<AiModelFormat> formatCombo;
         private JTextField baseUrlField;
         private JTextField modelField;
-        private JPasswordField apiKeyField;
+        private PasswordFieldWithToggle apiKeyField;
         private JSpinner timeoutSpinner;
         private JTextArea headersArea;
         private JComboBox<Boolean> fimEnabledCombo;
@@ -2253,7 +2476,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
             formatCombo.setSelectedItem(selectedInitialFormat());
             baseUrlField = new JTextField(original.getBaseUrl(), 30);
             modelField = new JTextField(original.getModel(), 30);
-            apiKeyField = new JPasswordField(existingApiKey, 30);
+            apiKeyField = new PasswordFieldWithToggle(existingApiKey, 30);
             timeoutSpinner = new JSpinner(new SpinnerNumberModel(original.getTimeoutSeconds(), 1, 120, 1));
             headersArea = new JTextArea(original.getHeadersJson(), 4, 30);
             headersArea.setLineWrap(true);
@@ -2376,7 +2599,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         }
 
         private String getApiKey() {
-            return new String(apiKeyField.getPassword()).trim();
+            return apiKeyField.getText().trim();
         }
 
         private String normalizeHeaders(String value) {
@@ -2633,6 +2856,222 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
 
         private PluginStorageModeService.SharedDataStrategy getSelectedStrategy() {
             return selectedStrategy;
+        }
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────────
+    // WebDAV 备份配置弹窗
+    // ────────────────────────────────────────────────────────────────────────────────
+
+    private static final class WebDavBackupConfigDialog extends DialogWrapper {
+        private JTextField urlField;
+        private JTextField usernameField;
+        private JPasswordField passwordField;
+        private JCheckBox rememberPasswordCheckBox;
+        private JTextField remotePathField;
+        private JCheckBox encryptCheckBox;
+        private JPasswordField passphraseField;
+
+        protected WebDavBackupConfigDialog() {
+            super(true);
+            setTitle(I18n.t("settings.backup.dialog.title"));
+            init();
+        }
+
+        @Override
+        protected @Nullable JComponent createCenterPanel() {
+            PluginSettings settings = PluginSettings.getInstance();
+            WebDavBackupService backupService = WebDavBackupService.getInstance();
+
+            JPanel form = new JPanel(new GridBagLayout());
+            form.setBorder(JBUI.Borders.empty(0, 0, 0, 0));
+            GridBagConstraints constraints = new GridBagConstraints();
+            constraints.gridy = 0;
+            constraints.insets = JBUI.insets(0, 0, 10, 0);
+            constraints.anchor = GridBagConstraints.WEST;
+
+            // WebDAV 地址
+            urlField = new JTextField(settings.getWebdavBackupUrl(), 40);
+            addBackupFormRow(form, constraints, I18n.t("settings.backup.label.url"), urlField);
+
+            // 用户名
+            usernameField = new JTextField(settings.getWebdavBackupUsername(), 40);
+            addBackupFormRow(form, constraints, I18n.t("settings.backup.label.username"), usernameField);
+
+            // 密码 + 记住密码
+            JPanel passwordRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+            passwordField = new JPasswordField(20);
+            if (settings.isWebdavRememberPassword()) {
+                passwordField.setText(backupService.loadWebDavPassword());
+            }
+            passwordRow.add(passwordField);
+            passwordRow.add(Box.createHorizontalStrut(JBUI.scale(12)));
+            rememberPasswordCheckBox = new JCheckBox(I18n.t("settings.backup.checkbox.rememberPassword"));
+            rememberPasswordCheckBox.setSelected(settings.isWebdavRememberPassword());
+            passwordRow.add(rememberPasswordCheckBox);
+            addBackupFormRow(form, constraints, I18n.t("settings.backup.label.password"), passwordRow);
+
+            // 远端快照路径
+            remotePathField = new JTextField(settings.getWebdavRemotePath(), 40);
+            addBackupFormRow(form, constraints, I18n.t("settings.backup.label.remotePath"), remotePathField);
+
+            // 加密选项从标签列最左侧开始，和「备份口令」字样左边缘对齐。
+            JPanel encryptRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+            encryptCheckBox = new JCheckBox(I18n.t("settings.backup.checkbox.encrypt"));
+            encryptCheckBox.setSelected(settings.isWebdavEncryptSensitive());
+            encryptRow.add(encryptCheckBox);
+            encryptRow.add(Box.createHorizontalStrut(JBUI.scale(12)));
+
+            JLabel hintLabel = new JLabel(I18n.t("settings.backup.hint.encryptPassphrase"));
+            hintLabel.setForeground(JBColor.GRAY);
+            hintLabel.setFont(hintLabel.getFont().deriveFont(hintLabel.getFont().getSize2D() - 1f));
+            encryptRow.add(hintLabel);
+            addBackupFormWideRow(form, constraints, encryptRow);
+
+            // 备份口令
+            passphraseField = new JPasswordField(20);
+            if (settings.isWebdavEncryptSensitive()) {
+                passphraseField.setText(backupService.loadBackupPassphrase());
+            }
+            addBackupFormRow(form, constraints, I18n.t("settings.backup.label.passphrase"), passphraseField);
+
+            JPanel panel = new JPanel(new BorderLayout());
+            panel.add(form, BorderLayout.CENTER);
+            return panel;
+        }
+
+        private void addBackupFormRow(
+            JPanel form,
+            GridBagConstraints constraints,
+            String labelText,
+            JComponent field
+        ) {
+            constraints.gridx = 0;
+            constraints.weightx = 0;
+            constraints.fill = GridBagConstraints.NONE;
+            form.add(backupLabel(labelText), constraints);
+
+            constraints.gridx = 1;
+            constraints.weightx = 1;
+            constraints.fill = GridBagConstraints.HORIZONTAL;
+            constraints.insets = JBUI.insets(0, JBUI.scale(8), 10, 0);
+            form.add(field, constraints);
+
+            constraints.gridy++;
+            constraints.insets = JBUI.insets(0, 0, 10, 0);
+        }
+
+        private void addBackupFormWideRow(
+            JPanel form,
+            GridBagConstraints constraints,
+            JComponent component
+        ) {
+            constraints.gridx = 0;
+            constraints.gridwidth = 2;
+            constraints.weightx = 1;
+            constraints.fill = GridBagConstraints.HORIZONTAL;
+            form.add(component, constraints);
+
+            constraints.gridy++;
+            constraints.gridwidth = 1;
+            constraints.insets = JBUI.insets(0, 0, 10, 0);
+        }
+
+        private JComponent backupLabel(String text) {
+            JBLabel label = new JBLabel(text);
+            Dimension size = label.getPreferredSize();
+            label.setPreferredSize(new Dimension(JBUI.scale(112), size.height));
+            return label;
+        }
+
+        @Override
+        protected Action @NotNull [] createActions() {
+            return new Action[] { new TestConnectionAction(), getOKAction(), getCancelAction() };
+        }
+
+        @Override
+        protected void doOKAction() {
+            // 保存配置到 PluginSettings 和 PasswordSafe
+            PluginSettings settings = PluginSettings.getInstance();
+            settings.setWebdavBackupUrl(urlField.getText().trim());
+            settings.setWebdavBackupUsername(usernameField.getText().trim());
+            settings.setWebdavRemotePath(remotePathField.getText().trim());
+            boolean rememberPassword = rememberPasswordCheckBox.isSelected();
+            settings.setWebdavRememberPassword(rememberPassword);
+            boolean encrypt = encryptCheckBox.isSelected();
+            settings.setWebdavEncryptSensitive(encrypt);
+
+            WebDavBackupService backupService = WebDavBackupService.getInstance();
+            if (rememberPassword) {
+                backupService.saveWebDavPassword(new String(passwordField.getPassword()));
+            } else {
+                backupService.saveWebDavPassword("");
+            }
+            if (encrypt) {
+                backupService.saveBackupPassphrase(new String(passphraseField.getPassword()));
+            } else {
+                backupService.saveBackupPassphrase("");
+            }
+
+            // 重新调度自动备份
+            WebDavBackupScheduler.getInstance().reschedule();
+
+            super.doOKAction();
+        }
+
+        private JComponent createHint(String text) {
+            JTextArea hint = new JTextArea(text);
+            hint.setEditable(false);
+            hint.setLineWrap(true);
+            hint.setWrapStyleWord(true);
+            hint.setOpaque(false);
+            hint.setFocusable(false);
+            hint.setForeground(JBColor.GRAY);
+            hint.setBorder(JBUI.Borders.empty(0, 0, 5, 0));
+            hint.setFont(hint.getFont().deriveFont(hint.getFont().getSize2D() - 1f));
+            return hint;
+        }
+
+        private class TestConnectionAction extends DialogWrapperAction {
+            protected TestConnectionAction() {
+                super(I18n.t("settings.backup.button.test"));
+            }
+
+            @Override
+            protected void doAction(java.awt.event.ActionEvent e) {
+                String url = urlField.getText().trim();
+                String username = usernameField.getText().trim();
+                String password = new String(passwordField.getPassword());
+
+                if (url.isBlank()) {
+                    Messages.showWarningDialog(
+                        getContentPane(),
+                        I18n.t("settings.backup.validation.urlRequired"),
+                        I18n.t("settings.section.backupSync")
+                    );
+                    return;
+                }
+
+                ApplicationManager.getApplication().executeOnPooledThread(() -> {
+                    WebDavBackupService.TestResult result = WebDavBackupService.getInstance()
+                        .testConnection(url, username, password);
+                    SwingUtilities.invokeLater(() -> {
+                        if (result.success()) {
+                            Messages.showInfoMessage(
+                                getContentPane(),
+                                result.message(),
+                                I18n.t("settings.section.backupSync")
+                            );
+                        } else {
+                            Messages.showWarningDialog(
+                                getContentPane(),
+                                result.message(),
+                                I18n.t("settings.section.backupSync")
+                            );
+                        }
+                    });
+                });
+            }
         }
     }
 }

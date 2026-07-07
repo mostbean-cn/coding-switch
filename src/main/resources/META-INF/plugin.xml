@@ -41,6 +41,10 @@
     ]]>    </description>
 
     <change-notes><![CDATA[
+    <h3>0.4.6</h3>
+    <ul>
+        <li><b>WebDAV 备份同步</b> — 设置页新增 WebDAV 备份同步功能，支持加密备份配置到 WebDAV 服务器，并支持自动定时备份与跨设备恢复。</li>
+    </ul>
     <h3>0.4.5</h3>
     <ul>
         <li><b>Claude Fable 模型支持</b> — 新增对 Claude Fable 5 模型的配置支持，可在主模型下拉框中选择 Fable 或 Fable[1m] 变体。</li>
@@ -278,6 +282,8 @@
         <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.PromptService"/>
         <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.PluginSettings"/>
         <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.AiFeatureSettings"/>
+        <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.WebDavBackupService"/>
+        <applicationService serviceImplementation="com.github.mostbean.codingswitch.service.WebDavBackupScheduler"/>
 
         <!-- IDE Settings -->
         <applicationConfigurable
@@ -289,6 +295,7 @@
         <!-- AI Inline Code Completion -->
         <typedHandler implementation="com.github.mostbean.codingswitch.completion.AiInlineCompletionTypedHandler"/>
         <postStartupActivity implementation="com.github.mostbean.codingswitch.service.AiInlineCompletionStartupActivity"/>
+        <postStartupActivity implementation="com.github.mostbean.codingswitch.startup.WebDavBackupStartupActivity"/>
 
         <!-- Notification Group -->
         <notificationGroup id="Coding Switch" displayType="BALLOON" toolWindowId="Coding Switch"/>
