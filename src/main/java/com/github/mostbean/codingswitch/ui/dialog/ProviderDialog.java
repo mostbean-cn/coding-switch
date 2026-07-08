@@ -73,6 +73,7 @@ public class ProviderDialog extends DialogWrapper {
             new String[] { "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY" });
     private final JComboBox<String> claudeEffortLevel = createEditableCombo(
             "", "xhigh", "high", "medium", "low");
+    private final JBLabel claudeEffortLevelLabel = new JBLabel(I18n.t("providerDialog.label.effortLevel"));
     private final JComboBox<String> claudeAutoCompactWindow = createEditableCombo(
             "", "400000", "900000");
     private final JComboBox<String> claudeAlwaysThinkingEnabled = new JComboBox<>(
@@ -441,6 +442,7 @@ public class ProviderDialog extends DialogWrapper {
             if (!updatingFromPreview) updatePreview();
         });
         claudeMaxEffortEnabled.addActionListener(e -> {
+            updateClaudeEffortLevelUi();
             if (!updatingFromPreview) updatePreview();
         });
         claudeDangerousMode.addActionListener(e -> {
@@ -1023,6 +1025,7 @@ public class ProviderDialog extends DialogWrapper {
                 claudeToolSearchEnabled.setSelected(false);
                 claudeDisableAutoUpdaterEnabled.setSelected(false);
                 claudeMaxEffortEnabled.setSelected(false);
+                updateClaudeEffortLevelUi();
                 claudeDangerousMode.setSelectedIndex(0);
                 claudeNoFlickerMode.setSelectedIndex(0);
             }
@@ -1063,7 +1066,7 @@ public class ProviderDialog extends DialogWrapper {
 
         gbc.gridx = 1; gbc.weightx = 0; gbc.fill = GridBagConstraints.NONE;
         gbc.insets = JBUI.insets(0, 12, 0, 4);
-        thinkingRow.add(new JBLabel(I18n.t("providerDialog.label.effortLevel")), gbc);
+        thinkingRow.add(claudeEffortLevelLabel, gbc);
 
         gbc.gridx = 2; gbc.weightx = 0; gbc.fill = GridBagConstraints.NONE;
         gbc.insets = JBUI.insets(0, 0, 0, 0);
@@ -1210,6 +1213,18 @@ public class ProviderDialog extends DialogWrapper {
         if (codexAutoCompactWindowContainer != null) {
             codexAutoCompactWindowContainer.revalidate();
             codexAutoCompactWindowContainer.repaint();
+        }
+    }
+
+    private void updateClaudeEffortLevelUi() {
+        boolean enabled = !claudeMaxEffortEnabled.isSelected();
+        claudeEffortLevel.setEnabled(enabled);
+        claudeEffortLevelLabel.setEnabled(enabled);
+        if (claudeEffortLevel.isEditable()) {
+            Component editorComponent = claudeEffortLevel.getEditor().getEditorComponent();
+            if (editorComponent != null) {
+                editorComponent.setEnabled(enabled);
+            }
         }
     }
 
@@ -1395,6 +1410,7 @@ public class ProviderDialog extends DialogWrapper {
         boolean maxEffortEnabled = env.has("CLAUDE_CODE_EFFORT_LEVEL")
                 && "max".equalsIgnoreCase(env.get("CLAUDE_CODE_EFFORT_LEVEL").getAsString());
         claudeMaxEffortEnabled.setSelected(maxEffortEnabled);
+        updateClaudeEffortLevelUi();
         boolean noFlickerEnabled = env.has("CLAUDE_CODE_NO_FLICKER")
                 && "true".equalsIgnoreCase(env.get("CLAUDE_CODE_NO_FLICKER").getAsString());
         boolean disableMouseEnabled = env.has("CLAUDE_CODE_DISABLE_MOUSE")
