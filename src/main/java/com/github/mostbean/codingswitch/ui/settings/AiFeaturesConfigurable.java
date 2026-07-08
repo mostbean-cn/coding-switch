@@ -8,6 +8,7 @@ import com.github.mostbean.codingswitch.service.AiFeatureSettings;
 import com.github.mostbean.codingswitch.service.AiModelConnectionTestService;
 import com.github.mostbean.codingswitch.service.CcSwitchSyncService;
 import com.github.mostbean.codingswitch.service.I18n;
+import com.github.mostbean.codingswitch.service.LanguageChangedListener;
 import com.github.mostbean.codingswitch.service.PluginDataStorage;
 import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.PluginStorageModeService;
@@ -32,6 +33,7 @@ import com.intellij.openapi.application.PathManager;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.ValidationInfo;
+import com.intellij.openapi.util.Disposer;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
@@ -133,6 +135,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     private final List<Integer> visibleProfileIndexes = new ArrayList<>();
     private JPanel rootPanel;
     private JBScrollPane rootScrollPane;
+    private com.intellij.openapi.Disposable languageListenerDisposable;
 
     // WebDAV 备份同步：外层保留自动上传开关+间隔，其余配置收进「配置」弹窗
     private JCheckBox webdavAutoUploadCheckBox;
@@ -160,6 +163,20 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         rootScrollPane.setBorder(JBUI.Borders.empty());
         rootPanel.add(rootScrollPane, BorderLayout.CENTER);
         reset();
+
+        // 订阅语言切换事件，实现动态刷新
+        languageListenerDisposable = Disposer.newDisposable();
+        ApplicationManager.getApplication().getMessageBus()
+            .connect(languageListenerDisposable)
+            .subscribe(LanguageChangedListener.TOPIC, new LanguageChangedListener() {
+                @Override
+                public void languageChanged(PluginSettings.Language oldLanguage, PluginSettings.Language newLanguage) {
+                    ApplicationManager.getApplication().invokeLater(() -> {
+                        rebuildSettingsUI();
+                    }, ModalityState.any());
+                }
+            });
+
         return rootPanel;
     }
 
@@ -1313,27 +1330,7 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         PluginSettings.Language targetLanguage = selectedLanguage();
         if (targetLanguage != currentLanguage) {
             PluginSettings.getInstance().setLanguage(targetLanguage);
-            int result = Messages.showYesNoDialog(
-                I18n.t(
-                    "settings.dialog.languageChanged.message",
-                    targetLanguage.getDisplayName(I18n.currentLanguage())
-                ),
-                I18n.t("settings.dialog.languageChanged.title"),
-                I18n.t("settings.dialog.languageChanged.restartNow"),
-                I18n.t("settings.dialog.languageChanged.restartLater"),
-                Messages.getQuestionIcon()
-            );
-            if (result == Messages.YES) {
-                restartIdeAfterDialogs();
-            }
         }
-    }
-
-    private void restartIdeAfterDialogs() {
-        ApplicationManager.getApplication().invokeLater(
-            () -> ApplicationManager.getApplication().restart(),
-            ModalityState.nonModal()
-        );
     }
 
     private void switchStorageMode(
@@ -1476,6 +1473,10 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
     @Override
     public void disposeUIResources() {
         removeShortcutCaptureListener();
+        if (languageListenerDisposable != null) {
+            Disposer.dispose(languageListenerDisposable);
+            languageListenerDisposable = null;
+        }
         rootPanel = null;
         rootScrollPane = null;
     }
@@ -1700,6 +1701,194 @@ public class AiFeaturesConfigurable implements SearchableConfigurable {
         }
         String lower = value.toLowerCase();
         return Character.toUpperCase(lower.charAt(0)) + lower.substring(1);
+    }
+
+    /**
+     * 重建设置界面，保留所有表单状态。
+     * 当语言切换时调用，无需用户重新打开设置页。
+     */
+    private void rebuildSettingsUI() {
+        if (rootPanel == null || rootScrollPane == null) {
+            return;
+        }
+
+        // 1. 保存当前表单状态
+        FormState formState = captureFormState();
+
+        // 2. 保存滚动位置
+        int scrollPosition = rootScrollPane.getVerticalScrollBar().getValue();
+
+        // 3. 移除旧内容
+        rootPanel.remove(rootScrollPane);
+
+        // 4. 重新构建 UI（使用新语言）
+        rootScrollPane = new JBScrollPane(buildContent());
+        rootScrollPane.setBorder(JBUI.Borders.empty());
+        rootPanel.add(rootScrollPane, BorderLayout.CENTER);
+
+        // 5. 恢复表单状态
+        restoreFormState(formState);
+
+        // 6. 恢复滚动位置
+        SwingUtilities.invokeLater(() -> {
+            rootScrollPane.getVerticalScrollBar().setValue(scrollPosition);
+        });
+
+        // 7. 刷新界面
+        rootPanel.revalidate();
+        rootPanel.repaint();
+    }
+
+    /**
+     * 捕获当前表单状态。
+     */
+    private FormState captureFormState() {
+        FormState state = new FormState();
+
+        // 功能开关（优先从 UI 读取，如果 UI 未初始化则从数据读取）
+        if (codeCompletionEnabled != null) {
+            state.codeCompletionEnabled = codeCompletionEnabled.isSelected();
+        } else {
+            state.codeCompletionEnabled = AiFeatureSettings.getInstance().snapshot().codeCompletionEnabled;
+        }
+
+        if (gitCommitMessageEnabled != null) {
+            state.gitCommitMessageEnabled = gitCommitMessageEnabled.isSelected();
+        } else {
+            state.gitCommitMessageEnabled = AiFeatureSettings.getInstance().snapshot().gitCommitMessageEnabled;
+        }
+
+        if (autoCompletionEnabled != null) {
+            state.autoCompletionEnabled = autoCompletionEnabled.isSelected();
+        } else {
+            state.autoCompletionEnabled = AiFeatureSettings.getInstance().snapshot().autoCompletionEnabled;
+        }
+
+        // 下拉框选项
+        state.gitCommitLanguage = gitCommitMessageLanguage != null ? gitCommitMessageLanguage.getSelectedItem() : null;
+        state.uiLanguage = uiLanguageCombo != null ? uiLanguageCombo.getSelectedItem() : null;
+        state.storageMode = storageModeCombo != null ? storageModeCombo.getSelectedItem() : null;
+        state.autoCompletionLengthLevel = autoCompletionLengthLevel != null ? autoCompletionLengthLevel.getSelectedItem() : null;
+        state.manualCompletionLengthLevel = manualCompletionLengthLevel != null ? manualCompletionLengthLevel.getSelectedItem() : null;
+
+        // Profile 相关
+        Object activeProfile = activeProfileCombo != null ? activeProfileCombo.getSelectedItem() : null;
+        state.activeCompletionProfileId = activeProfile instanceof AiModelProfile profile ? profile.getId() : "";
+        Object activeGitProfile = activeGitCommitProfileCombo != null ? activeGitCommitProfileCombo.getSelectedItem() : null;
+        state.activeGitCommitProfileId = activeGitProfile instanceof AiModelProfile profile ? profile.getId() : "";
+
+        // 文本字段
+        state.manualShortcut = manualShortcutField != null ? manualShortcutField.getText() : "";
+        state.ccSwitchConfigDirectory = ccSwitchConfigDirectoryField != null ? ccSwitchConfigDirectoryField.getText() : "";
+
+        // WebDAV 配置
+        state.webdavAutoUpload = webdavAutoUploadCheckBox != null && webdavAutoUploadCheckBox.isSelected();
+        state.webdavInterval = webdavIntervalSpinner != null ? (Integer) webdavIntervalSpinner.getValue() : 30;
+
+        // Profile 列表（编辑中的状态）
+        state.profiles = new ArrayList<>(profiles);
+        state.editedApiKeys = new HashMap<>(editedApiKeys);
+        state.removedProfileIds = new HashSet<>(removedProfileIds);
+
+        return state;
+    }
+
+    /**
+     * 恢复表单状态。
+     */
+    private void restoreFormState(FormState state) {
+        if (state == null) {
+            return;
+        }
+
+        suppressFeatureAvailabilityUpdates = true;
+        try {
+            // 恢复 Profile 编辑状态（必须在 reloadProfiles 之前）
+            profiles.clear();
+            profiles.addAll(state.profiles);
+            editedApiKeys.clear();
+            editedApiKeys.putAll(state.editedApiKeys);
+            removedProfileIds.clear();
+            removedProfileIds.addAll(state.removedProfileIds);
+
+            // 重新加载 Profile 列表
+            reloadProfiles();
+
+            // 功能开关
+            if (codeCompletionEnabled != null) {
+                codeCompletionEnabled.setSelected(state.codeCompletionEnabled);
+            }
+            if (gitCommitMessageEnabled != null) {
+                gitCommitMessageEnabled.setSelected(state.gitCommitMessageEnabled);
+            }
+            if (autoCompletionEnabled != null) {
+                autoCompletionEnabled.setSelected(state.autoCompletionEnabled);
+            }
+
+            // 下拉框选项
+            if (gitCommitMessageLanguage != null && state.gitCommitLanguage != null) {
+                gitCommitMessageLanguage.setSelectedItem(state.gitCommitLanguage);
+            }
+            if (uiLanguageCombo != null && state.uiLanguage != null) {
+                uiLanguageCombo.setSelectedItem(state.uiLanguage);
+            }
+            if (storageModeCombo != null && state.storageMode != null) {
+                storageModeCombo.setSelectedItem(state.storageMode);
+            }
+            if (autoCompletionLengthLevel != null && state.autoCompletionLengthLevel != null) {
+                autoCompletionLengthLevel.setSelectedItem(state.autoCompletionLengthLevel);
+            }
+            if (manualCompletionLengthLevel != null && state.manualCompletionLengthLevel != null) {
+                manualCompletionLengthLevel.setSelectedItem(state.manualCompletionLengthLevel);
+            }
+
+            // Profile 选择
+            selectProfile(activeProfileCombo, state.activeCompletionProfileId);
+            selectProfile(activeGitCommitProfileCombo, state.activeGitCommitProfileId);
+
+            // 文本字段
+            if (manualShortcutField != null && state.manualShortcut != null) {
+                manualShortcutField.setText(state.manualShortcut);
+            }
+            if (ccSwitchConfigDirectoryField != null && state.ccSwitchConfigDirectory != null) {
+                ccSwitchConfigDirectoryField.setText(state.ccSwitchConfigDirectory);
+            }
+
+            // WebDAV 配置
+            if (webdavAutoUploadCheckBox != null) {
+                webdavAutoUploadCheckBox.setSelected(state.webdavAutoUpload);
+            }
+            if (webdavIntervalSpinner != null) {
+                webdavIntervalSpinner.setValue(state.webdavInterval);
+            }
+        } finally {
+            suppressFeatureAvailabilityUpdates = false;
+        }
+
+        updateFeatureAvailability();
+    }
+
+    /**
+     * 表单状态快照，用于 UI 重建时保留用户输入。
+     */
+    private static class FormState {
+        boolean codeCompletionEnabled;
+        boolean gitCommitMessageEnabled;
+        boolean autoCompletionEnabled;
+        Object gitCommitLanguage;
+        Object uiLanguage;
+        Object storageMode;
+        Object autoCompletionLengthLevel;
+        Object manualCompletionLengthLevel;
+        String activeCompletionProfileId;
+        String activeGitCommitProfileId;
+        String manualShortcut;
+        String ccSwitchConfigDirectory;
+        boolean webdavAutoUpload;
+        int webdavInterval;
+        List<AiModelProfile> profiles;
+        Map<String, String> editedApiKeys;
+        Set<String> removedProfileIds;
     }
 
     private void applyShortcut(String shortcutText) {

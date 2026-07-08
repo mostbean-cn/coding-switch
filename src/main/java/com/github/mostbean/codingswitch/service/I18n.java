@@ -136,9 +136,9 @@ public final class I18n {
                 m.put("settings.button.exportToCcSwitch", "导出");
                 m.put("settings.hint.githubToken", "可选。配置 GitHub 令牌可提升 API 速率限制（仅影响 GitHub Skills 仓库）。");
                 m.put("settings.hint.dataStorageMode", "Coding Switch 默认将配置数据保存在当前 IDE 的本地目录中。如需在 JetBrains 全家桶之间共享配置, 请切换到\"用户级共享\"。");
-                m.put("settings.hint.featureSelection", "用于控制顶部标签显示。");
-                m.put("settings.hint.cliSelection", "用于控制本页“版本检测”和“安装/更新命令”中显示哪些 CLI。未选中时默认显示全部 CLI。");
-                m.put("settings.hint.moreSettings", "在此可配置：\n1. Git 信息提交：Git 提交信息生成模型。\n2. 代码补全：IDE 内代码补全、补全模型、自动触发和手动触发快捷键。\n3. CC Switch 数据同步：桌面端数据同步，与 CC Switch 的配置导入导出。");
+                m.put("settings.hint.featureSelection", "用于控制顶部标签显示及 CLI 配置显示范围。");
+                m.put("settings.hint.cliSelection", "用于控制本页\"版本检测\"和\"安装/更新命令\"中显示哪些 CLI.未选中时默认显示全部 CLI.");
+                m.put("settings.hint.moreSettings", "在此可配置：\n1. Git 信息提交：Git 提交信息生成模型。\n2. 代码补全：IDE 内代码补全、补全模型、自动触发和手动触发快捷键。\n3. WebDAV 备份同步：云端备份、自动上传和远端恢复。\n4. CC Switch 数据同步：桌面端数据同步，与 CC Switch 的配置导入导出。");
                 m.put("settings.hint.extensionSync", "同步 Claude Code、Codex、OpenCode 与 CC Switch 之间已保存的非订阅配置。");
                 m.put("settings.option.allCli", "全部 CLI");
                 m.put("settings.option.syncStatus.all", "全部状态");
@@ -214,11 +214,7 @@ public final class I18n {
                 m.put("settings.backup.restore.confirmYes", "覆盖恢复");
                 m.put("settings.githubToken.title", "设置");
                 m.put("settings.githubToken.saved", "GitHub 令牌已保存");
-                m.put("settings.hint.restartRequired", "⚠️ 切换语言后需要重启 IDE 才能完全生效");
-                m.put("settings.dialog.languageChanged.message", "语言已切换为 {0}\n\n需要重启 IDE 才能完全生效。\n是否立即重启 IDE？");
-                m.put("settings.dialog.languageChanged.title", "语言设置已更改");
-                m.put("settings.dialog.languageChanged.restartNow", "立即重启");
-                m.put("settings.dialog.languageChanged.restartLater", "稍后手动重启");
+                m.put("settings.hint.restartRequired", "支持中英文切换");
                 m.put("settings.dialog.storageMode.title", "存储位置已更改");
                 m.put("settings.dialog.storageMode.detectTitle", "检测到已有用户级配置");
                 m.put("settings.dialog.storageMode.confirmTitle", "确认覆盖方式");
@@ -801,9 +797,9 @@ public final class I18n {
                 m.put("settings.button.exportToCcSwitch", "Export");
                 m.put("settings.hint.githubToken", "Optional. Increases GitHub API rate limit (only affects GitHub Skills repositories).");
                 m.put("settings.hint.dataStorageMode", "Configuration data storage location:\n• IDE Local: each IDE stores its own configuration (default)\n• User Shared: share configuration across JetBrains IDEs\n\nExisting configuration will be migrated automatically when switching.");
-                m.put("settings.hint.featureSelection", "Controls which top tabs are visible.");
+                m.put("settings.hint.featureSelection", "Controls which top tabs are visible and CLI configuration display scope.");
                 m.put("settings.hint.cliSelection", "Controls which CLI entries are shown in the version check and install/update command sections on this page. If none are selected, all CLIs are shown by default.");
-                m.put("settings.hint.moreSettings", "Configure the following here:\n1. Git Commit Message: the Git commit message generation model.\n2. Code Completion: IDE code completion, completion models, automatic triggering, and manual trigger shortcuts.\n3. CC Switch Data Sync: desktop data sync, importing and exporting configuration with CC Switch.");
+                m.put("settings.hint.moreSettings", "Configure the following here:\n1. Git Commit Message: the Git commit message generation model.\n2. Code Completion: IDE code completion, completion models, automatic triggering, and manual trigger shortcuts.\n3. WebDAV Backup Sync: cloud backup, automatic upload, and remote restore.\n4. CC Switch Data Sync: desktop data sync, importing and exporting configuration with CC Switch.");
                 m.put("settings.hint.extensionSync", "Sync saved non-subscription configurations between Claude Code, Codex, OpenCode, and CC Switch.");
                 m.put("settings.option.allCli", "All CLI");
                 m.put("settings.option.syncStatus.all", "All Status");
@@ -879,12 +875,7 @@ public final class I18n {
                 m.put("settings.backup.restore.confirmYes", "Overwrite & Restore");
                 m.put("settings.githubToken.title", "Settings");
                 m.put("settings.githubToken.saved", "GitHub token saved");
-                m.put("settings.hint.restartRequired", "⚠️ Restart IDE after switching language for full effect");
-                m.put("settings.dialog.languageChanged.message",
-                                "Language switched to {0}\n\nRestart IDE for full effect.\nRestart now?");
-                m.put("settings.dialog.languageChanged.title", "Language Changed");
-                m.put("settings.dialog.languageChanged.restartNow", "Restart Now");
-                m.put("settings.dialog.languageChanged.restartLater", "Later");
+                m.put("settings.hint.restartRequired", "Supports Chinese and English switching");
                 m.put("settings.dialog.storageMode.title", "Storage Location Changed");
                 m.put("settings.dialog.storageMode.detectTitle", "Existing User Shared Data Detected");
                 m.put("settings.dialog.storageMode.confirmTitle", "Confirm Overwrite Strategy");

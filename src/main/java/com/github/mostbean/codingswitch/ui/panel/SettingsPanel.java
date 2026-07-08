@@ -390,6 +390,7 @@ public class SettingsPanel extends JPanel {
         featureRow.add(featureSelectionButton);
 
         cliSelectionButton = new JButton(I18n.t("settings.button.cliConfig"));
+        cliSelectionButton.setToolTipText(I18n.t("settings.hint.cliSelection"));
         cliSelectionButton.addActionListener(e -> showCliSelectionDialog());
         featureRow.add(cliSelectionButton);
         content.add(featureRow);
@@ -939,24 +940,6 @@ public class SettingsPanel extends JPanel {
         }
 
         PluginSettings.getInstance().setLanguage(selected);
-
-        int result = Messages.showYesNoDialog(
-            I18n.t(
-                "settings.dialog.languageChanged.message",
-                selected.getDisplayName(I18n.currentLanguage())
-            ),
-            I18n.t("settings.dialog.languageChanged.title"),
-            I18n.t("settings.dialog.languageChanged.restartNow"),
-            I18n.t("settings.dialog.languageChanged.restartLater"),
-            Messages.getQuestionIcon()
-        );
-
-        if (result == Messages.YES) {
-            ApplicationManager.getApplication().invokeLater(
-                () -> ApplicationManager.getApplication().restart(),
-                ModalityState.nonModal()
-            );
-        }
     }
 
     private void onStorageModeChanged(

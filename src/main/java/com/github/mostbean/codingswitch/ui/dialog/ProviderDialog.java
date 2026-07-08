@@ -44,9 +44,6 @@ import java.util.Map;
  */
 public class ProviderDialog extends DialogWrapper {
 
-    private static final String PRESET_NONE = I18n.t("providerDialog.preset.custom");
-    private static final String OFFICIAL_HINT = I18n.t("providerDialog.preset.officialHint");
-    private static final String DEFAULT_OPTION_LABEL = I18n.t("providerDialog.option.default");
     private static final int TEST_STATUS_MAX_LENGTH = 72;
 
     private final JPanel presetButtonsPanel = new JPanel(new GridLayout(0, 5, 8, 8));
@@ -79,16 +76,16 @@ public class ProviderDialog extends DialogWrapper {
     private final JComboBox<String> claudeAutoCompactWindow = createEditableCombo(
             "", "400000", "900000");
     private final JComboBox<String> claudeAlwaysThinkingEnabled = new JComboBox<>(
-            new String[] { DEFAULT_OPTION_LABEL, "true", "false" });
+            new String[] { getDefaultOptionLabel(), "true", "false" });
     private final JCheckBox claudeTeamModeEnabled = new JCheckBox();
     private final JCheckBox claudeToolSearchEnabled = new JCheckBox();
     private final JCheckBox claudeDisableAutoUpdaterEnabled = new JCheckBox();
     private final JCheckBox claudeMaxEffortEnabled = new JCheckBox();
     private final JComboBox<String> claudeDangerousMode = new JComboBox<>(new String[] {
-            DEFAULT_OPTION_LABEL, I18n.t("providerDialog.dangerousMode.skipPermissions"),
+            getDefaultOptionLabel(), I18n.t("providerDialog.dangerousMode.skipPermissions"),
             I18n.t("providerDialog.dangerousMode.skipAll") });
     private final JComboBox<String> claudeNoFlickerMode = new JComboBox<>(new String[] {
-            DEFAULT_OPTION_LABEL, I18n.t("providerDialog.noFlickerMode.enabled"),
+            getDefaultOptionLabel(), I18n.t("providerDialog.noFlickerMode.enabled"),
             I18n.t("providerDialog.noFlickerMode.enabledDisableMouse") });
 
     private final PasswordFieldWithToggle codexApiKey = new PasswordFieldWithToggle(30);
@@ -142,7 +139,7 @@ public class ProviderDialog extends DialogWrapper {
     private final Provider provider;
     private final Map<CliType, JsonObject> rawSettingsByCli = new EnumMap<>(CliType.class);
     private final Map<CliType, AuthMode> authModeByCli = new EnumMap<>(CliType.class);
-    private String selectedPreset = PRESET_NONE;
+    private String selectedPreset = getPresetNone();
     private List<ProviderPresets.Preset> currentPresets = List.of();
 
     private static final Gson PREVIEW_GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -162,6 +159,27 @@ public class ProviderDialog extends DialogWrapper {
     private int collapsedDialogWidth = -1;
     private int expandedLeftWidth = -1;
     private static final int PREVIEW_PANEL_WIDTH = 420;
+
+    /**
+     * 获取"自定义"预设名称（动态国际化）。
+     */
+    private static String getPresetNone() {
+        return I18n.t("providerDialog.preset.custom");
+    }
+
+    /**
+     * 获取官方登录提示文本（动态国际化）。
+     */
+    private static String getOfficialHint() {
+        return I18n.t("providerDialog.preset.officialHint");
+    }
+
+    /**
+     * 获取"默认"选项标签（动态国际化）。
+     */
+    private static String getDefaultOptionLabel() {
+        return I18n.t("providerDialog.option.default");
+    }
 
     static String abbreviateTestStatus(String text) {
         if (text == null) {
@@ -795,7 +813,7 @@ public class ProviderDialog extends DialogWrapper {
         currentPresets = ProviderPresets.forCli(cliType);
 
         if (cliType != CliType.ANTIGRAVITY) {
-            JButton customBtn = createPresetButton(PRESET_NONE, true);
+            JButton customBtn = createPresetButton(getPresetNone(), true);
             presetButtonsPanel.add(customBtn);
         }
 
@@ -805,7 +823,7 @@ public class ProviderDialog extends DialogWrapper {
         }
 
         selectedPreset = resolveSelectedPreset(cliType);
-        presetHintLabel.setText(getCurrentAuthMode(cliType) == AuthMode.OFFICIAL_LOGIN ? OFFICIAL_HINT : " ");
+        presetHintLabel.setText(getCurrentAuthMode(cliType) == AuthMode.OFFICIAL_LOGIN ? getOfficialHint() : " ");
         updatePresetButtonStyles();
 
         presetButtonsPanel.revalidate();
@@ -833,7 +851,7 @@ public class ProviderDialog extends DialogWrapper {
             return;
         }
 
-        if (PRESET_NONE.equals(presetName)) {
+        if (getPresetNone().equals(presetName)) {
             if (cliType == CliType.ANTIGRAVITY) {
                 selectOfficialPreset(cliType);
                 return;
@@ -854,7 +872,7 @@ public class ProviderDialog extends DialogWrapper {
                 loadSettingsConfig(cliType, preset.settingsConfig(), preset.authMode());
 
                 if (preset.authMode() == AuthMode.OFFICIAL_LOGIN) {
-                    presetHintLabel.setText(OFFICIAL_HINT);
+                    presetHintLabel.setText(getOfficialHint());
                 } else {
                     presetHintLabel.setText(I18n.t("providerDialog.preset.fillHint"));
                 }
@@ -875,10 +893,10 @@ public class ProviderDialog extends DialogWrapper {
                 .filter(preset -> preset.authMode() == AuthMode.OFFICIAL_LOGIN)
                 .map(ProviderPresets.Preset::name)
                 .findFirst()
-                .orElse(PRESET_NONE);
+                .orElse(getPresetNone());
         updatePresetButtonStyles();
         setAuthMode(cliType, AuthMode.OFFICIAL_LOGIN);
-        presetHintLabel.setText(OFFICIAL_HINT);
+        presetHintLabel.setText(getOfficialHint());
         testStatusLabel.setText(" ");
         setTestFailureDetails(null);
         updatePreview();
@@ -936,13 +954,13 @@ public class ProviderDialog extends DialogWrapper {
 
     private String resolveSelectedPreset(CliType cliType) {
         if (getCurrentAuthMode(cliType) != AuthMode.OFFICIAL_LOGIN) {
-            return PRESET_NONE;
+            return getPresetNone();
         }
         return currentPresets.stream()
                 .filter(preset -> preset.authMode() == AuthMode.OFFICIAL_LOGIN)
                 .map(ProviderPresets.Preset::name)
                 .findFirst()
-                .orElse(PRESET_NONE);
+                .orElse(getPresetNone());
     }
 
     private void applyAuthModeUi(CliType cliType) {
@@ -1207,7 +1225,7 @@ public class ProviderDialog extends DialogWrapper {
 
     private JPanel buildAntigravityPanel() {
         JPanel form = FormBuilder.createFormBuilder()
-                .addComponent(new JBLabel(OFFICIAL_HINT))
+                .addComponent(new JBLabel(getOfficialHint()))
                 .getPanel();
         return wrapWithTitledBorder(form, I18n.t("providerDialog.border.antigravity"));
     }

@@ -211,8 +211,16 @@ public final class PluginSettings implements PersistentStateComponent<PluginSett
 
     public void setLanguage(Language lang) {
         State active = getActiveState();
+        Language oldLanguage = getLanguage();
         active.language = lang.name();
         saveActiveState(active);
+
+        // 通知语言已改变，触发 UI 刷新
+        if (oldLanguage != lang) {
+            ApplicationManager.getApplication().getMessageBus()
+                .syncPublisher(LanguageChangedListener.TOPIC)
+                .languageChanged(oldLanguage, lang);
+        }
     }
 
     public String getGithubToken() {
