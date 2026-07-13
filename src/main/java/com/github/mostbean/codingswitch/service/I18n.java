@@ -603,6 +603,9 @@ public final class I18n {
                 m.put("providerDialog.label.mainModel", "主模型:");
                 m.put("providerDialog.label.model", "模型:");
                 m.put("providerDialog.label.models", "模型列表:");
+                m.put("providerDialog.label.modelDisplayName", "显示名");
+                m.put("providerDialog.label.actualModel", "请求模型");
+                m.put("providerDialog.label.contextWindow", "上下文窗口");
                 m.put("providerDialog.button.addModel", "添加模型");
                 m.put("providerDialog.tooltip.removeModel", "移除此模型");
                 m.put("providerDialog.label.securityPolicy", "安全策略:");
@@ -636,6 +639,8 @@ public final class I18n {
                 m.put("providerDialog.validate.apiKeyRequired", "请填写 API Key");
                 m.put("providerDialog.validate.baseUrlRequired", "请填写 Base URL");
                 m.put("providerDialog.validate.modelRequired", "请填写主模型");
+                m.put("providerDialog.validate.modelDisplayNameRequired", "请填写模型显示名");
+                m.put("providerDialog.validate.contextWindowInvalid", "上下文窗口必须是大于 0 的整数");
                 m.put("providerDialog.button.testConnection", "测试连接");
                 m.put("providerDialog.button.fetchModels", "获取模型");
                 m.put("providerDialog.test.hint", "提示：测试连接会发送一次最小真实请求，可能产生极低调用费用。");
@@ -660,6 +665,7 @@ public final class I18n {
                 m.put("providerDialog.label.preview", "配置预览");
                 m.put("providerDialog.preview.authJson", "auth.json");
                 m.put("providerDialog.preview.configToml", "config.toml");
+                m.put("providerDialog.preview.modelCatalogJson", "model catalog.json");
                 m.put("providerDialog.preview.envFile", ".env");
                 m.put("providerDialog.preview.settingsJson", "settings.json");
                 m.put("providerDialog.button.showPreview", "配置预览");
@@ -1278,8 +1284,11 @@ public final class I18n {
                 m.put("providerDialog.label.configName", "Config Name:");
                 m.put("providerDialog.label.keyFieldName", "Key Field Name:");
                 m.put("providerDialog.label.mainModel", "Main Model:");
-                m.put("providerDialog.label.model", "Model:");
+                m.put("providerDialog.label.model", "Models:");
                 m.put("providerDialog.label.models", "Models:");
+                m.put("providerDialog.label.modelDisplayName", "Display Name");
+                m.put("providerDialog.label.actualModel", "Request Model");
+                m.put("providerDialog.label.contextWindow", "Context Window");
                 m.put("providerDialog.button.addModel", "Add Model");
                 m.put("providerDialog.tooltip.removeModel", "Remove this model");
                 m.put("providerDialog.label.securityPolicy", "Security Policy:");
@@ -1313,6 +1322,9 @@ public final class I18n {
                 m.put("providerDialog.validate.apiKeyRequired", "API Key is required");
                 m.put("providerDialog.validate.baseUrlRequired", "Base URL is required");
                 m.put("providerDialog.validate.modelRequired", "Main model is required");
+                m.put("providerDialog.validate.modelDisplayNameRequired", "Model display name is required");
+                m.put("providerDialog.validate.contextWindowInvalid",
+                                "Context window must be an integer greater than 0");
                 m.put("providerDialog.button.testConnection", "Test Connection");
                 m.put("providerDialog.button.fetchModels", "Fetch Models");
                 m.put("providerDialog.test.hint",
@@ -1340,6 +1352,7 @@ public final class I18n {
                 m.put("providerDialog.label.preview", "Config Preview");
                 m.put("providerDialog.preview.authJson", "auth.json");
                 m.put("providerDialog.preview.configToml", "config.toml");
+                m.put("providerDialog.preview.modelCatalogJson", "model catalog.json");
                 m.put("providerDialog.preview.envFile", ".env");
                 m.put("providerDialog.preview.settingsJson", "settings.json");
                 m.put("providerDialog.button.showPreview", "Config Preview");

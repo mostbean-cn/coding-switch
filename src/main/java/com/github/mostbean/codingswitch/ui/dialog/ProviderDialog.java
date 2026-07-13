@@ -4,6 +4,8 @@ import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.Provider;
 import com.github.mostbean.codingswitch.model.Provider.AuthMode;
 import com.github.mostbean.codingswitch.service.ConfigFileService;
+import com.github.mostbean.codingswitch.service.CodexContextWindowSupport;
+import com.github.mostbean.codingswitch.service.CodexModelCatalogSupport;
 import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.PluginSettings.SecurityPolicy;
@@ -91,10 +93,11 @@ public class ProviderDialog extends DialogWrapper {
 
     private final PasswordFieldWithToggle codexApiKey = new PasswordFieldWithToggle(30);
     private final JTextField codexBaseUrl = new JTextField(30);
-    private final JTextField codexModel = new JTextField(30);
     private final JBLabel codexApiKeyLabel = requiredLabel("API Key:");
     private final JBLabel codexBaseUrlLabel = requiredLabel("Base URL:");
     private final JBLabel codexModelLabel = requiredLabel(I18n.t("providerDialog.label.model"));
+    private final JPanel codexModelsPanel = new JPanel();
+    private final List<CodexModelRow> codexModelRows = new ArrayList<>();
     private final JComboBox<String> codexReasoningEffort = new JComboBox<>(
             new String[] { "xhigh", "high", "medium", "low" });
     private final JComboBox<String> codexAutoCompactWindow = createEditableCombo(
@@ -120,12 +123,18 @@ public class ProviderDialog extends DialogWrapper {
             "@ai-sdk/mistral");
 
     private static class ModelRow {
-        final JTextField nameField;
+        final JTextField displayNameField;
+        final JTextField actualModelField;
         final JComboBox<String> reasoningEffortCombo;
         final JPanel panel;
 
-        ModelRow(JTextField nameField, JComboBox<String> reasoningEffortCombo, JPanel panel) {
-            this.nameField = nameField;
+        ModelRow(
+                JTextField displayNameField,
+                JTextField actualModelField,
+                JComboBox<String> reasoningEffortCombo,
+                JPanel panel) {
+            this.displayNameField = displayNameField;
+            this.actualModelField = actualModelField;
             this.reasoningEffortCombo = reasoningEffortCombo;
             this.panel = panel;
         }
@@ -148,6 +157,7 @@ public class ProviderDialog extends DialogWrapper {
     private final JTabbedPane codexPreviewTabs = new JTabbedPane();
     private final JTextArea codexAuthPreview = createPreviewTextArea(true);
     private final JTextArea codexTomlPreview = createPreviewTextArea(true);
+    private final JTextArea codexModelCatalogPreview = createPreviewTextArea(true);
     private final JPanel previewPanel = new JPanel(new BorderLayout());
     private final JButton togglePreviewButton = new JButton(I18n.t("providerDialog.button.showPreview"));
     private final JButton openDirButton = new JButton(I18n.t("providerDialog.button.openDir"));
@@ -383,6 +393,9 @@ public class ProviderDialog extends DialogWrapper {
 
         codexPreviewTabs.addTab(I18n.t("providerDialog.preview.authJson"), new JScrollPane(codexAuthPreview));
         codexPreviewTabs.addTab(I18n.t("providerDialog.preview.configToml"), new JScrollPane(codexTomlPreview));
+        codexPreviewTabs.addTab(
+                I18n.t("providerDialog.preview.modelCatalogJson"),
+                new JScrollPane(codexModelCatalogPreview));
         codexPreviewTabs.setBorder(BorderFactory.createTitledBorder(
                 BorderFactory.createEtchedBorder(),
                 I18n.t("providerDialog.label.preview")));
@@ -454,7 +467,6 @@ public class ProviderDialog extends DialogWrapper {
 
         addTextFieldListener(codexApiKey);
         addTextFieldListener(codexBaseUrl);
-        addTextFieldListener(codexModel);
         codexReasoningEffort.addActionListener(e -> {
             if (!updatingFromPreview) updatePreview();
         });
@@ -525,6 +537,7 @@ public class ProviderDialog extends DialogWrapper {
         addPreviewDocumentListener(previewTextArea);
         addPreviewDocumentListener(codexAuthPreview);
         addPreviewDocumentListener(codexTomlPreview);
+        addPreviewDocumentListener(codexModelCatalogPreview);
     }
 
     private void addPreviewDocumentListener(JTextArea textArea) {
@@ -610,6 +623,14 @@ public class ProviderDialog extends DialogWrapper {
                     codexTomlPreview.setText(config.get("config").getAsString());
                 } else {
                     codexTomlPreview.setText("");
+                }
+
+                if (config.has(CodexModelCatalogSupport.SETTINGS_KEY)
+                        && config.get(CodexModelCatalogSupport.SETTINGS_KEY).isJsonObject()) {
+                    codexModelCatalogPreview.setText(PREVIEW_GSON.toJson(
+                            config.getAsJsonObject(CodexModelCatalogSupport.SETTINGS_KEY)));
+                } else {
+                    codexModelCatalogPreview.setText("{}");
                 }
             });
         } else {
@@ -706,7 +727,7 @@ public class ProviderDialog extends DialogWrapper {
             for (String line : tomlText.split("\n")) {
                 String trimmed = line.trim();
                 if (trimmed.startsWith("model =")) {
-                    codexModel.setText(extractTomlValue(trimmed));
+                    setPrimaryCodexModel(extractTomlValue(trimmed));
                 } else if (trimmed.startsWith("model_reasoning_effort =")) {
                     codexReasoningEffort.setSelectedItem(extractTomlValue(trimmed));
                 } else if (trimmed.startsWith("base_url =")) {
@@ -729,6 +750,18 @@ public class ProviderDialog extends DialogWrapper {
             codexFastMode.setSelected(hasFastMode);
         } else {
             rawCodex.remove("config");
+        }
+
+        String catalogText = codexModelCatalogPreview.getText().trim();
+        if (!catalogText.isEmpty()) {
+            try {
+                JsonObject catalog = JsonParser.parseString(catalogText).getAsJsonObject();
+                rawCodex.add(CodexModelCatalogSupport.SETTINGS_KEY, catalog.deepCopy());
+                loadCodexModelRows(CodexModelCatalogSupport.readDefinitions(catalog));
+            } catch (Exception ignored) {
+            }
+        } else {
+            rawCodex.remove(CodexModelCatalogSupport.SETTINGS_KEY);
         }
 
         rememberRawSettings(CliType.CODEX, rawCodex);
@@ -991,7 +1024,7 @@ public class ProviderDialog extends DialogWrapper {
             case CODEX -> {
                 codexApiKey.setEnabled(!officialLogin);
                 codexBaseUrl.setEnabled(!officialLogin);
-                codexModel.setEnabled(true);
+                codexModelsPanel.setEnabled(true);
                 codexReasoningEffort.setEnabled(true);
                 codex1MContext.setEnabled(true);
                 codexMultiAgent.setEnabled(true);
@@ -1032,7 +1065,8 @@ public class ProviderDialog extends DialogWrapper {
             case CODEX -> {
                 codexApiKey.setText("");
                 codexBaseUrl.setText("");
-                codexModel.setText("");
+                clearCodexModelFields();
+                addCodexModelField("", "", "128000");
                 codexReasoningEffort.setSelectedItem("high");
                 codexAutoCompactWindow.setSelectedItem("400000");
                 codex1MContext.setSelected(false);
@@ -1168,10 +1202,21 @@ public class ProviderDialog extends DialogWrapper {
         codexAutoCompactWindowContainer.setOpaque(false);
         codexAutoCompactWindowContainer.add(codexAutoCompactWindowRow, BorderLayout.CENTER);
 
+        codexModelsPanel.setLayout(new BoxLayout(codexModelsPanel, BoxLayout.Y_AXIS));
+        addCodexModelField("", "", "128000");
+
+        JButton addModelButton = new JButton("+ " + I18n.t("providerDialog.button.addModel"));
+        addModelButton.addActionListener(e -> addCodexModelField("", "", "128000"));
+
+        JPanel modelsContainer = new JPanel(new BorderLayout());
+        modelsContainer.add(buildCodexModelHeader(), BorderLayout.NORTH);
+        modelsContainer.add(codexModelsPanel, BorderLayout.CENTER);
+
         JPanel form = FormBuilder.createFormBuilder()
                 .addLabeledComponent(codexApiKeyLabel, codexApiKey)
                 .addLabeledComponent(codexBaseUrlLabel, codexBaseUrl)
-                .addLabeledComponent(codexModelLabel, codexModel)
+                .addLabeledComponent(codexModelLabel, wrapLeftAligned(addModelButton))
+                .addComponent(wrapCenteredModelComponent(modelsContainer))
                 .addSeparator(8)
                 .addLabeledComponent(I18n.t("providerDialog.label.securityPolicy"), codexSecurityPolicy)
                 .addLabeledComponent(I18n.t("providerDialog.label.reasoningEffort"), codexReasoningEffort)
@@ -1180,6 +1225,98 @@ public class ProviderDialog extends DialogWrapper {
                 .getPanel();
         updateCodexAutoCompactWindowVisibility();
         return wrapWithTitledBorder(form, I18n.t("providerDialog.border.codex"));
+    }
+
+    private void addCodexModelField(String displayName, String actualModel, String contextWindow) {
+        JPanel row = new JPanel(new GridBagLayout());
+        JTextField displayNameField = new JTextField(displayName);
+        JTextField actualModelField = new JTextField(actualModel);
+        JComboBox<String> contextWindowCombo = createEditableCombo(
+                "128000", "200000", "272000", "1000000");
+        contextWindowCombo.setSelectedItem(contextWindow);
+
+        displayNameField.setToolTipText(I18n.t("providerDialog.label.modelDisplayName"));
+        actualModelField.setToolTipText(I18n.t("providerDialog.label.actualModel"));
+        contextWindowCombo.setToolTipText(I18n.t("providerDialog.label.contextWindow"));
+        addTextFieldListener(displayNameField);
+        addTextFieldListener(actualModelField);
+        contextWindowCombo.addActionListener(e -> {
+            if (!updatingFromPreview) updatePreview();
+        });
+        addTextFieldListener((JTextField) contextWindowCombo.getEditor().getEditorComponent());
+
+        JButton removeButton = new JButton("−");
+        removeButton.setToolTipText(I18n.t("providerDialog.tooltip.removeModel"));
+        styleModelRemoveButton(removeButton);
+
+        CodexModelRow modelRow = new CodexModelRow(
+                displayNameField, actualModelField, contextWindowCombo, row);
+        codexModelRows.add(modelRow);
+        removeButton.addActionListener(e -> {
+            codexModelRows.remove(modelRow);
+            codexModelsPanel.remove(row);
+            codexModelsPanel.revalidate();
+            codexModelsPanel.repaint();
+            if (!updatingFromPreview) updatePreview();
+        });
+
+        row.add(displayNameField, modelGridConstraints(0, 0.30));
+        row.add(actualModelField, modelGridConstraints(1, 0.45));
+        row.add(contextWindowCombo, modelGridConstraints(2, 0.25));
+        row.add(removeButton, modelActionConstraints(3));
+        row.setBorder(JBUI.Borders.emptyBottom(6));
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, JBUI.scale(36)));
+        codexModelsPanel.add(row);
+        codexModelsPanel.revalidate();
+        codexModelsPanel.repaint();
+    }
+
+    private JPanel buildCodexModelHeader() {
+        JPanel header = new JPanel(new GridBagLayout());
+        header.add(createModelHeaderLabel(I18n.t("providerDialog.label.modelDisplayName")),
+                modelGridConstraints(0, 0.30));
+        header.add(createModelHeaderLabel(I18n.t("providerDialog.label.actualModel")),
+                modelGridConstraints(1, 0.45));
+        header.add(createModelHeaderLabel(I18n.t("providerDialog.label.contextWindow")),
+                modelGridConstraints(2, 0.25));
+        header.add(Box.createHorizontalStrut(JBUI.scale(28)), modelActionConstraints(3));
+        header.setBorder(JBUI.Borders.emptyBottom(6));
+        return header;
+    }
+
+    private void clearCodexModelFields() {
+        codexModelRows.clear();
+        codexModelsPanel.removeAll();
+        codexModelsPanel.revalidate();
+        codexModelsPanel.repaint();
+    }
+
+    private void loadCodexModelRows(List<CodexModelCatalogSupport.ModelDefinition> definitions) {
+        clearCodexModelFields();
+        for (CodexModelCatalogSupport.ModelDefinition definition : definitions) {
+            addCodexModelField(
+                    definition.displayName(),
+                    definition.model(),
+                    CodexContextWindowSupport.format(definition.contextWindow()));
+        }
+        if (codexModelRows.isEmpty()) {
+            addCodexModelField("", "", "128000");
+        }
+    }
+
+    private void setPrimaryCodexModel(String model) {
+        if (model == null || model.isBlank()) {
+            return;
+        }
+        if (codexModelRows.isEmpty()) {
+            addCodexModelField(model, model, "128000");
+            return;
+        }
+        CodexModelRow first = codexModelRows.get(0);
+        first.actualModelField.setText(model);
+        if (first.displayNameField.getText().isBlank()) {
+            first.displayNameField.setText(model);
+        }
     }
 
     /**
@@ -1216,6 +1353,24 @@ public class ProviderDialog extends DialogWrapper {
         }
     }
 
+    private static class CodexModelRow {
+        final JTextField displayNameField;
+        final JTextField actualModelField;
+        final JComboBox<String> contextWindowCombo;
+        final JPanel panel;
+
+        CodexModelRow(
+                JTextField displayNameField,
+                JTextField actualModelField,
+                JComboBox<String> contextWindowCombo,
+                JPanel panel) {
+            this.displayNameField = displayNameField;
+            this.actualModelField = actualModelField;
+            this.contextWindowCombo = contextWindowCombo;
+            this.panel = panel;
+        }
+    }
+
     private void updateClaudeEffortLevelUi() {
         boolean enabled = !claudeMaxEffortEnabled.isSelected();
         claudeEffortLevel.setEnabled(enabled);
@@ -1247,33 +1402,35 @@ public class ProviderDialog extends DialogWrapper {
 
     private JPanel buildOpenCodePanel() {
         opencodeModelsPanel.setLayout(new BoxLayout(opencodeModelsPanel, BoxLayout.Y_AXIS));
-        addOpenCodeModelField("");
+        addOpenCodeModelField("", "", null);
 
-        JButton addModelBtn = new JButton(I18n.t("providerDialog.button.addModel"));
-        addModelBtn.addActionListener(e -> addOpenCodeModelField(""));
+        JButton addModelBtn = new JButton("+ " + I18n.t("providerDialog.button.addModel"));
+        addModelBtn.addActionListener(e -> addOpenCodeModelField("", "", null));
 
         JPanel modelsContainer = new JPanel(new BorderLayout());
+        modelsContainer.add(buildOpenCodeModelHeader(), BorderLayout.NORTH);
         modelsContainer.add(opencodeModelsPanel, BorderLayout.CENTER);
-        modelsContainer.add(addModelBtn, BorderLayout.SOUTH);
 
         JPanel form = FormBuilder.createFormBuilder()
                 .addLabeledComponent(I18n.t("providerDialog.label.npmPackage"), opencodeNpm)
                 .addLabeledComponent(requiredLabel("API Key:"), opencodeApiKey)
                 .addLabeledComponent(requiredLabel("Base URL:"), opencodeBaseUrl)
-                .addLabeledComponent(requiredLabel(I18n.t("providerDialog.label.models")), modelsContainer)
+                .addLabeledComponent(
+                        requiredLabel(I18n.t("providerDialog.label.models")),
+                        wrapLeftAligned(addModelBtn))
+                .addComponent(wrapCenteredModelComponent(modelsContainer))
                 .getPanel();
         return wrapWithTitledBorder(form, I18n.t("providerDialog.border.opencode"));
     }
 
-    private void addOpenCodeModelField(String modelName) {
-        addOpenCodeModelField(modelName, null);
-    }
+    private void addOpenCodeModelField(
+            String displayName,
+            String actualModel,
+            String reasoningEffort) {
+        JPanel row = new JPanel(new GridBagLayout());
 
-    private void addOpenCodeModelField(String modelName, String reasoningEffort) {
-        JPanel row = new JPanel(new BorderLayout(4, 0));
-
-        JTextField modelField = new JTextField(20);
-        modelField.setText(modelName);
+        JTextField displayNameField = new JTextField(displayName);
+        JTextField actualModelField = new JTextField(actualModel);
 
         JComboBox<String> effortCombo = new JComboBox<>(
                 new String[] { "", "xhigh", "high", "medium", "low" });
@@ -1282,21 +1439,17 @@ public class ProviderDialog extends DialogWrapper {
             effortCombo.setSelectedItem(reasoningEffort);
         }
 
-        modelField.getDocument().addDocumentListener(createDocumentListener());
+        displayNameField.getDocument().addDocumentListener(createDocumentListener());
+        actualModelField.getDocument().addDocumentListener(createDocumentListener());
         effortCombo.addActionListener(e -> {
             if (!updatingFromPreview) updatePreview();
         });
 
-        JPanel centerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
-        centerPanel.add(modelField);
-        centerPanel.add(new JLabel(I18n.t("providerDialog.label.reasoningEffort")));
-        centerPanel.add(effortCombo);
-
-        JButton removeBtn = new JButton("x");
+        JButton removeBtn = new JButton("−");
         removeBtn.setToolTipText(I18n.t("providerDialog.tooltip.removeModel"));
-        removeBtn.setMargin(JBUI.insets(0, 6));
+        styleModelRemoveButton(removeBtn);
 
-        ModelRow modelRow = new ModelRow(modelField, effortCombo, row);
+        ModelRow modelRow = new ModelRow(displayNameField, actualModelField, effortCombo, row);
         opencodeModelRows.add(modelRow);
 
         removeBtn.addActionListener(e -> {
@@ -1307,13 +1460,107 @@ public class ProviderDialog extends DialogWrapper {
             if (!updatingFromPreview) updatePreview();
         });
 
-        row.add(centerPanel, BorderLayout.CENTER);
-        row.add(removeBtn, BorderLayout.EAST);
-        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
+        row.add(displayNameField, modelGridConstraints(0, 0.30));
+        row.add(actualModelField, modelGridConstraints(1, 0.45));
+        row.add(effortCombo, modelGridConstraints(2, 0.25));
+        row.add(removeBtn, modelActionConstraints(3));
+        row.setBorder(JBUI.Borders.emptyBottom(6));
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, JBUI.scale(36)));
 
         opencodeModelsPanel.add(row);
         opencodeModelsPanel.revalidate();
         opencodeModelsPanel.repaint();
+    }
+
+    private JPanel buildOpenCodeModelHeader() {
+        JPanel header = new JPanel(new GridBagLayout());
+        header.add(createModelHeaderLabel(I18n.t("providerDialog.label.modelDisplayName")),
+                modelGridConstraints(0, 0.30));
+        header.add(createModelHeaderLabel(I18n.t("providerDialog.label.actualModel")),
+                modelGridConstraints(1, 0.45));
+        header.add(createModelHeaderLabel(I18n.t("providerDialog.label.reasoningEffort")),
+                modelGridConstraints(2, 0.25));
+        header.add(Box.createHorizontalStrut(JBUI.scale(28)), modelActionConstraints(3));
+        header.setBorder(JBUI.Borders.emptyBottom(6));
+        return header;
+    }
+
+    private JBLabel createModelHeaderLabel(String text) {
+        JBLabel label = new JBLabel(text);
+        label.setForeground(JBColor.GRAY);
+        label.setHorizontalAlignment(SwingConstants.LEFT);
+        return label;
+    }
+
+    private GridBagConstraints modelGridConstraints(int gridX, double weightX) {
+        GridBagConstraints constraints = new GridBagConstraints();
+        constraints.gridx = gridX;
+        constraints.gridy = 0;
+        constraints.weightx = weightX;
+        constraints.fill = GridBagConstraints.HORIZONTAL;
+        constraints.anchor = GridBagConstraints.WEST;
+        constraints.insets = JBUI.insetsRight(8);
+        return constraints;
+    }
+
+    private GridBagConstraints modelActionConstraints(int gridX) {
+        GridBagConstraints constraints = new GridBagConstraints();
+        constraints.gridx = gridX;
+        constraints.gridy = 0;
+        constraints.weightx = 0;
+        constraints.fill = GridBagConstraints.NONE;
+        constraints.anchor = GridBagConstraints.CENTER;
+        return constraints;
+    }
+
+    private void styleModelRemoveButton(JButton button) {
+        Dimension size = new Dimension(JBUI.scale(28), JBUI.scale(28));
+        button.setPreferredSize(size);
+        button.setMinimumSize(size);
+        button.setMaximumSize(size);
+        button.setMargin(JBUI.emptyInsets());
+        button.setFocusable(false);
+    }
+
+    private JPanel wrapLeftAligned(JComponent component) {
+        JPanel wrapper = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        wrapper.add(component);
+        return wrapper;
+    }
+
+    private JPanel wrapCenteredModelComponent(JComponent component) {
+        JPanel wrapper = new JPanel(new GridBagLayout());
+        JPanel content = new JPanel(new BorderLayout()) {
+            @Override
+            public Dimension getPreferredSize() {
+                Dimension preferredSize = super.getPreferredSize();
+                return new Dimension(0, preferredSize.height);
+            }
+        };
+        content.add(component, BorderLayout.CENTER);
+
+        GridBagConstraints leftSpacer = new GridBagConstraints();
+        leftSpacer.gridx = 0;
+        leftSpacer.gridy = 0;
+        leftSpacer.weightx = 0.05;
+        leftSpacer.fill = GridBagConstraints.HORIZONTAL;
+        wrapper.add(Box.createHorizontalGlue(), leftSpacer);
+
+        GridBagConstraints contentConstraints = new GridBagConstraints();
+        contentConstraints.gridx = 1;
+        contentConstraints.gridy = 0;
+        contentConstraints.weightx = 0.90;
+        contentConstraints.fill = GridBagConstraints.HORIZONTAL;
+        contentConstraints.anchor = GridBagConstraints.CENTER;
+        wrapper.add(content, contentConstraints);
+
+        GridBagConstraints rightSpacer = new GridBagConstraints();
+        rightSpacer.gridx = 2;
+        rightSpacer.gridy = 0;
+        rightSpacer.weightx = 0.05;
+        rightSpacer.fill = GridBagConstraints.HORIZONTAL;
+        wrapper.add(Box.createHorizontalGlue(), rightSpacer);
+        return wrapper;
     }
 
     private JPanel wrapWithTitledBorder(JPanel content, String title) {
@@ -1448,10 +1695,11 @@ public class ProviderDialog extends DialogWrapper {
             boolean hasFastMode = false;
             String approvalPolicy = null;
             String sandboxMode = null;
+            String legacyModel = "";
             for (String line : toml.split("\n")) {
                 String trimmed = line.trim();
                 if (trimmed.startsWith("model =")) {
-                    codexModel.setText(extractTomlValue(trimmed));
+                    legacyModel = extractTomlValue(trimmed);
                 } else if (trimmed.startsWith("model_reasoning_effort =")) {
                     codexReasoningEffort.setSelectedItem(extractTomlValue(trimmed));
                 } else if (trimmed.startsWith("base_url =")) {
@@ -1482,6 +1730,21 @@ public class ProviderDialog extends DialogWrapper {
 
             // 根据读取的 approval_policy 和 sandbox_mode 设置安全策略下拉框
             codexSecurityPolicy.setSelectedItem(resolveSecurityPolicy(approvalPolicy, sandboxMode));
+
+            List<CodexModelCatalogSupport.ModelDefinition> definitions = config.has(CodexModelCatalogSupport.SETTINGS_KEY)
+                    && config.get(CodexModelCatalogSupport.SETTINGS_KEY).isJsonObject()
+                    ? CodexModelCatalogSupport.readDefinitions(
+                            config.getAsJsonObject(CodexModelCatalogSupport.SETTINGS_KEY))
+                    : List.of();
+            if (!definitions.isEmpty()) {
+                loadCodexModelRows(definitions);
+            } else {
+                clearCodexModelFields();
+                addCodexModelField(
+                        legacyModel,
+                        legacyModel,
+                        has1MContext ? "1000000" : "128000");
+            }
         }
     }
 
@@ -1517,6 +1780,9 @@ public class ProviderDialog extends DialogWrapper {
             clearOpenCodeModelFields();
             for (String modelName : models.keySet()) {
                 JsonObject modelDef = models.getAsJsonObject(modelName);
+                String displayName = modelDef.has("name") && !modelDef.get("name").isJsonNull()
+                        ? modelDef.get("name").getAsString()
+                        : modelName;
                 String reasoningEffort = null;
                 if (modelDef.has("options")) {
                     JsonObject modelOpts = modelDef.getAsJsonObject("options");
@@ -1524,7 +1790,7 @@ public class ProviderDialog extends DialogWrapper {
                         reasoningEffort = modelOpts.get("reasoningEffort").getAsString();
                     }
                 }
-                addOpenCodeModelField(modelName, reasoningEffort);
+                addOpenCodeModelField(displayName, modelName, reasoningEffort);
             }
         }
     }
@@ -1623,13 +1889,17 @@ public class ProviderDialog extends DialogWrapper {
         JsonObject auth = new JsonObject();
         addIfNotBlank(auth, "OPENAI_API_KEY", codexApiKey);
         config.add("auth", auth);
-        config.addProperty("config", buildCodexToml(false));
+        List<CodexModelCatalogSupport.ModelDefinition> models = collectCodexModels();
+        addCodexModelCatalog(config, models);
+        config.addProperty("config", buildCodexToml(false, models));
         return config;
     }
 
-    private String buildCodexToml(boolean officialLogin) {
+    private String buildCodexToml(
+            boolean officialLogin,
+            List<CodexModelCatalogSupport.ModelDefinition> models) {
         String provider = CODEX_PROVIDER_SLUG;
-        String model = codexModel.getText().trim();
+        String model = models.isEmpty() ? "" : models.get(0).model();
         String effort = (String) codexReasoningEffort.getSelectedItem();
         String baseUrl = codexBaseUrl.getText().trim();
         boolean enable1MContext = codex1MContext.isSelected();
@@ -1646,6 +1916,11 @@ public class ProviderDialog extends DialogWrapper {
         }
 
         StringBuilder toml = new StringBuilder();
+        if (!models.isEmpty()) {
+            String catalogPath = ConfigFileService.getInstance().getCodexModelCatalogPath()
+                    .toAbsolutePath().normalize().toString().replace('\\', '/');
+            toml.append("model_catalog_json = \"").append(catalogPath).append("\"\n");
+        }
         if (!officialLogin) {
             toml.append("model_provider = \"").append(provider).append("\"\n");
         }
@@ -1694,8 +1969,38 @@ public class ProviderDialog extends DialogWrapper {
     private JsonObject buildCodexOfficialConfig() {
         JsonObject config = new JsonObject();
         config.add("auth", new JsonObject());
-        config.addProperty("config", buildCodexToml(true));
+        List<CodexModelCatalogSupport.ModelDefinition> models = collectCodexModels();
+        addCodexModelCatalog(config, models);
+        config.addProperty("config", buildCodexToml(true, models));
         return config;
+    }
+
+    private List<CodexModelCatalogSupport.ModelDefinition> collectCodexModels() {
+        List<CodexModelCatalogSupport.ModelDefinition> models = new ArrayList<>();
+        for (CodexModelRow row : codexModelRows) {
+            String displayName = row.displayNameField.getText().trim();
+            String actualModel = row.actualModelField.getText().trim();
+            String contextWindow = getComboText(row.contextWindowCombo);
+            if (displayName.isBlank() || actualModel.isBlank() || contextWindow.isBlank()) {
+                continue;
+            }
+            try {
+                long parsedContextWindow = CodexContextWindowSupport.parse(contextWindow);
+                models.add(new CodexModelCatalogSupport.ModelDefinition(
+                        displayName, actualModel, parsedContextWindow));
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+        return models;
+    }
+
+    private void addCodexModelCatalog(
+            JsonObject config,
+            List<CodexModelCatalogSupport.ModelDefinition> models) {
+        if (!models.isEmpty()) {
+            config.add(CodexModelCatalogSupport.SETTINGS_KEY,
+                    CodexModelCatalogSupport.buildCatalog(models));
+        }
     }
 
     private JsonObject buildOpenCodeConfig() {
@@ -1712,10 +2017,11 @@ public class ProviderDialog extends DialogWrapper {
 
         JsonObject models = new JsonObject();
         for (ModelRow row : opencodeModelRows) {
-            String model = row.nameField.getText().trim();
-            if (!model.isEmpty()) {
+            String displayName = row.displayNameField.getText().trim();
+            String actualModel = row.actualModelField.getText().trim();
+            if (!displayName.isEmpty() && !actualModel.isEmpty()) {
                 JsonObject modelDef = new JsonObject();
-                modelDef.addProperty("name", model);
+                modelDef.addProperty("name", displayName);
 
                 String effort = (String) row.reasoningEffortCombo.getSelectedItem();
                 if (effort != null && !effort.isEmpty()) {
@@ -1724,7 +2030,7 @@ public class ProviderDialog extends DialogWrapper {
                     modelDef.add("options", modelOpts);
                 }
 
-                models.add(model, modelDef);
+                models.add(actualModel, modelDef);
             }
         }
         if (!models.isEmpty()) {
@@ -1834,7 +2140,8 @@ public class ProviderDialog extends DialogWrapper {
     }
 
     private void mergeCodexRaw(JsonObject raw, JsonObject merged) {
-        mergeRootUnknownFields(raw, merged, List.of("auth", "config"));
+        mergeRootUnknownFields(raw, merged, List.of(
+                "auth", "config", CodexModelCatalogSupport.SETTINGS_KEY));
 
         JsonObject mergedAuth = merged.has("auth") && merged.get("auth").isJsonObject()
                 ? merged.getAsJsonObject("auth")
@@ -1993,8 +2300,26 @@ public class ProviderDialog extends DialogWrapper {
         if (codexBaseUrl.getText().isBlank()) {
             return new ValidationInfo(I18n.t("providerDialog.validate.baseUrlRequired"), codexBaseUrl);
         }
-        if (codexModel.getText().isBlank()) {
-            return new ValidationInfo(I18n.t("providerDialog.validate.modelRequired"), codexModel);
+        if (codexModelRows.isEmpty()) {
+            return new ValidationInfo(I18n.t("providerDialog.validate.modelRequired"), codexModelsPanel);
+        }
+        for (CodexModelRow row : codexModelRows) {
+            if (row.displayNameField.getText().isBlank()) {
+                return new ValidationInfo(
+                        I18n.t("providerDialog.validate.modelDisplayNameRequired"),
+                        row.displayNameField);
+            }
+            if (row.actualModelField.getText().isBlank()) {
+                return new ValidationInfo(I18n.t("providerDialog.validate.modelRequired"), row.actualModelField);
+            }
+            String contextWindow = getComboText(row.contextWindowCombo);
+            try {
+                CodexContextWindowSupport.parse(contextWindow);
+            } catch (IllegalArgumentException ignored) {
+                return new ValidationInfo(
+                        I18n.t("providerDialog.validate.contextWindowInvalid"),
+                        row.contextWindowCombo);
+            }
         }
         return null;
     }
@@ -2007,11 +2332,21 @@ public class ProviderDialog extends DialogWrapper {
             return new ValidationInfo(I18n.t("providerDialog.validate.baseUrlRequired"), opencodeBaseUrl);
         }
         // OpenCode 的模型是动态列表，检查是否至少有一个模型
-        boolean hasModel = opencodeModelRows.stream()
-                .anyMatch(row -> !row.nameField.getText().isBlank());
-        if (!hasModel) {
+        if (opencodeModelRows.isEmpty()) {
             return new ValidationInfo(I18n.t("providerDialog.validate.modelRequired"),
-                    opencodeModelRows.isEmpty() ? opencodeModelsPanel : opencodeModelRows.get(0).nameField);
+                    opencodeModelsPanel);
+        }
+        for (ModelRow row : opencodeModelRows) {
+            if (row.displayNameField.getText().isBlank()) {
+                return new ValidationInfo(
+                        I18n.t("providerDialog.validate.modelDisplayNameRequired"),
+                        row.displayNameField);
+            }
+            if (row.actualModelField.getText().isBlank()) {
+                return new ValidationInfo(
+                        I18n.t("providerDialog.validate.modelRequired"),
+                        row.actualModelField);
+            }
         }
         return null;
     }

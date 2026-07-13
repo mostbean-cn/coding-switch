@@ -121,6 +121,11 @@ public final class ConfigFileService {
         return getProviderConfigPath(CliType.CODEX);
     }
 
+    /** Coding Switch 管理的 Codex 自定义模型目录文件。 */
+    public Path getCodexModelCatalogPath() {
+        return getConfigDir(CliType.CODEX).resolve("coding-switch-model-catalog.json");
+    }
+
     // =====================================================================
     // 文件读写
     // =====================================================================

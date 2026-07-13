@@ -372,7 +372,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         // 写 config.toml
         if (config.has("config")) {
             Path tomlPath = svc.getConfigDir(CliType.CODEX).resolve("config.toml");
-            String providerToml = config.get("config").getAsString().trim();
+            String providerToml = prepareCodexModelCatalog(svc, config);
             String managedBlock = "# >>> coding-switch:provider:start\n"
                     + providerToml + "\n"
                     + "# <<< coding-switch:provider:end\n";
@@ -395,9 +395,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
                 existing,
                 "# >>> coding-switch:provider:start",
                 "# <<< coding-switch:provider:end");
-        String providerToml = config != null && config.has("config") && !config.get("config").isJsonNull()
-                ? config.get("config").getAsString().trim()
-                : "";
+        String providerToml = prepareCodexModelCatalog(svc, config);
         String sanitized = removeConflictingCodexProviderEntries(withoutManagedBlock, providerToml);
         String finalContent = providerToml.isBlank()
                 ? sanitized.stripLeading()
@@ -413,6 +411,22 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             return;
         }
         svc.writeFile(tomlPath, finalContent);
+    }
+
+    private String prepareCodexModelCatalog(ConfigFileService svc, JsonObject config) throws IOException {
+        if (config == null || !config.has("config") || config.get("config").isJsonNull()) {
+            return "";
+        }
+
+        String providerToml = config.get("config").getAsString().trim();
+        if (!config.has(CodexModelCatalogSupport.SETTINGS_KEY)
+                || !config.get(CodexModelCatalogSupport.SETTINGS_KEY).isJsonObject()) {
+            return providerToml;
+        }
+
+        JsonObject catalog = config.getAsJsonObject(CodexModelCatalogSupport.SETTINGS_KEY);
+        svc.writeJsonFile(svc.getCodexModelCatalogPath(), catalog);
+        return CodexModelCatalogSupport.ensureCatalogPath(providerToml, svc.getCodexModelCatalogPath()).trim();
     }
 
 
