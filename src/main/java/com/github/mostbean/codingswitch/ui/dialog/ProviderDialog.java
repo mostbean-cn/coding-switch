@@ -1260,9 +1260,9 @@ public class ProviderDialog extends DialogWrapper {
             if (!updatingFromPreview) updatePreview();
         });
 
-        row.add(displayNameField, modelGridConstraints(0, 0.30));
-        row.add(actualModelField, modelGridConstraints(1, 0.45));
-        row.add(contextWindowCombo, modelGridConstraints(2, 0.25));
+        row.add(displayNameField, modelGridConstraints(0, 0.33));
+        row.add(actualModelField, modelGridConstraints(1, 0.50));
+        row.add(contextWindowCombo, modelGridConstraints(2, 0.167));
         row.add(removeButton, modelActionConstraints(3));
         row.setBorder(JBUI.Borders.emptyBottom(6));
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, JBUI.scale(36)));
@@ -1274,11 +1274,11 @@ public class ProviderDialog extends DialogWrapper {
     private JPanel buildCodexModelHeader() {
         JPanel header = new JPanel(new GridBagLayout());
         header.add(createModelHeaderLabel(I18n.t("providerDialog.label.modelDisplayName")),
-                modelGridConstraints(0, 0.30));
+                modelGridConstraints(0, 0.33));
         header.add(createModelHeaderLabel(I18n.t("providerDialog.label.actualModel")),
-                modelGridConstraints(1, 0.45));
+                modelGridConstraints(1, 0.50));
         header.add(createModelHeaderLabel(I18n.t("providerDialog.label.contextWindow")),
-                modelGridConstraints(2, 0.25));
+                modelGridConstraints(2, 0.167));
         header.add(Box.createHorizontalStrut(JBUI.scale(28)), modelActionConstraints(3));
         header.setBorder(JBUI.Borders.emptyBottom(6));
         return header;
@@ -1462,9 +1462,9 @@ public class ProviderDialog extends DialogWrapper {
             if (!updatingFromPreview) updatePreview();
         });
 
-        row.add(displayNameField, modelGridConstraints(0, 0.30));
-        row.add(actualModelField, modelGridConstraints(1, 0.45));
-        row.add(effortCombo, modelGridConstraints(2, 0.25));
+        row.add(displayNameField, modelGridConstraints(0, 0.33));
+        row.add(actualModelField, modelGridConstraints(1, 0.50));
+        row.add(effortCombo, modelGridConstraints(2, 0.167));
         row.add(removeBtn, modelActionConstraints(3));
         row.setBorder(JBUI.Borders.emptyBottom(6));
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, JBUI.scale(36)));
@@ -1477,11 +1477,11 @@ public class ProviderDialog extends DialogWrapper {
     private JPanel buildOpenCodeModelHeader() {
         JPanel header = new JPanel(new GridBagLayout());
         header.add(createModelHeaderLabel(I18n.t("providerDialog.label.modelDisplayName")),
-                modelGridConstraints(0, 0.30));
+                modelGridConstraints(0, 0.33));
         header.add(createModelHeaderLabel(I18n.t("providerDialog.label.actualModel")),
-                modelGridConstraints(1, 0.45));
+                modelGridConstraints(1, 0.50));
         header.add(createModelHeaderLabel(I18n.t("providerDialog.label.reasoningEffort")),
-                modelGridConstraints(2, 0.25));
+                modelGridConstraints(2, 0.167));
         header.add(Box.createHorizontalStrut(JBUI.scale(28)), modelActionConstraints(3));
         header.setBorder(JBUI.Borders.emptyBottom(6));
         return header;
