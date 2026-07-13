@@ -45,7 +45,23 @@ public class CodexModelCatalogSupportTest {
         assertEquals(2, definitions.size());
         assertEquals("模型 B", definitions.get(1).displayName());
         assertEquals("model-b", definitions.get(1).model());
-        assertEquals(64_000L, definitions.get(1).contextWindow());
+        assertEquals(64_000L, definitions.get(1).contextWindow().longValue());
+    }
+
+    @Test
+    public void omitsContextWindowWhenNotConfigured() {
+        JsonObject catalog = CodexModelCatalogSupport.buildCatalog(List.of(
+                new CodexModelCatalogSupport.ModelDefinition("模型 A", "model-a", null)
+        ));
+
+        JsonObject model = catalog.getAsJsonArray("models").get(0).getAsJsonObject();
+        assertFalse(model.has("context_window"));
+        assertFalse(model.has("max_context_window"));
+
+        List<CodexModelCatalogSupport.ModelDefinition> definitions =
+                CodexModelCatalogSupport.readDefinitions(catalog);
+        assertEquals(1, definitions.size());
+        assertEquals(null, definitions.get(0).contextWindow());
     }
 
     @Test

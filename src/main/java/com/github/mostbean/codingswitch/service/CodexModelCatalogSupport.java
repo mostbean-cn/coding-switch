@@ -21,7 +21,7 @@ public final class CodexModelCatalogSupport {
     private CodexModelCatalogSupport() {
     }
 
-    public record ModelDefinition(String displayName, String model, long contextWindow) {
+    public record ModelDefinition(String displayName, String model, Long contextWindow) {
     }
 
     public static JsonObject buildCatalog(List<ModelDefinition> definitions) {
@@ -31,7 +31,7 @@ public final class CodexModelCatalogSupport {
             if (definition == null
                     || definition.displayName() == null || definition.displayName().isBlank()
                     || definition.model() == null || definition.model().isBlank()
-                    || definition.contextWindow() <= 0) {
+                    || (definition.contextWindow() != null && definition.contextWindow() <= 0)) {
                 continue;
             }
             models.add(buildModel(definition, priority++));
@@ -55,8 +55,8 @@ public final class CodexModelCatalogSupport {
             JsonObject model = element.getAsJsonObject();
             String displayName = stringValue(model, "display_name");
             String slug = stringValue(model, "slug");
-            long contextWindow = longValue(model, "context_window");
-            if (!displayName.isBlank() && !slug.isBlank() && contextWindow > 0) {
+            Long contextWindow = optionalLongValue(model, "context_window");
+            if (!displayName.isBlank() && !slug.isBlank()) {
                 definitions.add(new ModelDefinition(displayName, slug, contextWindow));
             }
         }
@@ -110,8 +110,10 @@ public final class CodexModelCatalogSupport {
         model.add("truncation_policy", truncationPolicy);
 
         model.addProperty("supports_parallel_tool_calls", false);
-        model.addProperty("context_window", definition.contextWindow());
-        model.addProperty("max_context_window", definition.contextWindow());
+        if (definition.contextWindow() != null) {
+            model.addProperty("context_window", definition.contextWindow());
+            model.addProperty("max_context_window", definition.contextWindow());
+        }
         model.add("experimental_supported_tools", new JsonArray());
         return model;
     }
@@ -136,11 +138,11 @@ public final class CodexModelCatalogSupport {
         return object.has(key) && !object.get(key).isJsonNull() ? object.get(key).getAsString() : "";
     }
 
-    private static long longValue(JsonObject object, String key) {
+    private static Long optionalLongValue(JsonObject object, String key) {
         try {
-            return object.has(key) && !object.get(key).isJsonNull() ? object.get(key).getAsLong() : 0L;
+            return object.has(key) && !object.get(key).isJsonNull() ? object.get(key).getAsLong() : null;
         } catch (RuntimeException ignored) {
-            return 0L;
+            return null;
         }
     }
 }

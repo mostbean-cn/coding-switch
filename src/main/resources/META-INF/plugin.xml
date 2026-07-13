@@ -41,6 +41,10 @@
     ]]>    </description>
 
     <change-notes><![CDATA[
+    <h3>0.4.7</h3>
+    <ul>
+        <li><b>Codex 多模型目录支持</b> — 新增 <code>model_catalog_json</code> 配置能力，同一个 Provider 可维护多个模型。</li>
+    </ul>
     <h3>0.4.6</h3>
     <ul>
         <li><b>WebDAV 备份同步</b> — 设置页新增 WebDAV 备份同步功能，支持加密备份配置到 WebDAV 服务器，并支持自动定时备份与跨设备恢复。</li>

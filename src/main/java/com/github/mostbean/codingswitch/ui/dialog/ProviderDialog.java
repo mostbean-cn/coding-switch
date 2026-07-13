@@ -1066,7 +1066,7 @@ public class ProviderDialog extends DialogWrapper {
                 codexApiKey.setText("");
                 codexBaseUrl.setText("");
                 clearCodexModelFields();
-                addCodexModelField("", "", "128000");
+                addCodexModelField("", "", "");
                 codexReasoningEffort.setSelectedItem("high");
                 codexAutoCompactWindow.setSelectedItem("400000");
                 codex1MContext.setSelected(false);
@@ -1203,10 +1203,10 @@ public class ProviderDialog extends DialogWrapper {
         codexAutoCompactWindowContainer.add(codexAutoCompactWindowRow, BorderLayout.CENTER);
 
         codexModelsPanel.setLayout(new BoxLayout(codexModelsPanel, BoxLayout.Y_AXIS));
-        addCodexModelField("", "", "128000");
+        addCodexModelField("", "", "");
 
         JButton addModelButton = new JButton("+ " + I18n.t("providerDialog.button.addModel"));
-        addModelButton.addActionListener(e -> addCodexModelField("", "", "128000"));
+        addModelButton.addActionListener(e -> addCodexModelField("", "", ""));
 
         JPanel modelsContainer = new JPanel(new BorderLayout());
         modelsContainer.add(buildCodexModelHeader(), BorderLayout.NORTH);
@@ -1232,7 +1232,7 @@ public class ProviderDialog extends DialogWrapper {
         JTextField displayNameField = new JTextField(displayName);
         JTextField actualModelField = new JTextField(actualModel);
         JComboBox<String> contextWindowCombo = createEditableCombo(
-                "128000", "200000", "272000", "1000000");
+                "", "128000", "200000", "272000", "1000000");
         contextWindowCombo.setSelectedItem(contextWindow);
 
         displayNameField.setToolTipText(I18n.t("providerDialog.label.modelDisplayName"));
@@ -1297,10 +1297,12 @@ public class ProviderDialog extends DialogWrapper {
             addCodexModelField(
                     definition.displayName(),
                     definition.model(),
-                    CodexContextWindowSupport.format(definition.contextWindow()));
+                    definition.contextWindow() == null
+                            ? ""
+                            : CodexContextWindowSupport.format(definition.contextWindow()));
         }
         if (codexModelRows.isEmpty()) {
-            addCodexModelField("", "", "128000");
+            addCodexModelField("", "", "");
         }
     }
 
@@ -1309,7 +1311,7 @@ public class ProviderDialog extends DialogWrapper {
             return;
         }
         if (codexModelRows.isEmpty()) {
-            addCodexModelField(model, model, "128000");
+            addCodexModelField(model, model, "");
             return;
         }
         CodexModelRow first = codexModelRows.get(0);
@@ -1743,7 +1745,7 @@ public class ProviderDialog extends DialogWrapper {
                 addCodexModelField(
                         legacyModel,
                         legacyModel,
-                        has1MContext ? "1000000" : "128000");
+                        has1MContext ? "1000000" : "");
             }
         }
     }
@@ -1981,15 +1983,19 @@ public class ProviderDialog extends DialogWrapper {
             String displayName = row.displayNameField.getText().trim();
             String actualModel = row.actualModelField.getText().trim();
             String contextWindow = getComboText(row.contextWindowCombo);
-            if (displayName.isBlank() || actualModel.isBlank() || contextWindow.isBlank()) {
+            if (displayName.isBlank() || actualModel.isBlank()) {
                 continue;
             }
+            Long parsedContextWindow = null;
             try {
-                long parsedContextWindow = CodexContextWindowSupport.parse(contextWindow);
-                models.add(new CodexModelCatalogSupport.ModelDefinition(
-                        displayName, actualModel, parsedContextWindow));
+                if (!contextWindow.isBlank()) {
+                    parsedContextWindow = CodexContextWindowSupport.parse(contextWindow);
+                }
             } catch (IllegalArgumentException ignored) {
+                continue;
             }
+            models.add(new CodexModelCatalogSupport.ModelDefinition(
+                    displayName, actualModel, parsedContextWindow));
         }
         return models;
     }
@@ -2313,6 +2319,9 @@ public class ProviderDialog extends DialogWrapper {
                 return new ValidationInfo(I18n.t("providerDialog.validate.modelRequired"), row.actualModelField);
             }
             String contextWindow = getComboText(row.contextWindowCombo);
+            if (contextWindow.isBlank()) {
+                continue;
+            }
             try {
                 CodexContextWindowSupport.parse(contextWindow);
             } catch (IllegalArgumentException ignored) {
