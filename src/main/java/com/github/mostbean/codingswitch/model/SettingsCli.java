@@ -54,6 +54,6 @@ public enum SettingsCli {
     }
 
     public static List<SettingsCli> defaultVisibleValues() {
-        return List.of(CLAUDE, CODEX, OPENCODE, ANTIGRAVITY, REASONIX, KIMI);
+        return List.of(CLAUDE, CODEX, OPENCODE, ANTIGRAVITY);
     }
 }
