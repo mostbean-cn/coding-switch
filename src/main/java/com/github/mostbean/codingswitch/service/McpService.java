@@ -129,6 +129,7 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
             case ANTIGRAVITY -> syncAntigravityMcp(configService, enabledServers);
             case OPENCODE -> syncOpenCodeMcp(configService, enabledServers);
             case CODEX -> syncCodexMcp(configService, enabledServers);
+            case GROK -> syncGrokMcp(configService, enabledServers);
         }
     }
 
@@ -251,6 +252,63 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
         svc.writeFile(path, merged);
     }
 
+    private void syncGrokMcp(ConfigFileService svc, List<McpServer> servers) throws IOException {
+        Path path = svc.getMcpConfigPath(CliType.GROK);
+        List<String> managedNames = servers.stream()
+                .map(s -> toCodexServerName(s.getName()))
+                .filter(name -> name != null && !name.isBlank())
+                .toList();
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("# >>> coding-switch:mcp:start\n");
+        sb.append("# MCP Servers (managed by Coding Switch)\n\n");
+        for (McpServer server : servers) {
+            String grokName = toCodexServerName(server.getName());
+            sb.append("[mcp_servers.").append(grokName).append("]\n");
+            if (server.getTransportType() == McpServer.TransportType.STDIO) {
+                if (server.getCommand() != null && !server.getCommand().isBlank()) {
+                    sb.append("command = \"").append(escapeToml(server.getCommand())).append("\"\n");
+                }
+                if (server.getArgs() != null && server.getArgs().length > 0) {
+                    sb.append("args = [");
+                    for (int i = 0; i < server.getArgs().length; i++) {
+                        if (i > 0) {
+                            sb.append(", ");
+                        }
+                        sb.append("\"").append(escapeToml(server.getArgs()[i])).append("\"");
+                    }
+                    sb.append("]\n");
+                }
+                if (server.getEnv() != null && !server.getEnv().isEmpty()) {
+                    sb.append("env = {");
+                    boolean first = true;
+                    for (Map.Entry<String, String> entry : server.getEnv().entrySet()) {
+                        if (!first) {
+                            sb.append(", ");
+                        }
+                        first = false;
+                        sb.append(entry.getKey()).append(" = \"").append(escapeToml(entry.getValue())).append("\"");
+                    }
+                    sb.append("}\n");
+                }
+            } else if (server.getUrl() != null && !server.getUrl().isBlank()) {
+                sb.append("url = \"").append(escapeToml(server.getUrl())).append("\"\n");
+            }
+            sb.append("enabled = true\n\n");
+        }
+        sb.append("# <<< coding-switch:mcp:end\n");
+
+        String existing = svc.readFile(path);
+        String withoutManagedBlock = removeManagedBlock(existing,
+                "# >>> coding-switch:mcp:start",
+                "# <<< coding-switch:mcp:end");
+        String sanitized = removeConflictingCodexSections(withoutManagedBlock, managedNames);
+        String merged = upsertManagedBlock(sanitized, sb.toString(),
+                "# >>> coding-switch:mcp:start",
+                "# <<< coding-switch:mcp:end");
+        svc.writeFile(path, merged);
+    }
+
     private JsonObject buildMcpServersJson(List<McpServer> servers) {
         JsonObject mcpServers = new JsonObject();
         for (McpServer server : servers) {
@@ -314,6 +372,7 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
         importFromClaudeScopes(configService, existing, currentProjectRoot, opts, report);
         importFromOpenCodeConfig(configService, existing, report);
         importFromCodexToml(existing, report);
+        importFromGrokToml(existing, report);
         importFromAntigravityConfig(configService, existing, report);
 
         boolean changed = !beforeState.equals(GSON.toJson(existing));
@@ -543,6 +602,100 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
             LOG.info("Failed to import MCP from Codex: " + e.getMessage());
             report.warnings.add("Codex 导入失败: " + e.getMessage());
         }
+    }
+
+    private void importFromGrokToml(List<McpServer> existing, ImportReport report) {
+        try {
+            ConfigFileService configService = ConfigFileService.getInstance();
+            Path path = configService.getMcpConfigPath(CliType.GROK);
+            String content = configService.readFile(path);
+            if (content.isBlank()) {
+                return;
+            }
+
+            String currentSection = null;
+            String currentCommand = null;
+            String currentUrl = null;
+            List<String> currentArgs = new ArrayList<>();
+            Map<String, String> currentEnv = new HashMap<>();
+
+            for (String rawLine : content.split("\n")) {
+                String line = rawLine.trim();
+                if (line.isEmpty() || line.startsWith("#")) {
+                    continue;
+                }
+                if (line.startsWith("[") && line.endsWith("]")) {
+                    String sectionName = line.substring(1, line.length() - 1).trim();
+                    if (sectionName.startsWith("mcp_servers.")) {
+                        String suffix = sectionName.substring("mcp_servers.".length());
+                        boolean envSection = suffix.endsWith(".env");
+                        String nextSection = envSection ? suffix.substring(0, suffix.length() - 4) : suffix;
+                        if (currentSection != null && !currentSection.equals(nextSection)) {
+                            saveGrokSection(existing, currentSection, currentCommand, currentArgs, currentUrl, currentEnv, report);
+                            currentCommand = null;
+                            currentUrl = null;
+                            currentArgs = new ArrayList<>();
+                            currentEnv = new HashMap<>();
+                        }
+                        currentSection = nextSection;
+                    } else {
+                        if (currentSection != null) {
+                            saveGrokSection(existing, currentSection, currentCommand, currentArgs, currentUrl, currentEnv, report);
+                        }
+                        currentSection = null;
+                        currentCommand = null;
+                        currentUrl = null;
+                        currentArgs = new ArrayList<>();
+                        currentEnv = new HashMap<>();
+                    }
+                    continue;
+                }
+                if (currentSection == null) {
+                    continue;
+                }
+                int eq = line.indexOf('=');
+                if (eq < 0) {
+                    continue;
+                }
+                String key = line.substring(0, eq).trim();
+                String value = line.substring(eq + 1).trim();
+                switch (key) {
+                    case "command" -> currentCommand = stripQuotes(value);
+                    case "url" -> currentUrl = stripQuotes(value);
+                    case "args" -> currentArgs = parseTomlArray(value);
+                }
+            }
+            if (currentSection != null) {
+                saveGrokSection(existing, currentSection, currentCommand, currentArgs, currentUrl, currentEnv, report);
+            }
+        } catch (Exception e) {
+            LOG.info("Failed to import MCP from Grok: " + e.getMessage());
+            report.warnings.add("Grok 导入失败: " + e.getMessage());
+        }
+    }
+
+    private void saveGrokSection(List<McpServer> existing, String name,
+                                 String command, List<String> args, String url,
+                                 Map<String, String> env, ImportReport report) {
+        McpServer server = new McpServer();
+        server.setName(name);
+        server.setEnabled(true);
+        if (command != null && !command.isBlank()) {
+            server.setTransportType(McpServer.TransportType.STDIO);
+            server.setCommand(command);
+            server.setArgs(args.toArray(new String[0]));
+        } else if (url != null && !url.isBlank()) {
+            server.setTransportType(McpServer.TransportType.HTTP);
+            server.setUrl(url);
+        } else {
+            report.skippedInvalid++;
+            report.warnings.add("Grok 导入跳过无效 MCP: " + name);
+            return;
+        }
+        if (!env.isEmpty()) {
+            server.setEnv(env);
+        }
+        mergeImportedServer(existing, server, CliType.GROK, "Grok", report);
     }
 
     private void saveCodexSection(List<McpServer> existing, String name,

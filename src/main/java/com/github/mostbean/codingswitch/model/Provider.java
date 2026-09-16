@@ -196,6 +196,21 @@ public class Provider {
                 yield authEmpty && officialManagedConfig ? AuthMode.OFFICIAL_LOGIN : AuthMode.API_KEY;
             }
             case OPENCODE -> AuthMode.API_KEY;
+            case GROK -> {
+                JsonObject auth = safeConfig.has("auth") && safeConfig.get("auth").isJsonObject()
+                        ? safeConfig.getAsJsonObject("auth")
+                        : null;
+                String config = safeConfig.has("config") && !safeConfig.get("config").isJsonNull()
+                        ? safeConfig.get("config").getAsString()
+                        : "";
+                boolean authEmpty = auth == null || auth.keySet().isEmpty();
+                boolean officialManagedConfig = config == null || config.isBlank()
+                        || (!config.contains("[model.")
+                                && !config.contains("base_url =")
+                                && !config.contains("api_backend =")
+                                && !config.contains("api_key ="));
+                yield authEmpty && officialManagedConfig ? AuthMode.OFFICIAL_LOGIN : AuthMode.API_KEY;
+            }
         };
     }
 

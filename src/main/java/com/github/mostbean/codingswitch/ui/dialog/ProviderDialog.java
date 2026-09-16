@@ -6,6 +6,7 @@ import com.github.mostbean.codingswitch.model.Provider.AuthMode;
 import com.github.mostbean.codingswitch.service.ConfigFileService;
 import com.github.mostbean.codingswitch.service.CodexContextWindowSupport;
 import com.github.mostbean.codingswitch.service.CodexModelCatalogSupport;
+import com.github.mostbean.codingswitch.service.GrokConfigSupport;
 import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.PluginSettings.SecurityPolicy;
@@ -122,6 +123,16 @@ public class ProviderDialog extends DialogWrapper {
             "@ai-sdk/amazon-bedrock",
             "@ai-sdk/mistral");
 
+    private final PasswordFieldWithToggle grokApiKey = new PasswordFieldWithToggle(30);
+    private final JTextField grokBaseUrl = new JTextField(30);
+    private final JBLabel grokApiKeyLabel = requiredLabel("API Key:");
+    private final JBLabel grokBaseUrlLabel = requiredLabel("Base URL:");
+    private final JBLabel grokModelLabel = requiredLabel(I18n.t("providerDialog.label.model"));
+    private final JComboBox<String> grokApiBackend = new JComboBox<>(
+            GrokConfigSupport.API_BACKENDS.toArray(new String[0]));
+    private final JPanel grokModelsPanel = new JPanel();
+    private final List<GrokModelRow> grokModelRows = new ArrayList<>();
+
     private static class ModelRow {
         final JTextField displayNameField;
         final JTextField actualModelField;
@@ -228,6 +239,7 @@ public class ProviderDialog extends DialogWrapper {
         dynamicPanel.add(buildCodexPanel(), CliType.CODEX.name());
         dynamicPanel.add(buildOpenCodePanel(), CliType.OPENCODE.name());
         dynamicPanel.add(buildAntigravityPanel(), CliType.ANTIGRAVITY.name());
+        dynamicPanel.add(buildGrokPanel(), CliType.GROK.name());
 
         cliTypeCombo.addActionListener(e -> {
             CliType selected = (CliType) cliTypeCombo.getSelectedItem();
@@ -495,6 +507,12 @@ public class ProviderDialog extends DialogWrapper {
             if (!updatingFromPreview) updatePreview();
         });
 
+        addTextFieldListener(grokApiKey);
+        addTextFieldListener(grokBaseUrl);
+        grokApiBackend.addActionListener(e -> {
+            if (!updatingFromPreview) updatePreview();
+        });
+
     }
 
     private void addTextFieldListener(JTextField field) {
@@ -666,6 +684,7 @@ public class ProviderDialog extends DialogWrapper {
                 case ANTIGRAVITY -> applyAntigravityPreviewToForm();
                 case CODEX -> applyCodexPreviewToForm();
                 case OPENCODE -> applyOpenCodePreviewToForm();
+                case GROK -> applyGrokPreviewToForm();
             }
 
             testStatusLabel.setText(" ");
@@ -789,6 +808,30 @@ public class ProviderDialog extends DialogWrapper {
         }
     }
 
+    private void applyGrokPreviewToForm() {
+        String text = previewTextArea.getText();
+        if (text == null) {
+            return;
+        }
+        StringBuilder toml = new StringBuilder();
+        for (String line : text.split("\n")) {
+            if (line.trim().startsWith("# ~/.grok/config.toml")) {
+                continue;
+            }
+            toml.append(line).append("\n");
+        }
+        JsonObject config = new JsonObject();
+        JsonObject auth = new JsonObject();
+        String apiKey = grokApiKey.getTextValue().trim();
+        if (!apiKey.isBlank()) {
+            auth.addProperty("XAI_API_KEY", apiKey);
+        }
+        config.add("auth", auth);
+        config.addProperty("config", toml.toString());
+        rememberRawSettings(CliType.GROK, config);
+        loadGrokConfig(config);
+    }
+
     private void applyAntigravityPreviewToForm() {
         String text = previewTextArea.getText().trim();
         if (text.isEmpty()) {
@@ -813,6 +856,7 @@ public class ProviderDialog extends DialogWrapper {
             case ANTIGRAVITY -> formatAntigravityPreview(config);
             case OPENCODE -> formatOpenCodePreview(config);
             case CODEX -> "";
+            case GROK -> formatGrokPreview(config);
         };
     }
 
@@ -837,6 +881,15 @@ public class ProviderDialog extends DialogWrapper {
         StringBuilder sb = new StringBuilder();
         sb.append("// opencode.json (provider)\n");
         sb.append(PREVIEW_GSON.toJson(preview));
+        return sb.toString();
+    }
+
+    private String formatGrokPreview(JsonObject config) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("# ~/.grok/config.toml\n");
+        if (config != null && config.has("config") && !config.get("config").isJsonNull()) {
+            sb.append(config.get("config").getAsString());
+        }
         return sb.toString();
     }
 
@@ -1037,6 +1090,15 @@ public class ProviderDialog extends DialogWrapper {
             }
             case OPENCODE -> {
             }
+            case GROK -> {
+                grokApiKey.setEnabled(!officialLogin);
+                grokBaseUrl.setEnabled(!officialLogin);
+                grokApiBackend.setEnabled(!officialLogin);
+                grokModelsPanel.setEnabled(true);
+                setRequiredState(grokApiKeyLabel, !officialLogin);
+                setRequiredState(grokBaseUrlLabel, !officialLogin);
+                setRequiredState(grokModelLabel, !officialLogin);
+            }
         }
     }
 
@@ -1080,6 +1142,13 @@ public class ProviderDialog extends DialogWrapper {
                 opencodeApiKey.setText("");
                 opencodeBaseUrl.setText("");
                 clearOpenCodeModelFields();
+            }
+            case GROK -> {
+                grokApiKey.setText("");
+                grokBaseUrl.setText("");
+                grokApiBackend.setSelectedItem(GrokConfigSupport.DEFAULT_BACKEND);
+                clearGrokModelFields();
+                addGrokModelField("", "", "");
             }
         }
     }
@@ -1425,6 +1494,109 @@ public class ProviderDialog extends DialogWrapper {
         return wrapWithTitledBorder(form, I18n.t("providerDialog.border.opencode"));
     }
 
+    private JPanel buildGrokPanel() {
+        grokApiBackend.setSelectedItem(GrokConfigSupport.DEFAULT_BACKEND);
+        grokModelsPanel.setLayout(new BoxLayout(grokModelsPanel, BoxLayout.Y_AXIS));
+        addGrokModelField("", "", "");
+
+        JButton addModelButton = new JButton("+ " + I18n.t("providerDialog.button.addModel"));
+        addModelButton.addActionListener(e -> addGrokModelField("", "", ""));
+
+        JPanel modelsContainer = new JPanel(new BorderLayout());
+        modelsContainer.add(buildGrokModelHeader(), BorderLayout.NORTH);
+        modelsContainer.add(grokModelsPanel, BorderLayout.CENTER);
+
+        JPanel form = FormBuilder.createFormBuilder()
+                .addLabeledComponent(grokApiKeyLabel, grokApiKey)
+                .addLabeledComponent(grokBaseUrlLabel, grokBaseUrl)
+                .addLabeledComponent(I18n.t("providerDialog.label.apiBackend"), grokApiBackend)
+                .addLabeledComponent(grokModelLabel, wrapLeftAligned(addModelButton))
+                .addComponent(wrapCenteredModelComponent(modelsContainer))
+                .getPanel();
+        return wrapWithTitledBorder(form, I18n.t("providerDialog.border.grok"));
+    }
+
+    private void addGrokModelField(String displayName, String actualModel, String contextWindow) {
+        JPanel row = new JPanel(new GridBagLayout());
+        JTextField displayNameField = new JTextField(displayName);
+        JTextField actualModelField = new JTextField(actualModel);
+        JComboBox<String> contextWindowCombo = createEditableCombo(
+                "", "128000", "200000", "256000", "1000000");
+        contextWindowCombo.setSelectedItem(contextWindow == null ? "" : contextWindow);
+
+        displayNameField.setToolTipText(I18n.t("providerDialog.label.modelDisplayName"));
+        actualModelField.setToolTipText(I18n.t("providerDialog.label.actualModel"));
+        contextWindowCombo.setToolTipText(I18n.t("providerDialog.label.contextWindow"));
+        addTextFieldListener(displayNameField);
+        addTextFieldListener(actualModelField);
+        contextWindowCombo.addActionListener(e -> {
+            if (!updatingFromPreview) updatePreview();
+        });
+        addTextFieldListener((JTextField) contextWindowCombo.getEditor().getEditorComponent());
+
+        JButton removeButton = new JButton("−");
+        removeButton.setToolTipText(I18n.t("providerDialog.tooltip.removeModel"));
+        styleModelRemoveButton(removeButton);
+
+        GrokModelRow modelRow = new GrokModelRow(displayNameField, actualModelField, contextWindowCombo, row);
+        grokModelRows.add(modelRow);
+        removeButton.addActionListener(e -> {
+            grokModelRows.remove(modelRow);
+            grokModelsPanel.remove(row);
+            grokModelsPanel.revalidate();
+            grokModelsPanel.repaint();
+            if (!updatingFromPreview) updatePreview();
+        });
+
+        row.add(displayNameField, modelGridConstraints(0, 0.33));
+        row.add(actualModelField, modelGridConstraints(1, 0.50));
+        row.add(contextWindowCombo, modelGridConstraints(2, 0.167));
+        row.add(removeButton, modelActionConstraints(3));
+        row.setBorder(JBUI.Borders.emptyBottom(6));
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, JBUI.scale(36)));
+        grokModelsPanel.add(row);
+        grokModelsPanel.revalidate();
+        grokModelsPanel.repaint();
+    }
+
+    private JPanel buildGrokModelHeader() {
+        JPanel header = new JPanel(new GridBagLayout());
+        header.add(createModelHeaderLabel(I18n.t("providerDialog.label.modelDisplayName")),
+                modelGridConstraints(0, 0.33));
+        header.add(createModelHeaderLabel(I18n.t("providerDialog.label.actualModel")),
+                modelGridConstraints(1, 0.50));
+        header.add(createModelHeaderLabel(I18n.t("providerDialog.label.contextWindow")),
+                modelGridConstraints(2, 0.167));
+        header.add(Box.createHorizontalStrut(JBUI.scale(28)), modelActionConstraints(3));
+        header.setBorder(JBUI.Borders.emptyBottom(6));
+        return header;
+    }
+
+    private void clearGrokModelFields() {
+        grokModelRows.clear();
+        grokModelsPanel.removeAll();
+        grokModelsPanel.revalidate();
+        grokModelsPanel.repaint();
+    }
+
+    private static class GrokModelRow {
+        final JTextField displayNameField;
+        final JTextField actualModelField;
+        final JComboBox<String> contextWindowCombo;
+        final JPanel panel;
+
+        GrokModelRow(
+                JTextField displayNameField,
+                JTextField actualModelField,
+                JComboBox<String> contextWindowCombo,
+                JPanel panel) {
+            this.displayNameField = displayNameField;
+            this.actualModelField = actualModelField;
+            this.contextWindowCombo = contextWindowCombo;
+            this.panel = panel;
+        }
+    }
+
     private void addOpenCodeModelField(
             String displayName,
             String actualModel,
@@ -1607,6 +1779,7 @@ public class ProviderDialog extends DialogWrapper {
             case ANTIGRAVITY -> loadAntigravityConfig(safeConfig);
             case CODEX -> loadCodexConfig(safeConfig);
             case OPENCODE -> loadOpenCodeConfig(safeConfig);
+            case GROK -> loadGrokConfig(safeConfig);
         }
     }
 
@@ -1804,6 +1977,38 @@ public class ProviderDialog extends DialogWrapper {
         opencodeModelsPanel.repaint();
     }
 
+    private void loadGrokConfig(JsonObject config) {
+        if (config.has("auth") && config.get("auth").isJsonObject()) {
+            JsonObject auth = config.getAsJsonObject("auth");
+            setFieldFromJson(auth, "XAI_API_KEY", grokApiKey);
+            if (grokApiKey.getTextValue().isBlank()) {
+                setFieldFromJson(auth, "OPENAI_API_KEY", grokApiKey);
+            }
+        }
+        GrokConfigSupport.ParsedConfig parsed = GrokConfigSupport.parse(
+                config.has("config") && !config.get("config").isJsonNull()
+                        ? config.get("config").getAsString()
+                        : "");
+        if (!parsed.apiKey().isBlank() && grokApiKey.getTextValue().isBlank()) {
+            grokApiKey.setText(parsed.apiKey());
+        }
+        if (!parsed.baseUrl().isBlank()) {
+            grokBaseUrl.setText(parsed.baseUrl());
+        }
+        grokApiBackend.setSelectedItem(GrokConfigSupport.normalizeBackend(parsed.apiBackend()));
+        clearGrokModelFields();
+        if (parsed.models().isEmpty()) {
+            addGrokModelField("", "", "");
+            return;
+        }
+        for (GrokConfigSupport.ModelDefinition model : parsed.models()) {
+            addGrokModelField(
+                    model.name(),
+                    model.model(),
+                    model.contextWindow() == null ? "" : String.valueOf(model.contextWindow()));
+        }
+    }
+
     private JsonObject buildSettingsConfig(CliType cliType) {
         AuthMode authMode = getCurrentAuthMode(cliType);
         JsonObject structured = switch (cliType) {
@@ -1811,6 +2016,7 @@ public class ProviderDialog extends DialogWrapper {
             case ANTIGRAVITY -> buildAntigravityOfficialConfig();
             case CODEX -> authMode == AuthMode.OFFICIAL_LOGIN ? buildCodexOfficialConfig() : buildCodexConfig();
             case OPENCODE -> buildOpenCodeConfig();
+            case GROK -> authMode == AuthMode.OFFICIAL_LOGIN ? buildGrokOfficialConfig() : buildGrokConfig();
         };
         JsonObject merged = mergeWithRawSettings(cliType, structured);
         rememberRawSettings(cliType, merged);
@@ -2009,6 +2215,52 @@ public class ProviderDialog extends DialogWrapper {
         }
     }
 
+    private JsonObject buildGrokOfficialConfig() {
+        JsonObject config = new JsonObject();
+        config.add("auth", new JsonObject());
+        config.addProperty("config", "");
+        return config;
+    }
+
+    private JsonObject buildGrokConfig() {
+        JsonObject config = new JsonObject();
+        JsonObject auth = new JsonObject();
+        addIfNotBlank(auth, "XAI_API_KEY", grokApiKey);
+        config.add("auth", auth);
+
+        List<GrokConfigSupport.ModelDefinition> models = new ArrayList<>();
+        for (GrokModelRow row : grokModelRows) {
+            String displayName = row.displayNameField.getText().trim();
+            String actualModel = row.actualModelField.getText().trim();
+            if (displayName.isBlank() || actualModel.isBlank()) {
+                continue;
+            }
+            Long contextWindow = null;
+            String contextText = getComboText(row.contextWindowCombo);
+            if (!contextText.isBlank()) {
+                try {
+                    contextWindow = Long.parseLong(contextText);
+                } catch (NumberFormatException ignored) {
+                    contextWindow = null;
+                }
+            }
+            models.add(new GrokConfigSupport.ModelDefinition(
+                    displayName,
+                    displayName,
+                    actualModel,
+                    grokBaseUrl.getText().trim(),
+                    grokApiKey.getTextValue().trim(),
+                    (String) grokApiBackend.getSelectedItem(),
+                    contextWindow));
+        }
+        config.addProperty("config", GrokConfigSupport.buildToml(
+                grokApiKey.getTextValue().trim(),
+                grokBaseUrl.getText().trim(),
+                (String) grokApiBackend.getSelectedItem(),
+                models));
+        return config;
+    }
+
     private JsonObject buildOpenCodeConfig() {
         JsonObject config = new JsonObject();
         String npm = ((String) opencodeNpm.getSelectedItem());
@@ -2106,6 +2358,7 @@ public class ProviderDialog extends DialogWrapper {
             case ANTIGRAVITY -> mergeAntigravityRaw(raw, merged);
             case CODEX -> mergeCodexRaw(raw, merged);
             case OPENCODE -> mergeOpenCodeRaw(raw, merged);
+            case GROK -> mergeGrokRaw(raw, merged);
         }
 
         return merged;
@@ -2156,6 +2409,18 @@ public class ProviderDialog extends DialogWrapper {
                 ? raw.getAsJsonObject("auth")
                 : null;
         mergeObjectUnknownFields(rawAuth, mergedAuth, List.of("OPENAI_API_KEY"));
+        merged.add("auth", mergedAuth);
+    }
+
+    private void mergeGrokRaw(JsonObject raw, JsonObject merged) {
+        mergeRootUnknownFields(raw, merged, List.of("auth", "config"));
+        JsonObject mergedAuth = merged.has("auth") && merged.get("auth").isJsonObject()
+                ? merged.getAsJsonObject("auth")
+                : new JsonObject();
+        JsonObject rawAuth = raw.has("auth") && raw.get("auth").isJsonObject()
+                ? raw.getAsJsonObject("auth")
+                : null;
+        mergeObjectUnknownFields(rawAuth, mergedAuth, List.of("XAI_API_KEY", "OPENAI_API_KEY"));
         merged.add("auth", mergedAuth);
     }
 
@@ -2275,6 +2540,7 @@ public class ProviderDialog extends DialogWrapper {
             case ANTIGRAVITY -> validateAntigravity();
             case CODEX -> validateCodex();
             case OPENCODE -> validateOpenCode();
+            case GROK -> validateGrok();
         };
     }
 
@@ -2328,6 +2594,29 @@ public class ProviderDialog extends DialogWrapper {
                 return new ValidationInfo(
                         I18n.t("providerDialog.validate.contextWindowInvalid"),
                         row.contextWindowCombo);
+            }
+        }
+        return null;
+    }
+
+    private ValidationInfo validateGrok() {
+        if (grokApiKey.getTextValue().isBlank()) {
+            return new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), grokApiKey);
+        }
+        if (grokBaseUrl.getText().isBlank()) {
+            return new ValidationInfo(I18n.t("providerDialog.validate.baseUrlRequired"), grokBaseUrl);
+        }
+        if (grokModelRows.isEmpty()) {
+            return new ValidationInfo(I18n.t("providerDialog.validate.modelRequired"), grokModelsPanel);
+        }
+        for (GrokModelRow row : grokModelRows) {
+            if (row.displayNameField.getText().isBlank()) {
+                return new ValidationInfo(
+                        I18n.t("providerDialog.validate.modelDisplayNameRequired"),
+                        row.displayNameField);
+            }
+            if (row.actualModelField.getText().isBlank()) {
+                return new ValidationInfo(I18n.t("providerDialog.validate.modelRequired"), row.actualModelField);
             }
         }
         return null;
@@ -2502,6 +2791,15 @@ public class ProviderDialog extends DialogWrapper {
                 }
                 yield null;
             }
+            case GROK -> {
+                if (grokApiKey.getTextValue().isBlank()) {
+                    yield new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), grokApiKey);
+                }
+                if (grokBaseUrl.getText().isBlank()) {
+                    yield new ValidationInfo(I18n.t("providerDialog.validate.baseUrlRequired"), grokBaseUrl);
+                }
+                yield null;
+            }
         };
     }
 
@@ -2545,6 +2843,7 @@ public class ProviderDialog extends DialogWrapper {
             case ANTIGRAVITY -> svc.getConfigDir(cliType).resolve("settings.json");
             case CODEX -> svc.getConfigDir(cliType).resolve("config.toml");
             case OPENCODE -> svc.getConfigDir(cliType).resolve("opencode.json");
+            case GROK -> svc.getConfigDir(cliType).resolve("config.toml");
         };
     }
 

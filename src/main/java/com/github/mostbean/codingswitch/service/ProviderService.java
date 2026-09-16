@@ -49,6 +49,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
     private State myState = new State();
     private final List<Runnable> changeListeners = new ArrayList<>();
     private CodexActivationResult lastCodexActivationResult = CodexActivationResult.notApplicable();
+    private GrokActivationResult lastGrokActivationResult = GrokActivationResult.notApplicable();
     private AntigravityAuthSnapshotService.RestoreResult lastAntigravityActivationResult;
 
     public static ProviderService getInstance() {
@@ -179,6 +180,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         List<Provider> providers = new ArrayList<>(getProviders());
         Provider target = null;
         Provider activeCodex = findActiveProvider(providers, CliType.CODEX);
+        Provider activeGrok = findActiveProvider(providers, CliType.GROK);
         Provider activeAntigravity = findActiveProvider(providers, CliType.ANTIGRAVITY);
 
         for (Provider p : providers) {
@@ -191,6 +193,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             throw new IllegalArgumentException("Provider not found: " + providerId);
         }
         captureCurrentCodexSnapshot(target, activeCodex);
+        captureCurrentGrokSnapshot(target, activeGrok);
         captureCurrentAntigravitySnapshot(target, activeAntigravity);
 
         // 同一 CLI 类型下只能有一个 active。OpenCode 是 additive 模式，状态以 live 配置为准。
@@ -205,6 +208,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         saveProviders(providers);
         writeToLiveConfig(target);
         lastCodexActivationResult = switchCodexAuthStateIfNeeded(target);
+        lastGrokActivationResult = switchGrokAuthStateIfNeeded(target);
         lastAntigravityActivationResult = switchAntigravityAuthStateIfNeeded(target);
     }
 
@@ -233,6 +237,10 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
 
     public CodexActivationResult getLastCodexActivationResult() {
         return lastCodexActivationResult;
+    }
+
+    public GrokActivationResult getLastGrokActivationResult() {
+        return lastGrokActivationResult;
     }
 
     public AntigravityAuthSnapshotService.RestoreResult getLastAntigravityActivationResult() {
@@ -269,6 +277,13 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
                 }
             }
             case OPENCODE -> writeOpenCodeLive(svc, config, provider.getName());
+            case GROK -> {
+                if (provider.getAuthMode() == AuthMode.OFFICIAL_LOGIN) {
+                    writeGrokOfficialLive(svc, config);
+                } else {
+                    writeGrokLive(svc, config);
+                }
+            }
         }
     }
 
@@ -597,6 +612,56 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
                 .orElse(null);
     }
 
+    /**
+     * Grok: 将自定义模型写入 ~/.grok/config.toml 托管块。
+     * api_key 放在 [model.*] 内，不覆盖官方 login 的 auth.json。
+     */
+    private void writeGrokLive(ConfigFileService svc, JsonObject config) throws IOException {
+        Path tomlPath = svc.getGrokConfigTomlPath();
+        String providerToml = config != null && config.has("config") && !config.get("config").isJsonNull()
+                ? config.get("config").getAsString().trim()
+                : "";
+        String managedBlock = "# >>> coding-switch:provider:start\n"
+                + providerToml + "\n"
+                + "# <<< coding-switch:provider:end\n";
+        String existing = svc.readFile(tomlPath);
+        String withoutManagedBlock = removeManagedBlock(
+                existing,
+                "# >>> coding-switch:provider:start",
+                "# <<< coding-switch:provider:end");
+        String sanitized = removeConflictingGrokProviderEntries(withoutManagedBlock, providerToml);
+        String merged = prependManagedBlock(sanitized, managedBlock);
+        svc.writeFile(tomlPath, merged);
+    }
+
+    private void writeGrokOfficialLive(ConfigFileService svc, JsonObject config) throws IOException {
+        Path tomlPath = svc.getGrokConfigTomlPath();
+        boolean existed = Files.exists(tomlPath);
+        String existing = svc.readFile(tomlPath);
+        String withoutManagedBlock = removeManagedBlock(
+                existing,
+                "# >>> coding-switch:provider:start",
+                "# <<< coding-switch:provider:end");
+        String providerToml = config != null && config.has("config") && !config.get("config").isJsonNull()
+                ? config.get("config").getAsString().trim()
+                : "";
+        String sanitized = removeConflictingGrokProviderEntries(withoutManagedBlock, providerToml);
+        String finalContent = providerToml.isBlank()
+                ? sanitized.stripLeading()
+                : prependManagedBlock(
+                        sanitized,
+                        "# >>> coding-switch:provider:start\n"
+                                + providerToml + "\n"
+                                + "# <<< coding-switch:provider:end\n");
+        if (!existed && finalContent.isBlank()) {
+            return;
+        }
+        if (existing.equals(finalContent)) {
+            return;
+        }
+        svc.writeFile(tomlPath, finalContent);
+    }
+
     private void captureCurrentCodexSnapshot(Provider target, Provider activeCodex) {
         if (target == null || target.getCliType() != CliType.CODEX) {
             return;
@@ -605,6 +670,16 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             return;
         }
         CodexAuthSnapshotService.getInstance().captureFromLive(activeCodex);
+    }
+
+    private void captureCurrentGrokSnapshot(Provider target, Provider activeGrok) {
+        if (target == null || target.getCliType() != CliType.GROK) {
+            return;
+        }
+        if (activeGrok == null || activeGrok.getAuthMode() != AuthMode.OFFICIAL_LOGIN) {
+            return;
+        }
+        GrokAuthSnapshotService.getInstance().captureFromLive(activeGrok);
     }
 
     private void captureCurrentAntigravitySnapshot(Provider target, Provider activeAntigravity) {
@@ -628,6 +703,20 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             case RESTORED -> CodexActivationResult.snapshotRestored();
             case NO_SNAPSHOT -> CodexActivationResult.loginRequired();
             case INVALID_SNAPSHOT -> CodexActivationResult.snapshotInvalid();
+        };
+    }
+
+    private GrokActivationResult switchGrokAuthStateIfNeeded(Provider target) throws IOException {
+        if (target.getCliType() != CliType.GROK || target.getAuthMode() != AuthMode.OFFICIAL_LOGIN) {
+            return GrokActivationResult.notApplicable();
+        }
+
+        GrokAuthSnapshotService.RestoreResult restoreResult = GrokAuthSnapshotService.getInstance()
+                .restoreToLive(target);
+        return switch (restoreResult) {
+            case RESTORED -> GrokActivationResult.snapshotRestored();
+            case NO_SNAPSHOT -> GrokActivationResult.loginRequired();
+            case INVALID_SNAPSHOT -> GrokActivationResult.snapshotInvalid();
         };
     }
 
@@ -720,6 +809,52 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             out.append(rawLine).append("\n");
         }
         return out.toString();
+    }
+
+    private static String removeConflictingGrokProviderEntries(String content, String managedProviderToml) {
+        String safe = content == null ? "" : content;
+        if (safe.isBlank()) {
+            return safe;
+        }
+
+        Set<String> managedModelKeys = GrokConfigSupport.extractManagedModelKeys(managedProviderToml);
+        boolean manageDefaultModel = GrokConfigSupport.hasCustomModelConfig(managedProviderToml);
+        StringBuilder out = new StringBuilder();
+        String currentSection = null;
+        boolean dropCurrentSection = false;
+
+        for (String rawLine : safe.split("\n", -1)) {
+            String line = rawLine.trim();
+            if (line.startsWith("[") && line.endsWith("]")) {
+                currentSection = line.substring(1, line.length() - 1).trim();
+                String unquoted = currentSection.replace("\"", "").replace("'", "");
+                dropCurrentSection = isManagedGrokModelSection(unquoted, managedModelKeys);
+            }
+            if (dropCurrentSection) {
+                continue;
+            }
+            String unquotedSection = currentSection == null ? null : currentSection.replace("\"", "").replace("'", "");
+            if (manageDefaultModel && "models".equals(unquotedSection)) {
+                String key = parseTomlKey(rawLine);
+                if ("default".equals(key)) {
+                    continue;
+                }
+            }
+            out.append(rawLine).append("\n");
+        }
+
+        return out.toString();
+    }
+
+    private static boolean isManagedGrokModelSection(String section, Set<String> managedModelKeys) {
+        if (section == null || !section.startsWith("model.")) {
+            return false;
+        }
+        String suffix = section.substring("model.".length()).trim();
+        if (managedModelKeys == null || managedModelKeys.isEmpty()) {
+            return false;
+        }
+        return managedModelKeys.contains(suffix);
     }
 
     private static Set<String> extractManagedProviderNames(String providerToml) {

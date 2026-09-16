@@ -8,6 +8,8 @@ import com.intellij.openapi.diagnostic.Logger;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -138,8 +140,7 @@ public final class CliVersionService {
     }
 
     public VersionResult getVersionResult(SettingsCli cliType) {
-        String commandName = getCommandName(cliType);
-        if (!isCommandAvailable(commandName)) {
+        if (!isCliInstalled(cliType)) {
             return VersionResult.notInstalled();
         }
 
@@ -168,8 +169,7 @@ public final class CliVersionService {
     }
 
     public VersionResult getVersionResult(CliType cliType) {
-        String commandName = getCommandName(cliType);
-        if (!isCommandAvailable(commandName)) {
+        if (!isCliInstalled(cliType)) {
             return VersionResult.notInstalled();
         }
 
@@ -204,6 +204,9 @@ public final class CliVersionService {
     public String getLatestVersion(SettingsCli cliType, String currentVersion) {
         if (cliType == SettingsCli.ANTIGRAVITY) {
             return getLatestVersionFromManifest();
+        }
+        if (cliType == SettingsCli.GROK) {
+            return getLatestGrokVersion();
         }
         if (cliType == SettingsCli.KIMI) {
             return getLatestVersionFromPyPI("kimi-cli");
@@ -241,6 +244,9 @@ public final class CliVersionService {
     public String getLatestVersion(CliType cliType, String currentVersion) {
         if (cliType == CliType.ANTIGRAVITY) {
             return getLatestVersionFromManifest();
+        }
+        if (cliType == CliType.GROK) {
+            return getLatestGrokVersion();
         }
 
         String packageName = getNpmPackageName(cliType);
@@ -281,6 +287,7 @@ public final class CliVersionService {
             case REASONIX -> "npm i -g reasonix@latest";
             case KIMI -> "uv tool upgrade kimi-cli --no-cache";
             case ANTIGRAVITY -> getAntigravityUpdateCommand();
+            case GROK -> "grok update";
         };
     }
 
@@ -290,6 +297,7 @@ public final class CliVersionService {
             case REASONIX -> "npm install -g reasonix";
             case KIMI -> getKimiInstallCommand();
             case ANTIGRAVITY -> getAntigravityInstallCommand();
+            case GROK -> getGrokInstallCommand();
             default -> getUpdateCommand(cliType);
         };
     }
@@ -300,6 +308,7 @@ public final class CliVersionService {
             case CODEX -> "npm i -g @openai/codex@latest";
             case OPENCODE -> "npm i -g opencode-ai@latest";
             case ANTIGRAVITY -> getAntigravityUpdateCommand();
+            case GROK -> "grok update";
         };
     }
 
@@ -307,6 +316,7 @@ public final class CliVersionService {
         return switch (cliType) {
             case CLAUDE -> "npm install -g @anthropic-ai/claude-code";
             case ANTIGRAVITY -> getAntigravityInstallCommand();
+            case GROK -> getGrokInstallCommand();
             default -> getUpdateCommand(cliType);
         };
     }
@@ -338,6 +348,7 @@ public final class CliVersionService {
             case REASONIX -> new String[]{"reasonix --version"};
             case KIMI -> new String[]{"kimi --version"};
             case ANTIGRAVITY -> new String[]{"agy --version", "agy -v"};
+            case GROK -> grokVersionCommands();
         };
     }
 
@@ -347,6 +358,7 @@ public final class CliVersionService {
             case CODEX -> new String[]{"codex --version", "codex -v"};
             case OPENCODE -> new String[]{"opencode --version", "opencode -v"};
             case ANTIGRAVITY -> new String[]{"agy --version", "agy -v"};
+            case GROK -> grokVersionCommands();
         };
     }
 
@@ -371,6 +383,7 @@ public final class CliVersionService {
             case REASONIX -> "reasonix";
             case KIMI -> "kimi";
             case ANTIGRAVITY -> "agy";
+            case GROK -> "grok";
         };
     }
 
@@ -380,6 +393,7 @@ public final class CliVersionService {
             case CODEX -> "codex";
             case OPENCODE -> "opencode";
             case ANTIGRAVITY -> "agy";
+            case GROK -> "grok";
         };
     }
 
@@ -396,6 +410,7 @@ public final class CliVersionService {
             case REASONIX -> "reasonix";
             case KIMI -> null;
             case ANTIGRAVITY -> null;
+            case GROK -> null;
         };
     }
 
@@ -405,6 +420,7 @@ public final class CliVersionService {
             case CODEX -> "@openai/codex";
             case OPENCODE -> "opencode-ai";
             case ANTIGRAVITY -> null;
+            case GROK -> null;
         };
     }
 
@@ -613,6 +629,65 @@ public final class CliVersionService {
             numbers.add(Integer.parseInt(matcher.group()));
         }
         return numbers;
+    }
+
+    private boolean isCliInstalled(SettingsCli cliType) {
+        if (isCommandAvailable(getCommandName(cliType))) {
+            return true;
+        }
+        return getFallbackExecutable(cliType) != null;
+    }
+
+    private boolean isCliInstalled(CliType cliType) {
+        if (isCommandAvailable(getCommandName(cliType))) {
+            return true;
+        }
+        return getFallbackExecutable(cliType) != null;
+    }
+
+    private Path getFallbackExecutable(SettingsCli cliType) {
+        return cliType == SettingsCli.GROK ? grokFallbackExecutable() : null;
+    }
+
+    private Path getFallbackExecutable(CliType cliType) {
+        return cliType == CliType.GROK ? grokFallbackExecutable() : null;
+    }
+
+    private Path grokFallbackExecutable() {
+        Path path = Path.of(System.getProperty("user.home"), ".grok", "bin", isWindows() ? "grok.exe" : "grok");
+        return Files.isRegularFile(path) ? path : null;
+    }
+
+    private String[] grokVersionCommands() {
+        Path fallback = grokFallbackExecutable();
+        if (fallback == null) {
+            return new String[]{"grok --version"};
+        }
+        return new String[]{"grok --version", "\"" + fallback + "\" --version"};
+    }
+
+    private String getGrokInstallCommand() {
+        return isWindows()
+            ? "irm https://x.ai/cli/install.ps1 | iex"
+            : "curl -fsSL https://x.ai/cli/install.sh | bash";
+    }
+
+    private String getLatestGrokVersion() {
+        String versionUrl = "https://storage.googleapis.com/grok-build-public-artifacts/cli/stable";
+        String command = isWindows()
+            ? "powershell -Command \"(Invoke-RestMethod -Uri '" + versionUrl + "')\""
+            : "curl -fsSL " + versionUrl;
+        CommandOutput result = runCommand(command, LATEST_TIMEOUT_SECONDS);
+        if (result.timedOut() || result.exitCode() == null || result.exitCode() != 0) {
+            return null;
+        }
+        String raw = result.output();
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String trimmed = raw.trim();
+        Matcher m = VERSION_PATTERN.matcher(trimmed);
+        return m.find() ? m.group(1) : null;
     }
 
     private boolean isCommandAvailable(String commandName) {

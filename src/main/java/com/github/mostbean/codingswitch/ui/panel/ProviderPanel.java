@@ -4,6 +4,8 @@ import com.github.mostbean.codingswitch.model.CliType;
 import com.github.mostbean.codingswitch.model.Provider;
 import com.github.mostbean.codingswitch.service.AntigravityAuthSnapshotService;
 import com.github.mostbean.codingswitch.service.CodexActivationResult;
+import com.github.mostbean.codingswitch.service.GrokActivationResult;
+import com.github.mostbean.codingswitch.service.GrokConfigSupport;
 import com.github.mostbean.codingswitch.service.ClaudeTemporaryLaunchService;
 import com.github.mostbean.codingswitch.service.I18n;
 import com.github.mostbean.codingswitch.service.PluginSettings;
@@ -293,12 +295,13 @@ public class ProviderPanel extends JPanel {
         try {
             ProviderService.getInstance().activateProvider(selected.getId());
             CodexActivationResult codexResult = ProviderService.getInstance().getLastCodexActivationResult();
+            GrokActivationResult grokResult = ProviderService.getInstance().getLastGrokActivationResult();
             AntigravityAuthSnapshotService.RestoreResult antigravityResult =
                     ProviderService.getInstance().getLastAntigravityActivationResult();
             refreshTable();
             restoreSelection(selected.getId());
             Messages.showInfoMessage(
-                    buildActivationMessage(selected, codexResult, antigravityResult),
+                    buildActivationMessage(selected, codexResult, grokResult, antigravityResult),
                     selected.getCliType() == CliType.OPENCODE
                             ? I18n.t("provider.status.added")
                             : I18n.t("provider.status.active"));
@@ -422,6 +425,7 @@ public class ProviderPanel extends JPanel {
     private String buildActivationMessage(
             Provider provider,
             CodexActivationResult codexResult,
+            GrokActivationResult grokResult,
             AntigravityAuthSnapshotService.RestoreResult antigravityResult) {
         String base = I18n.t("provider.dialog.activateSuccess", provider.getName(),
                 provider.getCliType().getDisplayName());
@@ -436,6 +440,20 @@ public class ProviderPanel extends JPanel {
                 case SNAPSHOT_RESTORED -> I18n.t("provider.dialog.codexAuth.restored");
                 case LOGIN_REQUIRED -> I18n.t("provider.dialog.codexAuth.loginRequired");
                 case SNAPSHOT_INVALID -> I18n.t("provider.dialog.codexAuth.snapshotInvalid");
+                case NOT_APPLICABLE -> "";
+            };
+            if (!extra.isBlank()) {
+                return base + "\n" + extra;
+            }
+        }
+
+        if (provider.getCliType() == CliType.GROK
+                && provider.getAuthMode() == Provider.AuthMode.OFFICIAL_LOGIN
+                && grokResult != null) {
+            String extra = switch (grokResult.getAuthSwitchState()) {
+                case SNAPSHOT_RESTORED -> I18n.t("provider.dialog.grokAuth.restored");
+                case LOGIN_REQUIRED -> I18n.t("provider.dialog.grokAuth.loginRequired");
+                case SNAPSHOT_INVALID -> I18n.t("provider.dialog.grokAuth.snapshotInvalid");
                 case NOT_APPLICABLE -> "";
             };
             if (!extra.isBlank()) {
@@ -540,10 +558,22 @@ public class ProviderPanel extends JPanel {
                     case OPENCODE -> config.has("models") && !config.getAsJsonObject("models").keySet().isEmpty()
                             ? String.join(", ", config.getAsJsonObject("models").keySet())
                             : "N/A";
+                    case GROK -> extractGrokModelName(config);
                 };
             } catch (Exception e) {
                 return "Parsing Error";
             }
+        }
+
+        private String extractGrokModelName(JsonObject config) {
+            if (config == null || !config.has("config") || config.get("config").isJsonNull()) {
+                return "N/A";
+            }
+            GrokConfigSupport.ParsedConfig parsed = GrokConfigSupport.parse(config.get("config").getAsString());
+            if (parsed.models().isEmpty()) {
+                return "N/A";
+            }
+            return parsed.models().get(0).model();
         }
 
         private String extractTomlModel(String toml) {

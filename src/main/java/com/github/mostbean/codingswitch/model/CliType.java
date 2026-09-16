@@ -16,7 +16,9 @@ public enum CliType {
     @SerializedName(value = "OPENCODE", alternate = { "OpenCode", "opencode" })
     OPENCODE("OpenCode", "opencode"),
     @SerializedName(value = "ANTIGRAVITY", alternate = { "Antigravity CLI", "Antigravity", "agy", "antigravity" })
-    ANTIGRAVITY("Antigravity CLI", "agy");
+    ANTIGRAVITY("Antigravity CLI", "agy"),
+    @SerializedName(value = "GROK", alternate = { "Grok", "Grok Build", "Grok CLI", "grok" })
+    GROK("Grok", "grok");
 
     private final String displayName;
     private final String id;

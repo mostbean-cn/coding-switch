@@ -4,11 +4,11 @@
 
 ## Overview
 
-Coding Switch is an AI Coding CLI and IDE productivity toolkit for JetBrains IDEs. It helps developers manage Claude Code, Codex, OpenCode, Antigravity CLI, and other AI coding command-line tools in one place, while also providing inline AI code completion, Git commit message generation, path-with-line-number insertion, CLI quick launch, and CLI version checks.
+Coding Switch is an AI Coding CLI and IDE productivity toolkit for JetBrains IDEs. It helps developers manage Claude Code, Codex, OpenCode, Antigravity CLI, Grok, and other AI coding command-line tools in one place, while also providing inline AI code completion, Git commit message generation, path-with-line-number insertion, CLI quick launch, and CLI version checks.
 
 ## Features
 
-- **AI CLI Provider Management**: Manage and switch API configurations for Claude Code, Codex (OpenAI), OpenCode, and Antigravity CLI. Supports official APIs, third-party compatible endpoints, and local providers, with built-in presets for services such as DeepSeek, Zhipu GLM, MiniMax, Kimi, Baidu Qianfan, and Alibaba Tongyi. Includes connection tests and health checks before activation.
+- **AI CLI Provider Management**: Manage and switch API configurations for Claude Code, Codex (OpenAI), OpenCode, Antigravity CLI, and Grok. Supports official APIs, third-party compatible endpoints, and local providers, with built-in presets for services such as DeepSeek, Zhipu GLM, MiniMax, Kimi, Baidu Qianfan, and Alibaba Tongyi. Includes connection tests and health checks before activation.
 - **CLI Quick Launch and Version Checks**: View installation status, version information, and install/update commands inside the IDE. Launch terminal sessions with the selected CLI configuration without manually preparing environment variables or config files.
 - **Inline AI Code Completion**: Provides ghost-text inline completion with automatic triggering, manual triggering, full Tab acceptance, and line-by-line acceptance. Completion models preferably use FIM Completions or FIM Chat Completions, while OpenAI Chat Completions, OpenAI Responses, and Anthropic Messages compatible models are also supported.
 - **Code Path and Line Number Quick Insert**: One-click insert file paths or code snippet locations with line numbers from the editor and project tree context menus into CLI terminals, providing precise context for AI assistants.
@@ -25,6 +25,7 @@ Coding Switch is an AI Coding CLI and IDE productivity toolkit for JetBrains IDE
 | Codex | ✅ | ✅ |
 | OpenCode | N/A | ✅ |
 | Antigravity CLI | ✅ | N/A |
+| Grok | ✅ | ✅ |
 
 ## Supported Code Completion Protocols
 
@@ -46,6 +47,14 @@ Coding Switch is an AI Coding CLI and IDE productivity toolkit for JetBrains IDE
 - Kimi
 - Baidu Qianfan
 - Alibaba Tongyi
+
+### Grok
+
+- DeepSeek
+- Zhipu GLM
+- Kimi
+- Alibaba Tongyi
+- Xiaomi MiMo
 
 ### Codex / OpenCode
 

@@ -186,6 +186,7 @@ public final class ProviderConnectionTestService {
             case CODEX -> buildCodexProbes(config);
             case OPENCODE -> buildOpenCodeProbes(config);
             case ANTIGRAVITY -> buildAntigravityProbes(config);
+            case GROK -> buildGrokProbes(config);
         };
     }
 
@@ -195,6 +196,7 @@ public final class ProviderConnectionTestService {
             case CODEX -> buildCodexModelListRequests(config);
             case OPENCODE -> buildOpenCodeModelListRequests(config);
             case ANTIGRAVITY -> buildAntigravityModelListRequests(config);
+            case GROK -> buildGrokModelListRequests(config);
         };
     }
 
@@ -471,6 +473,86 @@ public final class ProviderConnectionTestService {
         }
         String value = json.get(key).getAsString();
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+
+    private List<ProbeRequest> buildGrokProbes(JsonObject config) {
+        String apiKey = grokApiKey(config);
+        if (apiKey == null) {
+            throw new IllegalArgumentException("Missing Grok API key");
+        }
+        GrokConfigSupport.ParsedConfig parsed = GrokConfigSupport.parse(getString(config, "config"));
+        String baseUrl = firstNotBlank(parsed.baseUrl(), "https://api.x.ai/v1");
+        String model = parsed.models().isEmpty() ? null : parsed.models().get(0).model();
+        if (model == null || model.isBlank()) {
+            throw new IllegalArgumentException("Missing Grok model");
+        }
+        String backend = GrokConfigSupport.normalizeBackend(parsed.apiBackend());
+        if ("messages".equals(backend)) {
+            return List.of(
+                    postJson(
+                            ensurePath(baseUrl, "/v1/messages"),
+                            List.of(
+                                    new Header("x-api-key", apiKey),
+                                    new Header("anthropic-version", "2023-06-01")),
+                            claudeMessagesBody(model),
+                            "Grok Messages"),
+                    postJson(
+                            ensurePath(baseUrl, "/messages"),
+                            List.of(
+                                    new Header("x-api-key", apiKey),
+                                    new Header("anthropic-version", "2023-06-01")),
+                            claudeMessagesBody(model),
+                            "Grok Messages"));
+        }
+        if ("responses".equals(backend)) {
+            return List.of(postJson(
+                    ensurePath(baseUrl, "/responses"),
+                    bearerHeaders(apiKey),
+                    openAiResponsesBody(model),
+                    "Grok Responses"));
+        }
+        return List.of(postJson(
+                ensurePath(baseUrl, "/chat/completions"),
+                bearerHeaders(apiKey),
+                openAiChatBody(model),
+                "Grok Chat Completions"));
+    }
+
+    private List<ProbeRequest> buildGrokModelListRequests(JsonObject config) {
+        String apiKey = grokApiKey(config);
+        if (apiKey == null) {
+            throw new IllegalArgumentException("Missing Grok API key");
+        }
+        GrokConfigSupport.ParsedConfig parsed = GrokConfigSupport.parse(getString(config, "config"));
+        String baseUrl = firstNotBlank(parsed.baseUrl(), "https://api.x.ai/v1");
+        String backend = GrokConfigSupport.normalizeBackend(parsed.apiBackend());
+        if ("messages".equals(backend)) {
+            return List.of(
+                    get(
+                            ensurePath(baseUrl, "/v1/models"),
+                            List.of(
+                                    new Header("x-api-key", apiKey),
+                                    new Header("anthropic-version", "2023-06-01")),
+                            "Grok Anthropic Models"),
+                    get(
+                            ensurePath(baseUrl, "/models"),
+                            bearerHeaders(apiKey),
+                            "Grok Models"));
+        }
+        return List.of(get(
+                ensurePath(baseUrl, "/models"),
+                bearerHeaders(apiKey),
+                "Grok Models"));
+    }
+
+    private String grokApiKey(JsonObject config) {
+        JsonObject auth = config != null && config.has("auth") && config.get("auth").isJsonObject()
+                ? config.getAsJsonObject("auth")
+                : new JsonObject();
+        String fromAuth = firstNotBlank(getString(auth, "XAI_API_KEY"), getString(auth, "OPENAI_API_KEY"));
+        GrokConfigSupport.ParsedConfig parsed = GrokConfigSupport.parse(getString(config, "config"));
+        return firstNotBlank(fromAuth, parsed.apiKey());
     }
 
     private static String parseTomlValue(String toml, String key) {

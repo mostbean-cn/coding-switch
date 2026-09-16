@@ -11,6 +11,7 @@ public enum SettingsCli {
     CODEX("Codex", "codex"),
     OPENCODE("OpenCode", "opencode"),
     ANTIGRAVITY("Antigravity CLI", "agy"),
+    GROK("Grok", "grok"),
     CODEBUDDY("CodeBuddy", "codebuddy"),
     QWEN("Qwen Code", "qwen"),
     MMX("MMX", "mmx"),
@@ -36,7 +37,7 @@ public enum SettingsCli {
     }
 
     public boolean supportsManagedFeatures() {
-        return this == CLAUDE || this == CODEX || this == OPENCODE || this == ANTIGRAVITY;
+        return this == CLAUDE || this == CODEX || this == OPENCODE || this == ANTIGRAVITY || this == GROK;
     }
 
     public static SettingsCli fromId(String id) {

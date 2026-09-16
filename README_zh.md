@@ -4,11 +4,11 @@
 
 ## 简介
 
-Coding Switch 是一款专为 JetBrains IDE 打造的 AI 编程 CLI 与 IDE 辅助工具集。它可以在 IDE 内统一管理 Claude Code、Codex、OpenCode、Antigravity CLI 等主流 AI 编程命令行工具，并提供行内 AI 代码补全、Git 提交信息生成、路径行号插入、CLI 快速启动与版本检测等日常开发能力。
+Coding Switch 是一款专为 JetBrains IDE 打造的 AI 编程 CLI 与 IDE 辅助工具集。它可以在 IDE 内统一管理 Claude Code、Codex、OpenCode、Antigravity CLI、Grok 等主流 AI 编程命令行工具，并提供行内 AI 代码补全、Git 提交信息生成、路径行号插入、CLI 快速启动与版本检测等日常开发能力。
 
 ## 核心功能
 
-- **AI CLI 配置管理 (Provider)**：轻松管理和批量切换 Claude Code、Codex (OpenAI)、OpenCode 和 Antigravity CLI 的 API 配置。支持官方接口以及自定义第三方或本地大模型接口，内置多个模型服务商预设（DeepSeek、智谱 GLM、MiniMax、Kimi、百度千帆、阿里通义等），并支持激活前连接测试与健康检查。
+- **AI CLI 配置管理 (Provider)**：轻松管理和批量切换 Claude Code、Codex (OpenAI)、OpenCode、Antigravity CLI 和 Grok 的 API 配置。支持官方接口以及自定义第三方或本地大模型接口，内置多个模型服务商预设（DeepSeek、智谱 GLM、MiniMax、Kimi、百度千帆、阿里通义等），并支持激活前连接测试与健康检查。
 - **CLI 快速启动与版本检测**：在 IDE 内查看各 AI CLI 的安装状态、版本信息和安装/更新命令，并可使用当前选中的配置快速启动终端会话，减少命令行准备成本。
 - **行内 AI 代码补全**：提供灰字行内补全体验，支持自动触发、手动触发、Tab 全量采纳和逐行采纳。补全模型优先支持 FIM Completions 与 FIM Chat Completions，也兼容 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages 等协议。
 - **代码路径与行号快速插入**：从编辑器、项目树右键菜单一键插入文件路径或带行号的代码片段位置到 CLI 终端，为 AI 助手提供精确上下文定位。
@@ -25,6 +25,7 @@ Coding Switch 是一款专为 JetBrains IDE 打造的 AI 编程 CLI 与 IDE 辅�
 | Codex | ✅ | ✅ |
 | OpenCode | 不适用 | ✅ |
 | Antigravity CLI | ✅ | 不适用 |
+| Grok | ✅ | ✅ |
 
 ## 支持的代码补全协议
 
@@ -45,6 +46,14 @@ Coding Switch 是一款专为 JetBrains IDE 打造的 AI 编程 CLI 与 IDE 辅�
 - Kimi
 - 百度千帆
 - 阿里通义
+
+### Grok
+
+- DeepSeek
+- 智谱 GLM
+- Kimi
+- 阿里通义
+- 小米 MiMo
 
 ### Codex / OpenCode
 - DeepSeek

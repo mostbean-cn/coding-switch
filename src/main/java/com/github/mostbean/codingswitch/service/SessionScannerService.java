@@ -25,6 +25,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.net.URLDecoder;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -46,13 +47,14 @@ public final class SessionScannerService {
      * 并行扫描所有已安装 CLI 的会话，按 lastActiveAt 倒序排列。
      */
     public List<SessionMeta> scanAllSessions() {
-        ExecutorService executor = Executors.newFixedThreadPool(5);
+        ExecutorService executor = Executors.newFixedThreadPool(6);
         try {
             List<Future<List<SessionMeta>>> futures = new ArrayList<>();
             futures.add(executor.submit(this::scanClaudeSessions));
             futures.add(executor.submit(this::scanCodexSessions));
             futures.add(executor.submit(this::scanOpenCodeSessions));
             futures.add(executor.submit(this::scanAntigravitySessions));
+            futures.add(executor.submit(this::scanGrokSessions));
 
             List<SessionMeta> allSessions = new ArrayList<>();
             for (Future<List<SessionMeta>> future : futures) {
@@ -80,6 +82,7 @@ public final class SessionScannerService {
                 case "codex" -> loadCodexMessages(Path.of(sourcePath));
                 case "opencode" -> loadOpenCodeMessages(Path.of(sourcePath));
                 case "agy", "antigravity" -> loadAntigravityMessages(Path.of(sourcePath));
+                case "grok" -> loadGrokMessages(Path.of(sourcePath));
                 default -> {
                     LOG.warn("Unsupported provider: " + providerId);
                     yield Collections.emptyList();
@@ -100,7 +103,7 @@ public final class SessionScannerService {
             return false;
         }
         return switch (session.getProviderId()) {
-            case "claude", "codex", "opencode", "agy", "antigravity" -> true;
+            case "claude", "codex", "opencode", "agy", "antigravity", "grok" -> true;
             default -> false;
         };
     }
@@ -116,7 +119,7 @@ public final class SessionScannerService {
             throw new UnsupportedOperationException("当前 CLI 暂不支持删除会话");
         }
         switch (session.getProviderId()) {
-            case "claude", "codex", "agy", "antigravity" -> {
+            case "claude", "codex", "agy", "antigravity", "grok" -> {
                 String deletePath = session.getDeletePath();
                 if (deletePath == null || deletePath.isBlank()) {
                     throw new IOException("缺少会话删除路径");
@@ -648,7 +651,221 @@ public final class SessionScannerService {
     }
 
     // =====================================================================
-    // 通用工具方法
+    // =====================================================================
+    // Grok 会话扫描
+    // =====================================================================
+
+    private List<SessionMeta> scanGrokSessions() {
+        ConfigFileService cfs = ConfigFileService.getInstance();
+        Path sessionsDir = cfs.getConfigDir(CliType.GROK).resolve("sessions");
+        if (!Files.isDirectory(sessionsDir)) {
+            return Collections.emptyList();
+        }
+
+        List<SessionMeta> sessions = new ArrayList<>();
+        for (Path summaryFile : collectFiles(sessionsDir, "json")) {
+            if (!"summary.json".equals(summaryFile.getFileName().toString())) {
+                continue;
+            }
+            SessionMeta meta = parseGrokSession(summaryFile);
+            if (meta != null) {
+                sessions.add(meta);
+            }
+        }
+        return sessions;
+    }
+
+    private SessionMeta parseGrokSession(Path summaryFile) {
+        try {
+            JsonObject root = JsonParser.parseString(Files.readString(summaryFile, StandardCharsets.UTF_8)).getAsJsonObject();
+            Path sessionDir = summaryFile.getParent();
+            String sessionId = firstNonBlank(
+                    getStr(root, "id", null),
+                    getStr(root, "session_id", null),
+                    sessionDir != null ? sessionDir.getFileName().toString() : null);
+            if (sessionId == null || sessionId.isBlank()) {
+                return null;
+            }
+
+            String title = firstNonBlank(
+                    getStr(root, "title", null),
+                    getStr(root, "name", null),
+                    sessionId);
+            String summary = firstNonBlank(
+                    getStr(root, "summary", null),
+                    getStr(root, "last_turn_summary", null),
+                    getStr(root, "recap", null));
+            Long createdAt = firstTimestamp(root, "created_at", "createdAt", "created");
+            Long lastActiveAt = firstTimestamp(root, "updated_at", "updatedAt", "updated", "last_active_at");
+            String projectDir = resolveGrokProjectDir(root, sessionDir);
+
+            Path chatHistory = sessionDir.resolve("chat_history.jsonl");
+            Path updates = sessionDir.resolve("updates.jsonl");
+            Path sourcePath = Files.isRegularFile(chatHistory) ? chatHistory
+                    : Files.isRegularFile(updates) ? updates : summaryFile;
+
+            SessionMeta meta = new SessionMeta("grok", sessionId);
+            meta.setTitle(title);
+            meta.setSummary(summary != null ? truncate(summary, 160) : null);
+            meta.setProjectDir(projectDir);
+            meta.setCreatedAt(createdAt);
+            meta.setLastActiveAt(lastActiveAt != null ? lastActiveAt : createdAt);
+            meta.setSourcePath(sourcePath.toAbsolutePath().toString());
+            meta.setDeletePath(sessionDir.toAbsolutePath().toString());
+            meta.setResumeCommand("grok --resume " + sessionId);
+            return meta;
+        } catch (Exception e) {
+            LOG.debug("Failed to parse Grok session: " + summaryFile, e);
+            return null;
+        }
+    }
+
+    private String resolveGrokProjectDir(JsonObject root, Path sessionDir) {
+        String fromJson = firstNonBlank(
+                getStr(root, "cwd", null),
+                getStr(root, "working_directory", null),
+                getStr(root, "project_dir", null));
+        if (fromJson != null) {
+            return fromJson;
+        }
+        if (sessionDir == null || sessionDir.getParent() == null) {
+            return null;
+        }
+        Path cwdFile = sessionDir.getParent().resolve(".cwd");
+        if (Files.isRegularFile(cwdFile)) {
+            try {
+                String cwd = Files.readString(cwdFile, StandardCharsets.UTF_8).trim();
+                if (!cwd.isBlank()) {
+                    return cwd;
+                }
+            } catch (IOException ignored) {
+            }
+        }
+        String encoded = sessionDir.getParent().getFileName().toString();
+        try {
+            return URLDecoder.decode(encoded, StandardCharsets.UTF_8);
+        } catch (Exception ignored) {
+            return encoded;
+        }
+    }
+
+    private List<SessionMessage> loadGrokMessages(Path file) {
+        List<SessionMessage> messages = new ArrayList<>();
+        if (file == null || !Files.isRegularFile(file)) {
+            return messages;
+        }
+        try (BufferedReader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                JsonObject obj = parseJsonLine(line);
+                if (obj == null) {
+                    continue;
+                }
+                JsonObject message = obj;
+                if (obj.has("message") && obj.get("message").isJsonObject()) {
+                    message = obj.getAsJsonObject("message");
+                } else if (obj.has("payload") && obj.get("payload").isJsonObject()) {
+                    JsonObject payload = obj.getAsJsonObject("payload");
+                    if (payload.has("message") && payload.get("message").isJsonObject()) {
+                        message = payload.getAsJsonObject("message");
+                    } else {
+                        message = payload;
+                    }
+                }
+                String role = firstNonBlank(
+                        getStr(message, "role", null),
+                        getStr(obj, "role", null),
+                        "assistant");
+                if ("tool".equalsIgnoreCase(role) || "system".equalsIgnoreCase(role)) {
+                    continue;
+                }
+                String content = extractGrokText(message);
+                if (content == null || content.isBlank()) {
+                    content = extractGrokText(obj);
+                }
+                if (content == null || content.isBlank()) {
+                    continue;
+                }
+                Long ts = firstTimestamp(obj, "timestamp", "created_at", "createdAt");
+                messages.add(new SessionMessage(normalizeGrokRole(role), content, ts));
+            }
+        } catch (IOException e) {
+            LOG.warn("Failed to load Grok messages: " + file, e);
+        }
+        return messages;
+    }
+
+    private String extractGrokText(JsonObject obj) {
+        if (obj == null) {
+            return null;
+        }
+        if (obj.has("content")) {
+            JsonElement content = obj.get("content");
+            if (content.isJsonPrimitive()) {
+                return content.getAsString();
+            }
+            if (content.isJsonArray()) {
+                StringBuilder sb = new StringBuilder();
+                for (JsonElement part : content.getAsJsonArray()) {
+                    if (part.isJsonPrimitive()) {
+                        sb.append(part.getAsString());
+                    } else if (part.isJsonObject()) {
+                        String text = firstNonBlank(
+                                getStr(part.getAsJsonObject(), "text", null),
+                                getStr(part.getAsJsonObject(), "content", null));
+                        if (text != null) {
+                            sb.append(text);
+                        }
+                    }
+                }
+                return sb.toString();
+            }
+        }
+        return firstNonBlank(
+                getStr(obj, "text", null),
+                getStr(obj, "summary", null));
+    }
+
+    private String normalizeGrokRole(String role) {
+        if (role == null) {
+            return "assistant";
+        }
+        String normalized = role.trim().toLowerCase();
+        if (normalized.contains("user") || normalized.contains("human")) {
+            return "user";
+        }
+        return "assistant";
+    }
+
+    private Long firstTimestamp(JsonObject obj, String... keys) {
+        if (obj == null || keys == null) {
+            return null;
+        }
+        for (String key : keys) {
+            if (obj.has(key)) {
+                Long parsed = parseTimestamp(obj.get(key));
+                if (parsed != null) {
+                    return parsed;
+                }
+            }
+        }
+        return null;
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    
+        // 通用工具方法
     // =====================================================================
 
     /**

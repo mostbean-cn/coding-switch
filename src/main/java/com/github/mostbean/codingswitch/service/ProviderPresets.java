@@ -33,6 +33,7 @@ public final class ProviderPresets {
                 // ===== Official 预设（恢复 CLI 官方认证） =====
                 presets.add(claudeOfficial());
                 presets.add(codexOfficial());
+                presets.add(grokOfficial());
                 presets.add(antigravityOfficial());
 
                 // ===== Claude Code 国产供应商预设 =====
@@ -64,6 +65,18 @@ public final class ProviderPresets {
                 presets.add(codexPreset("阿里 Plan",
                                 "https://coding.dashscope.aliyuncs.com/v1", "qwen3.6-plus"));
                 presets.add(codexPreset("MiMo Plan",
+                                "https://token-plan-cn.xiaomimimo.com/v1", "mimo-v2.5-pro"));
+
+                // ===== Grok 国产供应商预设 =====
+                presets.add(grokPreset("DeepSeek",
+                                "https://api.deepseek.com/v1", "deepseek-v4-pro"));
+                presets.add(grokPreset("智谱 GLM",
+                                "https://open.bigmodel.cn/api/coding/paas/v4", "glm-5.1"));
+                presets.add(grokPreset("Kimi",
+                                "https://api.moonshot.cn/v1", "kimi-for-coding"));
+                presets.add(grokPreset("阿里 Plan",
+                                "https://coding.dashscope.aliyuncs.com/v1", "qwen3.6-plus"));
+                presets.add(grokPreset("MiMo Plan",
                                 "https://token-plan-cn.xiaomimimo.com/v1", "mimo-v2.5-pro"));
 
                 // ===== OpenCode 国产供应商预设 =====
@@ -194,6 +207,33 @@ public final class ProviderPresets {
                 JsonObject config = new JsonObject();
                 config.add("env", new JsonObject());
                 return new Preset("Official Login", CliType.ANTIGRAVITY, config, AuthMode.OFFICIAL_LOGIN);
+        }
+
+        private static Preset grokOfficial() {
+                JsonObject config = new JsonObject();
+                config.add("auth", new JsonObject());
+                config.addProperty("config", "");
+                return new Preset("Official Login", CliType.GROK, config, AuthMode.OFFICIAL_LOGIN);
+        }
+
+        private static Preset grokPreset(String name, String baseUrl, String model) {
+                JsonObject config = new JsonObject();
+                JsonObject auth = new JsonObject();
+                auth.addProperty("XAI_API_KEY", "");
+                config.add("auth", auth);
+                config.addProperty("config", GrokConfigSupport.buildToml(
+                                "",
+                                baseUrl,
+                                GrokConfigSupport.DEFAULT_BACKEND,
+                                List.of(new GrokConfigSupport.ModelDefinition(
+                                                GrokConfigSupport.sanitizeKey(name),
+                                                name,
+                                                model,
+                                                baseUrl,
+                                                "",
+                                                GrokConfigSupport.DEFAULT_BACKEND,
+                                                null))));
+                return new Preset(name, CliType.GROK, config, AuthMode.API_KEY);
         }
 
 }

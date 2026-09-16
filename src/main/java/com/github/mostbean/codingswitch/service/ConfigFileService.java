@@ -45,6 +45,7 @@ public final class ConfigFileService {
             case CODEX -> userHome().resolve(".codex");
             case OPENCODE -> userHome().resolve(".config").resolve("opencode");
             case ANTIGRAVITY -> userHome().resolve(".gemini").resolve("antigravity-cli");
+            case GROK -> userHome().resolve(".grok");
         };
     }
 
@@ -60,6 +61,7 @@ public final class ConfigFileService {
             case CODEX -> getConfigDir(cliType).resolve("auth.json");
             case OPENCODE -> getConfigDir(cliType).resolve("opencode.json");
             case ANTIGRAVITY -> getConfigDir(cliType).resolve("settings.json");
+            case GROK -> getConfigDir(cliType).resolve("auth.json");
         };
     }
 
@@ -75,6 +77,7 @@ public final class ConfigFileService {
             case CODEX -> getConfigDir(cliType).resolve("config.toml");
             case OPENCODE -> getConfigDir(cliType).resolve("opencode.json");
             case ANTIGRAVITY -> userHome().resolve(".gemini").resolve("antigravity").resolve("mcp_config.json");
+            case GROK -> getConfigDir(cliType).resolve("config.toml");
         };
     }
 
@@ -91,6 +94,7 @@ public final class ConfigFileService {
             case CODEX -> getConfigDir(cliType).resolve("AGENTS.md");
             case OPENCODE -> getConfigDir(cliType).resolve("AGENTS.md");
             case ANTIGRAVITY -> userHome().resolve(".gemini").resolve("config").resolve("AGENTS.md");
+            case GROK -> getConfigDir(cliType).resolve("rules").resolve("AGENTS.md");
         };
     }
 
@@ -108,6 +112,10 @@ public final class ConfigFileService {
         return getConfigDir(CliType.CODEX).resolve("skills");
     }
 
+    public Path getGrokSkillsDir() {
+        return getConfigDir(CliType.GROK).resolve("skills");
+    }
+
     /** Antigravity 的专用 Skills 全局目录 */
     public Path getAntigravitySkillsDir() {
         return userHome().resolve(".gemini").resolve("antigravity").resolve("skills");
@@ -119,6 +127,14 @@ public final class ConfigFileService {
 
     public Path getCodexAuthFilePath() {
         return getProviderConfigPath(CliType.CODEX);
+    }
+
+    public Path getGrokAuthFilePath() {
+        return getProviderConfigPath(CliType.GROK);
+    }
+
+    public Path getGrokConfigTomlPath() {
+        return getConfigDir(CliType.GROK).resolve("config.toml");
     }
 
     /** Coding Switch 管理的 Codex 自定义模型目录文件。 */
@@ -299,6 +315,38 @@ public final class ConfigFileService {
                 .resolve("auth-snapshots")
                 .resolve("antigravity-runtime")
                 .resolve(safeKey);
+    }
+
+    public String readGrokAuthRaw() {
+        return readFile(getGrokAuthFilePath());
+    }
+
+    public JsonObject readGrokAuthJson() {
+        return readJsonFile(getGrokAuthFilePath());
+    }
+
+    public void writeGrokAuthJson(JsonObject json) throws IOException {
+        writeJsonFile(getGrokAuthFilePath(), json);
+    }
+
+    public void writeGrokAuthRaw(String rawAuthJson) throws IOException {
+        writeFile(getGrokAuthFilePath(), rawAuthJson);
+    }
+
+    public void deleteGrokAuthFile() throws IOException {
+        Files.deleteIfExists(getGrokAuthFilePath());
+    }
+
+    public GrokAuthSupport.GrokAuthState detectGrokAuthState() {
+        return GrokAuthSupport.detectState(readGrokAuthRaw());
+    }
+
+    public boolean isValidGrokOfficialAuth(String rawAuthJson) {
+        return GrokAuthSupport.isValidOfficialLoginAuth(rawAuthJson);
+    }
+
+    public boolean isValidGrokOfficialAuth(JsonObject authJson) {
+        return GrokAuthSupport.isValidOfficialLoginAuth(authJson);
     }
 
     public CodexAuthSupport.CodexAuthState detectCodexAuthState() {
