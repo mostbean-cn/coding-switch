@@ -488,23 +488,6 @@ public final class ProviderConnectionTestService {
             throw new IllegalArgumentException("Missing Grok model");
         }
         String backend = GrokConfigSupport.normalizeBackend(parsed.apiBackend());
-        if ("messages".equals(backend)) {
-            return List.of(
-                    postJson(
-                            ensurePath(baseUrl, "/v1/messages"),
-                            List.of(
-                                    new Header("x-api-key", apiKey),
-                                    new Header("anthropic-version", "2023-06-01")),
-                            claudeMessagesBody(model),
-                            "Grok Messages"),
-                    postJson(
-                            ensurePath(baseUrl, "/messages"),
-                            List.of(
-                                    new Header("x-api-key", apiKey),
-                                    new Header("anthropic-version", "2023-06-01")),
-                            claudeMessagesBody(model),
-                            "Grok Messages"));
-        }
         if ("responses".equals(backend)) {
             return List.of(postJson(
                     ensurePath(baseUrl, "/responses"),
@@ -526,20 +509,6 @@ public final class ProviderConnectionTestService {
         }
         GrokConfigSupport.ParsedConfig parsed = GrokConfigSupport.parse(getString(config, "config"));
         String baseUrl = firstNotBlank(parsed.baseUrl(), "https://api.x.ai/v1");
-        String backend = GrokConfigSupport.normalizeBackend(parsed.apiBackend());
-        if ("messages".equals(backend)) {
-            return List.of(
-                    get(
-                            ensurePath(baseUrl, "/v1/models"),
-                            List.of(
-                                    new Header("x-api-key", apiKey),
-                                    new Header("anthropic-version", "2023-06-01")),
-                            "Grok Anthropic Models"),
-                    get(
-                            ensurePath(baseUrl, "/models"),
-                            bearerHeaders(apiKey),
-                            "Grok Models"));
-        }
         return List.of(get(
                 ensurePath(baseUrl, "/models"),
                 bearerHeaders(apiKey),

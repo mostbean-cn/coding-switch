@@ -29,14 +29,13 @@ model = "deepseek-v4-pro"
 name = "DeepSeek"
 base_url = "https://api.deepseek.com/v1"
 api_key = "..."
-api_backend = "chat_completions"
+api_backend = "responses"
 ```
 
 `api_backend` 支持：
 
-- `chat_completions`（默认，OpenAI Chat Completions）
-- `responses`（OpenAI Responses）
-- `messages`（Anthropic Messages）
+- `responses`（默认，OpenAI Responses）
+- `chat_completions`（OpenAI Chat Completions）
 
 自定义模型的 `api_key` 优先于官方 session，因此切换到第三方配置时不会删除 `auth.json`。
 

@@ -14,8 +14,8 @@ import java.util.Set;
  */
 public final class GrokConfigSupport {
 
-    public static final String DEFAULT_BACKEND = "chat_completions";
-    public static final List<String> API_BACKENDS = List.of("chat_completions", "responses", "messages");
+    public static final String DEFAULT_BACKEND = "responses";
+    public static final List<String> API_BACKENDS = List.of("responses", "chat_completions");
 
     public record ModelDefinition(
             String key,
@@ -96,9 +96,6 @@ public final class GrokConfigSupport {
             toml.append("api_backend = \"").append(escapeToml(model.apiBackend())).append("\"\n");
             if (model.contextWindow() != null && model.contextWindow() > 0) {
                 toml.append("context_window = ").append(model.contextWindow()).append("\n");
-            }
-            if ("messages".equals(model.apiBackend())) {
-                toml.append("extra_headers = { \"anthropic-version\" = \"2023-06-01\" }\n");
             }
             toml.append("\n");
         }
@@ -220,9 +217,6 @@ public final class GrokConfigSupport {
         }
         if ("response".equals(normalized)) {
             return "responses";
-        }
-        if ("message".equals(normalized) || "anthropic".equals(normalized) || "anthropic_messages".equals(normalized)) {
-            return "messages";
         }
         return API_BACKENDS.contains(normalized) ? normalized : DEFAULT_BACKEND;
     }
