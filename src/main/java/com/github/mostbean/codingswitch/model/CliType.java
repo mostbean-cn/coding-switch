@@ -18,7 +18,9 @@ public enum CliType {
     @SerializedName(value = "ANTIGRAVITY", alternate = { "Antigravity CLI", "Antigravity", "agy", "antigravity" })
     ANTIGRAVITY("Antigravity CLI", "agy"),
     @SerializedName(value = "GROK", alternate = { "Grok", "Grok Build", "Grok CLI", "grok" })
-    GROK("Grok", "grok");
+    GROK("Grok", "grok"),
+    @SerializedName(value = "PI", alternate = { "Pi", "Pi Agent", "Pi CLI", "pi" })
+    PI("Pi", "pi");
 
     private final String displayName;
     private final String id;
@@ -34,6 +36,10 @@ public enum CliType {
 
     public String getId() {
         return id;
+    }
+
+    public boolean supportsMcp() {
+        return this != PI;
     }
 
     public static CliType fromId(String id) {

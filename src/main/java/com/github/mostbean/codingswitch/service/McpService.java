@@ -130,6 +130,9 @@ public final class McpService implements PersistentStateComponent<McpService.Sta
             case OPENCODE -> syncOpenCodeMcp(configService, enabledServers);
             case CODEX -> syncCodexMcp(configService, enabledServers);
             case GROK -> syncGrokMcp(configService, enabledServers);
+            case PI -> {
+                // Pi 官方没有 mcpServers 配置，第一期不同步。
+            }
         }
     }
 

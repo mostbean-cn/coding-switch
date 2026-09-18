@@ -50,6 +50,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
     private final List<Runnable> changeListeners = new ArrayList<>();
     private CodexActivationResult lastCodexActivationResult = CodexActivationResult.notApplicable();
     private GrokActivationResult lastGrokActivationResult = GrokActivationResult.notApplicable();
+    private PiActivationResult lastPiActivationResult = PiActivationResult.notApplicable();
     private AntigravityAuthSnapshotService.RestoreResult lastAntigravityActivationResult;
 
     public static ProviderService getInstance() {
@@ -142,9 +143,11 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         if (existing != null) {
             CodexAuthSnapshotService.getInstance().clearSnapshot(existing);
             AntigravityAuthSnapshotService.getInstance().clearSnapshot(existing);
+            PiAuthSnapshotService.getInstance().clearSnapshot(existing);
         } else {
             CodexAuthSnapshotService.getInstance().clearSnapshot(providerId);
             AntigravityAuthSnapshotService.getInstance().clearSnapshot(providerId);
+            PiAuthSnapshotService.getInstance().clearSnapshot(providerId);
         }
         providers.removeIf(p -> p.getId().equals(providerId));
         saveProviders(providers);
@@ -181,6 +184,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         Provider target = null;
         Provider activeCodex = findActiveProvider(providers, CliType.CODEX);
         Provider activeGrok = findActiveProvider(providers, CliType.GROK);
+        Provider activePi = findActiveProvider(providers, CliType.PI);
         Provider activeAntigravity = findActiveProvider(providers, CliType.ANTIGRAVITY);
 
         for (Provider p : providers) {
@@ -194,6 +198,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         }
         captureCurrentCodexSnapshot(target, activeCodex);
         captureCurrentGrokSnapshot(target, activeGrok);
+        captureCurrentPiSnapshot(target, activePi);
         captureCurrentAntigravitySnapshot(target, activeAntigravity);
 
         // 同一 CLI 类型下只能有一个 active。OpenCode 是 additive 模式，状态以 live 配置为准。
@@ -209,6 +214,7 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
         writeToLiveConfig(target);
         lastCodexActivationResult = switchCodexAuthStateIfNeeded(target);
         lastGrokActivationResult = switchGrokAuthStateIfNeeded(target);
+        lastPiActivationResult = switchPiAuthStateIfNeeded(target);
         lastAntigravityActivationResult = switchAntigravityAuthStateIfNeeded(target);
     }
 
@@ -241,6 +247,10 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
 
     public GrokActivationResult getLastGrokActivationResult() {
         return lastGrokActivationResult;
+    }
+
+    public PiActivationResult getLastPiActivationResult() {
+        return lastPiActivationResult;
     }
 
     public AntigravityAuthSnapshotService.RestoreResult getLastAntigravityActivationResult() {
@@ -282,6 +292,13 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
                     writeGrokOfficialLive(svc, config);
                 } else {
                     writeGrokLive(svc, config);
+                }
+            }
+            case PI -> {
+                if (provider.getAuthMode() == AuthMode.OFFICIAL_LOGIN) {
+                    writePiOfficialLive(svc);
+                } else {
+                    writePiLive(svc, config);
                 }
             }
         }
@@ -660,6 +677,119 @@ public final class ProviderService implements PersistentStateComponent<ProviderS
             return;
         }
         svc.writeFile(tomlPath, finalContent);
+    }
+
+    /**
+     * Pi: 内置目录合并 auth.json + settings.json；自定义接口额外写入 models.json。
+     * 不覆盖其他 provider 的 OAuth / API Key。
+     */
+    private void writePiLive(ConfigFileService svc, JsonObject config) throws IOException {
+        PiConfigSupport.ParsedConfig parsed = PiConfigSupport.parse(config);
+        mergePiAuth(svc, config);
+        mergePiModels(svc, parsed);
+        mergePiSettings(svc, parsed, false);
+    }
+
+    private void writePiOfficialLive(ConfigFileService svc) throws IOException {
+        removePiManagedModels(svc);
+        mergePiSettings(svc, null, true);
+    }
+
+    private void mergePiAuth(ConfigFileService svc, JsonObject config) throws IOException {
+        JsonObject live = svc.readPiAuthJson();
+        live.remove(PiConfigSupport.CUSTOM_PROVIDER_ID);
+        JsonObject incoming = config != null && config.has("auth") && config.get("auth").isJsonObject()
+                ? config.getAsJsonObject("auth")
+                : new JsonObject();
+        for (String key : incoming.keySet()) {
+            live.add(key, incoming.get(key));
+        }
+        svc.writePiAuthJson(live);
+    }
+
+    private void mergePiModels(ConfigFileService svc, PiConfigSupport.ParsedConfig parsed) throws IOException {
+        JsonObject live = svc.readPiModelsJson();
+        JsonObject providers = live.has("providers") && live.get("providers").isJsonObject()
+                ? live.getAsJsonObject("providers")
+                : new JsonObject();
+        providers.remove(PiConfigSupport.CUSTOM_PROVIDER_ID);
+        if (parsed != null && parsed.custom()) {
+            JsonObject models = PiConfigSupport.buildModels(
+                    parsed.providerId(),
+                    parsed.baseUrl(),
+                    parsed.api(),
+                    parsed.apiKey(),
+                    parsed.model());
+            JsonObject incomingProviders = models.has("providers") && models.get("providers").isJsonObject()
+                    ? models.getAsJsonObject("providers")
+                    : new JsonObject();
+            for (String key : incomingProviders.keySet()) {
+                providers.add(key, incomingProviders.get(key));
+            }
+        }
+        live.add("providers", providers);
+        svc.writePiModelsJson(live);
+    }
+
+    private void removePiManagedModels(ConfigFileService svc) throws IOException {
+        JsonObject live = svc.readPiModelsJson();
+        if (!live.has("providers") || !live.get("providers").isJsonObject()) {
+            return;
+        }
+        JsonObject providers = live.getAsJsonObject("providers");
+        if (!providers.has(PiConfigSupport.CUSTOM_PROVIDER_ID)) {
+            return;
+        }
+        providers.remove(PiConfigSupport.CUSTOM_PROVIDER_ID);
+        live.add("providers", providers);
+        svc.writePiModelsJson(live);
+    }
+
+    private void mergePiSettings(
+            ConfigFileService svc,
+            PiConfigSupport.ParsedConfig parsed,
+            boolean officialLogin
+    ) throws IOException {
+        JsonObject live = svc.readPiSettingsJson();
+        if (officialLogin) {
+            live.remove("defaultProvider");
+            live.remove("defaultModel");
+            svc.writePiSettingsJson(live);
+            return;
+        }
+        if (parsed == null) {
+            return;
+        }
+        live.addProperty("defaultProvider", parsed.providerId());
+        if (parsed.model() != null && !parsed.model().isBlank()) {
+            live.addProperty("defaultModel", parsed.model());
+        } else {
+            live.remove("defaultModel");
+        }
+        svc.writePiSettingsJson(live);
+    }
+
+    private void captureCurrentPiSnapshot(Provider target, Provider activePi) {
+        if (target == null || target.getCliType() != CliType.PI) {
+            return;
+        }
+        if (activePi == null || activePi.getAuthMode() != AuthMode.OFFICIAL_LOGIN) {
+            return;
+        }
+        PiAuthSnapshotService.getInstance().captureFromLive(activePi);
+    }
+
+    private PiActivationResult switchPiAuthStateIfNeeded(Provider target) throws IOException {
+        if (target.getCliType() != CliType.PI || target.getAuthMode() != AuthMode.OFFICIAL_LOGIN) {
+            return PiActivationResult.notApplicable();
+        }
+        PiAuthSnapshotService.RestoreResult restoreResult = PiAuthSnapshotService.getInstance()
+                .restoreToLive(target);
+        return switch (restoreResult) {
+            case RESTORED -> PiActivationResult.snapshotRestored();
+            case NO_SNAPSHOT -> PiActivationResult.loginRequired();
+            case INVALID_SNAPSHOT -> PiActivationResult.snapshotInvalid();
+        };
     }
 
     private void captureCurrentCodexSnapshot(Provider target, Provider activeCodex) {

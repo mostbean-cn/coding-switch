@@ -8,6 +8,7 @@ import com.github.mostbean.codingswitch.service.CodexContextWindowSupport;
 import com.github.mostbean.codingswitch.service.CodexModelCatalogSupport;
 import com.github.mostbean.codingswitch.service.GrokConfigSupport;
 import com.github.mostbean.codingswitch.service.I18n;
+import com.github.mostbean.codingswitch.service.PiConfigSupport;
 import com.github.mostbean.codingswitch.service.PluginSettings;
 import com.github.mostbean.codingswitch.service.PluginSettings.SecurityPolicy;
 import com.github.mostbean.codingswitch.service.ProviderConnectionTestService;
@@ -133,6 +134,18 @@ public class ProviderDialog extends DialogWrapper {
     private final JPanel grokModelsPanel = new JPanel();
     private final List<GrokModelRow> grokModelRows = new ArrayList<>();
 
+    private final PasswordFieldWithToggle piApiKey = new PasswordFieldWithToggle(30);
+    private final JTextField piBaseUrl = new JTextField(30);
+    private final JComboBox<PiProviderOption> piProvider = new JComboBox<>();
+    private final JComboBox<String> piApi = new JComboBox<>(
+            PiConfigSupport.APIS.toArray(new String[0]));
+    private final JTextField piModel = new JTextField(30);
+    private final JBLabel piApiKeyLabel = requiredLabel("API Key:");
+    private final JBLabel piBaseUrlLabel = requiredLabel("Base URL:");
+    private final JBLabel piProviderLabel = new JBLabel();
+    private final JBLabel piApiLabel = new JBLabel();
+    private final JBLabel piModelLabel = requiredLabel(I18n.t("providerDialog.label.model"));
+
     private static class ModelRow {
         final JTextField displayNameField;
         final JTextField actualModelField;
@@ -240,6 +253,7 @@ public class ProviderDialog extends DialogWrapper {
         dynamicPanel.add(buildOpenCodePanel(), CliType.OPENCODE.name());
         dynamicPanel.add(buildAntigravityPanel(), CliType.ANTIGRAVITY.name());
         dynamicPanel.add(buildGrokPanel(), CliType.GROK.name());
+        dynamicPanel.add(buildPiPanel(), CliType.PI.name());
 
         cliTypeCombo.addActionListener(e -> {
             CliType selected = (CliType) cliTypeCombo.getSelectedItem();
@@ -513,6 +527,20 @@ public class ProviderDialog extends DialogWrapper {
             if (!updatingFromPreview) updatePreview();
         });
 
+        addTextFieldListener(piApiKey);
+        addTextFieldListener(piBaseUrl);
+        addTextFieldListener(piModel);
+        piProvider.addActionListener(e -> {
+            if (!updatingFromPreview) {
+                applyPiProviderDefaults(false);
+                updatePiCustomFieldsEnabled();
+                updatePreview();
+            }
+        });
+        piApi.addActionListener(e -> {
+            if (!updatingFromPreview) updatePreview();
+        });
+
     }
 
     private void addTextFieldListener(JTextField field) {
@@ -685,6 +713,7 @@ public class ProviderDialog extends DialogWrapper {
                 case CODEX -> applyCodexPreviewToForm();
                 case OPENCODE -> applyOpenCodePreviewToForm();
                 case GROK -> applyGrokPreviewToForm();
+                case PI -> applyPiPreviewToForm();
             }
 
             testStatusLabel.setText(" ");
@@ -832,6 +861,28 @@ public class ProviderDialog extends DialogWrapper {
         loadGrokConfig(config);
     }
 
+    private void applyPiPreviewToForm() {
+        String text = previewTextArea.getText();
+        if (text == null || text.isBlank()) {
+            return;
+        }
+        StringBuilder jsonBuilder = new StringBuilder();
+        for (String line : text.split("\n")) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("//") || trimmed.startsWith("#")) {
+                continue;
+            }
+            jsonBuilder.append(line).append("\n");
+        }
+        String raw = jsonBuilder.toString().trim();
+        if (raw.isEmpty()) {
+            return;
+        }
+        JsonObject config = JsonParser.parseString(raw).getAsJsonObject();
+        rememberRawSettings(CliType.PI, config);
+        loadPiConfig(config);
+    }
+
     private void applyAntigravityPreviewToForm() {
         String text = previewTextArea.getText().trim();
         if (text.isEmpty()) {
@@ -857,6 +908,7 @@ public class ProviderDialog extends DialogWrapper {
             case OPENCODE -> formatOpenCodePreview(config);
             case CODEX -> "";
             case GROK -> formatGrokPreview(config);
+            case PI -> formatPiPreview(config);
         };
     }
 
@@ -890,6 +942,13 @@ public class ProviderDialog extends DialogWrapper {
         if (config != null && config.has("config") && !config.get("config").isJsonNull()) {
             sb.append(config.get("config").getAsString());
         }
+        return sb.toString();
+    }
+
+    private String formatPiPreview(JsonObject config) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("// ~/.pi/agent/auth.json + models.json + settings.json\n");
+        sb.append(PREVIEW_GSON.toJson(config != null ? config : new JsonObject())).append("\n");
         return sb.toString();
     }
 
@@ -1099,6 +1158,15 @@ public class ProviderDialog extends DialogWrapper {
                 setRequiredState(grokBaseUrlLabel, !officialLogin);
                 setRequiredState(grokModelLabel, !officialLogin);
             }
+            case PI -> {
+                piApiKey.setEnabled(!officialLogin);
+                piProvider.setEnabled(!officialLogin);
+                piModel.setEnabled(!officialLogin);
+                setRequiredState(piApiKeyLabel, !officialLogin);
+                setRequiredState(piBaseUrlLabel, !officialLogin);
+                setRequiredState(piModelLabel, !officialLogin);
+                updatePiCustomFieldsEnabled();
+            }
         }
     }
 
@@ -1149,6 +1217,13 @@ public class ProviderDialog extends DialogWrapper {
                 grokApiBackend.setSelectedItem(GrokConfigSupport.DEFAULT_BACKEND);
                 clearGrokModelFields();
                 addGrokModelField("", "", "");
+            }
+            case PI -> {
+                piApiKey.setText("");
+                piBaseUrl.setText("");
+                piApi.setSelectedItem(PiConfigSupport.DEFAULT_API);
+                piModel.setText("");
+                selectPiProvider(PiConfigSupport.CUSTOM_PROVIDER_ID);
             }
         }
     }
@@ -1516,6 +1591,35 @@ public class ProviderDialog extends DialogWrapper {
         return wrapWithTitledBorder(form, I18n.t("providerDialog.border.grok"));
     }
 
+    private JPanel buildPiPanel() {
+        initPiProviderOptions();
+        piProviderLabel.setText(I18n.t("providerDialog.label.piProvider"));
+        piApiLabel.setText(I18n.t("providerDialog.label.apiBackend"));
+        piApi.setSelectedItem(PiConfigSupport.DEFAULT_API);
+        JPanel form = FormBuilder.createFormBuilder()
+                .addLabeledComponent(piApiKeyLabel, piApiKey)
+                .addLabeledComponent(piProviderLabel, piProvider)
+                .addLabeledComponent(piBaseUrlLabel, piBaseUrl)
+                .addLabeledComponent(piApiLabel, piApi)
+                .addLabeledComponent(piModelLabel, piModel)
+                .getPanel();
+        updatePiCustomFieldsEnabled();
+        return wrapWithTitledBorder(form, I18n.t("providerDialog.border.pi"));
+    }
+
+    private void initPiProviderOptions() {
+        if (piProvider.getItemCount() > 0) {
+            return;
+        }
+        piProvider.addItem(new PiProviderOption(
+                PiConfigSupport.CUSTOM_PROVIDER_ID,
+                I18n.t("providerDialog.pi.provider.custom"),
+                true));
+        for (PiConfigSupport.BuiltinProvider builtin : PiConfigSupport.builtins()) {
+            piProvider.addItem(new PiProviderOption(builtin.id(), builtin.displayName(), false));
+        }
+    }
+
     private void addGrokModelField(String displayName, String actualModel, String contextWindow) {
         JPanel row = new JPanel(new GridBagLayout());
         JTextField displayNameField = new JTextField(displayName);
@@ -1780,7 +1884,19 @@ public class ProviderDialog extends DialogWrapper {
             case CODEX -> loadCodexConfig(safeConfig);
             case OPENCODE -> loadOpenCodeConfig(safeConfig);
             case GROK -> loadGrokConfig(safeConfig);
+            case PI -> loadPiConfig(safeConfig);
         }
+    }
+
+    private void loadPiConfig(JsonObject config) {
+        initPiProviderOptions();
+        PiConfigSupport.ParsedConfig parsed = PiConfigSupport.parse(config);
+        piApiKey.setText(parsed.apiKey());
+        piBaseUrl.setText(parsed.baseUrl());
+        piApi.setSelectedItem(parsed.api());
+        piModel.setText(parsed.model());
+        selectPiProvider(parsed.providerId());
+        updatePiCustomFieldsEnabled();
     }
 
     private void loadAntigravityConfig(JsonObject config) {
@@ -2017,6 +2133,7 @@ public class ProviderDialog extends DialogWrapper {
             case CODEX -> authMode == AuthMode.OFFICIAL_LOGIN ? buildCodexOfficialConfig() : buildCodexConfig();
             case OPENCODE -> buildOpenCodeConfig();
             case GROK -> authMode == AuthMode.OFFICIAL_LOGIN ? buildGrokOfficialConfig() : buildGrokConfig();
+            case PI -> authMode == AuthMode.OFFICIAL_LOGIN ? PiConfigSupport.buildOfficialConfig() : buildPiConfig();
         };
         JsonObject merged = mergeWithRawSettings(cliType, structured);
         rememberRawSettings(cliType, merged);
@@ -2215,6 +2332,17 @@ public class ProviderDialog extends DialogWrapper {
         }
     }
 
+    private JsonObject buildPiConfig() {
+        PiProviderOption option = (PiProviderOption) piProvider.getSelectedItem();
+        String providerId = option != null ? option.id() : PiConfigSupport.CUSTOM_PROVIDER_ID;
+        return PiConfigSupport.buildSettingsConfig(
+                providerId,
+                piApiKey.getTextValue().trim(),
+                piBaseUrl.getText().trim(),
+                (String) piApi.getSelectedItem(),
+                piModel.getText().trim());
+    }
+
     private JsonObject buildGrokOfficialConfig() {
         JsonObject config = new JsonObject();
         config.add("auth", new JsonObject());
@@ -2359,6 +2487,7 @@ public class ProviderDialog extends DialogWrapper {
             case CODEX -> mergeCodexRaw(raw, merged);
             case OPENCODE -> mergeOpenCodeRaw(raw, merged);
             case GROK -> mergeGrokRaw(raw, merged);
+            case PI -> mergePiRaw(raw, merged);
         }
 
         return merged;
@@ -2409,6 +2538,18 @@ public class ProviderDialog extends DialogWrapper {
                 ? raw.getAsJsonObject("auth")
                 : null;
         mergeObjectUnknownFields(rawAuth, mergedAuth, List.of("OPENAI_API_KEY"));
+        merged.add("auth", mergedAuth);
+    }
+
+    private void mergePiRaw(JsonObject raw, JsonObject merged) {
+        mergeRootUnknownFields(raw, merged, List.of("auth", "models", "settings"));
+        JsonObject mergedAuth = merged.has("auth") && merged.get("auth").isJsonObject()
+                ? merged.getAsJsonObject("auth")
+                : new JsonObject();
+        JsonObject rawAuth = raw.has("auth") && raw.get("auth").isJsonObject()
+                ? raw.getAsJsonObject("auth")
+                : null;
+        mergeObjectUnknownFields(rawAuth, mergedAuth, List.of());
         merged.add("auth", mergedAuth);
     }
 
@@ -2541,6 +2682,7 @@ public class ProviderDialog extends DialogWrapper {
             case CODEX -> validateCodex();
             case OPENCODE -> validateOpenCode();
             case GROK -> validateGrok();
+            case PI -> validatePi();
         };
     }
 
@@ -2595,6 +2737,20 @@ public class ProviderDialog extends DialogWrapper {
                         I18n.t("providerDialog.validate.contextWindowInvalid"),
                         row.contextWindowCombo);
             }
+        }
+        return null;
+    }
+
+    private ValidationInfo validatePi() {
+        if (piApiKey.getTextValue().isBlank()) {
+            return new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), piApiKey);
+        }
+        PiProviderOption option = (PiProviderOption) piProvider.getSelectedItem();
+        if (option != null && option.custom() && piBaseUrl.getText().isBlank()) {
+            return new ValidationInfo(I18n.t("providerDialog.validate.baseUrlRequired"), piBaseUrl);
+        }
+        if (piModel.getText().isBlank()) {
+            return new ValidationInfo(I18n.t("providerDialog.validate.modelRequired"), piModel);
         }
         return null;
     }
@@ -2800,6 +2956,19 @@ public class ProviderDialog extends DialogWrapper {
                 }
                 yield null;
             }
+            case PI -> {
+                if (piApiKey.getTextValue().isBlank()) {
+                    yield new ValidationInfo(I18n.t("providerDialog.validate.apiKeyRequired"), piApiKey);
+                }
+                PiProviderOption option = (PiProviderOption) piProvider.getSelectedItem();
+                if (option != null && option.custom() && piBaseUrl.getText().isBlank()) {
+                    yield new ValidationInfo(I18n.t("providerDialog.validate.baseUrlRequired"), piBaseUrl);
+                }
+                if (piModel.getText().isBlank()) {
+                    yield new ValidationInfo(I18n.t("providerDialog.validate.modelRequired"), piModel);
+                }
+                yield null;
+            }
         };
     }
 
@@ -2837,13 +3006,65 @@ public class ProviderDialog extends DialogWrapper {
         }
     }
 
+    private void selectPiProvider(String providerId) {
+        initPiProviderOptions();
+        String id = providerId == null || providerId.isBlank()
+                ? PiConfigSupport.CUSTOM_PROVIDER_ID
+                : providerId;
+        for (int i = 0; i < piProvider.getItemCount(); i++) {
+            PiProviderOption option = piProvider.getItemAt(i);
+            if (option != null && option.id().equals(id)) {
+                piProvider.setSelectedIndex(i);
+                return;
+            }
+        }
+        piProvider.setSelectedIndex(0);
+    }
+
+    private void applyPiProviderDefaults(boolean overwriteModel) {
+        PiProviderOption option = (PiProviderOption) piProvider.getSelectedItem();
+        if (option == null || option.custom()) {
+            return;
+        }
+        PiConfigSupport.BuiltinProvider builtin = PiConfigSupport.findBuiltin(option.id());
+        if (builtin == null) {
+            return;
+        }
+        piBaseUrl.setText(builtin.probeBaseUrl());
+        piApi.setSelectedItem(builtin.probeApi());
+        if (overwriteModel || piModel.getText().isBlank()) {
+            piModel.setText(builtin.defaultModel());
+        }
+    }
+
+    private void updatePiCustomFieldsEnabled() {
+        boolean officialLogin = getCurrentAuthMode(CliType.PI) == AuthMode.OFFICIAL_LOGIN;
+        PiProviderOption option = (PiProviderOption) piProvider.getSelectedItem();
+        boolean custom = option == null || option.custom();
+        piBaseUrl.setEnabled(!officialLogin && custom);
+        piApi.setEnabled(!officialLogin && custom);
+        setRequiredState(piBaseUrlLabel, !officialLogin && custom);
+        if (!custom && !officialLogin) {
+            applyPiProviderDefaults(false);
+        }
+    }
+
+    private record PiProviderOption(String id, String label, boolean custom) {
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
+
     private java.nio.file.Path getTargetConfigFile(CliType cliType, ConfigFileService svc) {
+
         return switch (cliType) {
             case CLAUDE -> svc.getConfigDir(cliType).resolve("settings.json");
             case ANTIGRAVITY -> svc.getConfigDir(cliType).resolve("settings.json");
             case CODEX -> svc.getConfigDir(cliType).resolve("config.toml");
             case OPENCODE -> svc.getConfigDir(cliType).resolve("opencode.json");
             case GROK -> svc.getConfigDir(cliType).resolve("config.toml");
+            case PI -> svc.getPiAuthFilePath();
         };
     }
 

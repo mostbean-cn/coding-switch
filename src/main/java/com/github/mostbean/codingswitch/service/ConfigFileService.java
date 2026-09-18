@@ -46,6 +46,7 @@ public final class ConfigFileService {
             case OPENCODE -> userHome().resolve(".config").resolve("opencode");
             case ANTIGRAVITY -> userHome().resolve(".gemini").resolve("antigravity-cli");
             case GROK -> userHome().resolve(".grok");
+            case PI -> userHome().resolve(".pi").resolve("agent");
         };
     }
 
@@ -62,6 +63,7 @@ public final class ConfigFileService {
             case OPENCODE -> getConfigDir(cliType).resolve("opencode.json");
             case ANTIGRAVITY -> getConfigDir(cliType).resolve("settings.json");
             case GROK -> getConfigDir(cliType).resolve("auth.json");
+            case PI -> getConfigDir(cliType).resolve("auth.json");
         };
     }
 
@@ -78,6 +80,7 @@ public final class ConfigFileService {
             case OPENCODE -> getConfigDir(cliType).resolve("opencode.json");
             case ANTIGRAVITY -> userHome().resolve(".gemini").resolve("antigravity").resolve("mcp_config.json");
             case GROK -> getConfigDir(cliType).resolve("config.toml");
+            case PI -> getConfigDir(cliType).resolve("settings.json");
         };
     }
 
@@ -95,6 +98,7 @@ public final class ConfigFileService {
             case OPENCODE -> getConfigDir(cliType).resolve("AGENTS.md");
             case ANTIGRAVITY -> userHome().resolve(".gemini").resolve("config").resolve("AGENTS.md");
             case GROK -> getConfigDir(cliType).resolve("rules").resolve("AGENTS.md");
+            case PI -> getConfigDir(cliType).resolve("AGENTS.md");
         };
     }
 
@@ -116,6 +120,10 @@ public final class ConfigFileService {
         return getConfigDir(CliType.GROK).resolve("skills");
     }
 
+    public Path getPiSkillsDir() {
+        return getConfigDir(CliType.PI).resolve("skills");
+    }
+
     /** Antigravity 的专用 Skills 全局目录 */
     public Path getAntigravitySkillsDir() {
         return userHome().resolve(".gemini").resolve("antigravity").resolve("skills");
@@ -135,6 +143,54 @@ public final class ConfigFileService {
 
     public Path getGrokConfigTomlPath() {
         return getConfigDir(CliType.GROK).resolve("config.toml");
+    }
+
+    public Path getPiAuthFilePath() {
+        return getProviderConfigPath(CliType.PI);
+    }
+
+    public Path getPiModelsFilePath() {
+        return getConfigDir(CliType.PI).resolve("models.json");
+    }
+
+    public Path getPiSettingsFilePath() {
+        return getConfigDir(CliType.PI).resolve("settings.json");
+    }
+
+    public Path getPiSessionsDir() {
+        return getConfigDir(CliType.PI).resolve("sessions");
+    }
+
+    public String readPiAuthRaw() {
+        return readFile(getPiAuthFilePath());
+    }
+
+    public JsonObject readPiAuthJson() {
+        return readJsonFile(getPiAuthFilePath());
+    }
+
+    public void writePiAuthJson(JsonObject json) throws IOException {
+        writeJsonFile(getPiAuthFilePath(), json);
+    }
+
+    public void writePiAuthRaw(String rawAuthJson) throws IOException {
+        writeFile(getPiAuthFilePath(), rawAuthJson);
+    }
+
+    public JsonObject readPiModelsJson() {
+        return readJsonFile(getPiModelsFilePath());
+    }
+
+    public void writePiModelsJson(JsonObject json) throws IOException {
+        writeJsonFile(getPiModelsFilePath(), json);
+    }
+
+    public JsonObject readPiSettingsJson() {
+        return readJsonFile(getPiSettingsFilePath());
+    }
+
+    public void writePiSettingsJson(JsonObject json) throws IOException {
+        writeJsonFile(getPiSettingsFilePath(), json);
     }
 
     /** Coding Switch 管理的 Codex 自定义模型目录文件。 */

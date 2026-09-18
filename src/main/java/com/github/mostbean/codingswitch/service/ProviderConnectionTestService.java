@@ -187,6 +187,7 @@ public final class ProviderConnectionTestService {
             case OPENCODE -> buildOpenCodeProbes(config);
             case ANTIGRAVITY -> buildAntigravityProbes(config);
             case GROK -> buildGrokProbes(config);
+            case PI -> buildPiProbes(config);
         };
     }
 
@@ -197,6 +198,7 @@ public final class ProviderConnectionTestService {
             case OPENCODE -> buildOpenCodeModelListRequests(config);
             case ANTIGRAVITY -> buildAntigravityModelListRequests(config);
             case GROK -> buildGrokModelListRequests(config);
+            case PI -> buildPiModelListRequests(config);
         };
     }
 
@@ -513,6 +515,65 @@ public final class ProviderConnectionTestService {
                 ensurePath(baseUrl, "/models"),
                 bearerHeaders(apiKey),
                 "Grok Models"));
+    }
+
+    private List<ProbeRequest> buildPiProbes(JsonObject config) {
+        PiConfigSupport.ParsedConfig parsed = PiConfigSupport.parse(config);
+        if (parsed.apiKey().isBlank()) {
+            throw new IllegalArgumentException("Missing Pi API key");
+        }
+        if (parsed.model().isBlank()) {
+            throw new IllegalArgumentException("Missing Pi model");
+        }
+        String baseUrl = firstNotBlank(parsed.baseUrl(), null);
+        if (baseUrl == null) {
+            throw new IllegalArgumentException("Missing Pi base URL");
+        }
+        if (PiConfigSupport.API_ANTHROPIC_MESSAGES.equals(parsed.api())) {
+            return List.of(postJson(
+                    ensurePath(baseUrl, "/messages"),
+                    List.of(
+                            new Header("x-api-key", parsed.apiKey()),
+                            new Header("anthropic-version", "2023-06-01")),
+                    claudeMessagesBody(parsed.model()),
+                    "Pi Anthropic Messages"));
+        }
+        if (PiConfigSupport.API_OPENAI_RESPONSES.equals(parsed.api())) {
+            return List.of(postJson(
+                    ensurePath(baseUrl, "/responses"),
+                    bearerHeaders(parsed.apiKey()),
+                    openAiResponsesBody(parsed.model()),
+                    "Pi Responses"));
+        }
+        return List.of(postJson(
+                ensurePath(baseUrl, "/chat/completions"),
+                bearerHeaders(parsed.apiKey()),
+                openAiChatBody(parsed.model()),
+                "Pi Chat Completions"));
+    }
+
+    private List<ProbeRequest> buildPiModelListRequests(JsonObject config) {
+        PiConfigSupport.ParsedConfig parsed = PiConfigSupport.parse(config);
+        if (parsed.apiKey().isBlank()) {
+            throw new IllegalArgumentException("Missing Pi API key");
+        }
+        String baseUrl = firstNotBlank(parsed.baseUrl(), null);
+        if (baseUrl == null) {
+            throw new IllegalArgumentException("Missing Pi base URL");
+        }
+        if (PiConfigSupport.API_ANTHROPIC_MESSAGES.equals(parsed.api())) {
+            return List.of(
+                    get(
+                            ensurePath(baseUrl, "/models"),
+                            List.of(
+                                    new Header("x-api-key", parsed.apiKey()),
+                                    new Header("anthropic-version", "2023-06-01")),
+                            "Pi Anthropic Models"));
+        }
+        return List.of(get(
+                ensurePath(baseUrl, "/models"),
+                bearerHeaders(parsed.apiKey()),
+                "Pi Models"));
     }
 
     private String grokApiKey(JsonObject config) {

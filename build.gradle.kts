@@ -58,11 +58,11 @@ intellijPlatform {
 
         description = """
             <h2>Coding Switch - AI Coding CLI and IDE Productivity Toolkit</h2>
-            <p>Manage Claude Code, Codex, OpenCode, Antigravity CLI, and other AI coding command-line tools in JetBrains IDEs, with inline AI code completion, Git commit message generation, path-with-line-number insertion, CLI quick launch, and CLI version checks.</p>
+            <p>Manage Claude Code, Codex, OpenCode, Antigravity CLI, Grok, Pi, and other AI coding command-line tools in JetBrains IDEs, with inline AI code completion, Git commit message generation, path-with-line-number insertion, CLI quick launch, and CLI version checks.</p>
 
             <h3>Features</h3>
             <ul>
-                <li><b>AI CLI Provider Management</b> — Manage and switch API configurations for Claude Code, Codex, OpenCode, and Antigravity CLI with official APIs, third-party compatible endpoints, local providers, connection tests, and built-in presets.</li>
+                <li><b>AI CLI Provider Management</b> — Manage and switch API configurations for Claude Code, Codex, OpenCode, Antigravity CLI, Grok, and Pi with official APIs, third-party compatible endpoints, local providers, connection tests, and built-in presets.</li>
                 <li><b>CLI Quick Launch and Version Checks</b> — View installation status and version information, then launch terminal sessions with the selected CLI configuration.</li>
                 <li><b>Inline AI Code Completion</b> — Use ghost-text completion with automatic/manual triggering, Tab acceptance, line-by-line acceptance, and FIM Completions / FIM Chat Completions support.</li>
                 <li><b>Code Path and Line Number Quick Insert</b> — One-click insert file paths or code snippet locations with line numbers from the editor and project tree context menus into CLI terminals.</li>
@@ -72,7 +72,7 @@ intellijPlatform {
 
             <h3>功能</h3>
             <ul>
-                <li><b>AI CLI 配置管理</b> — 管理并切换 Claude Code、Codex、OpenCode、Antigravity CLI 的 API 配置，支持官方接口、第三方兼容接口、本地模型、连接测试和内置供应商预设。</li>
+                <li><b>AI CLI 配置管理</b> — 管理并切换 Claude Code、Codex、OpenCode、Antigravity CLI、Grok、Pi 的 API 配置，支持官方接口、第三方兼容接口、本地模型、连接测试和内置供应商预设。</li>
                 <li><b>CLI 快速启动与版本检测</b> — 在 IDE 内查看安装状态和版本信息，并使用选中的 CLI 配置快速启动终端会话。</li>
                 <li><b>行内 AI 代码补全</b> — 支持灰字补全、自动触发、手动触发、Tab 全量采纳、逐行采纳，以及 FIM Completions / FIM Chat Completions。</li>
                 <li><b>代码路径与行号快速插入</b> — 从编辑器、项目树右键菜单一键插入文件路径或带行号的代码片段位置到 CLI 终端。</li>

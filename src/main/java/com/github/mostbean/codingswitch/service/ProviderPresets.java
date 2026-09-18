@@ -34,6 +34,7 @@ public final class ProviderPresets {
                 presets.add(claudeOfficial());
                 presets.add(codexOfficial());
                 presets.add(grokOfficial());
+                presets.add(piOfficial());
                 presets.add(antigravityOfficial());
 
                 // ===== Claude Code 国产供应商预设 =====
@@ -78,6 +79,11 @@ public final class ProviderPresets {
                                 "https://coding.dashscope.aliyuncs.com/v1", "qwen3.6-plus"));
                 presets.add(grokPreset("MiMo Plan",
                                 "https://token-plan-cn.xiaomimimo.com/v1", "mimo-v2.5-pro"));
+
+                // ===== Pi 内置目录预设 =====
+                for (PiConfigSupport.BuiltinProvider builtin : PiConfigSupport.builtins()) {
+                        presets.add(piBuiltinPreset(builtin));
+                }
 
                 // ===== OpenCode 国产供应商预设 =====
                 presets.add(opencodePreset("DeepSeek",
@@ -214,6 +220,23 @@ public final class ProviderPresets {
                 config.add("auth", new JsonObject());
                 config.addProperty("config", "");
                 return new Preset("Official Login", CliType.GROK, config, AuthMode.OFFICIAL_LOGIN);
+        }
+
+        private static Preset piOfficial() {
+                return new Preset("Official Login", CliType.PI, PiConfigSupport.buildOfficialConfig(), AuthMode.OFFICIAL_LOGIN);
+        }
+
+        private static Preset piBuiltinPreset(PiConfigSupport.BuiltinProvider builtin) {
+                return new Preset(
+                        builtin.displayName(),
+                        CliType.PI,
+                        PiConfigSupport.buildSettingsConfig(
+                                builtin.id(),
+                                "",
+                                builtin.probeBaseUrl(),
+                                builtin.probeApi(),
+                                builtin.defaultModel()),
+                        AuthMode.API_KEY);
         }
 
         private static Preset grokPreset(String name, String baseUrl, String model) {

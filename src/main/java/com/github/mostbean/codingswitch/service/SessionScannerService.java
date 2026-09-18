@@ -55,6 +55,7 @@ public final class SessionScannerService {
             futures.add(executor.submit(this::scanOpenCodeSessions));
             futures.add(executor.submit(this::scanAntigravitySessions));
             futures.add(executor.submit(this::scanGrokSessions));
+            futures.add(executor.submit(this::scanPiSessions));
 
             List<SessionMeta> allSessions = new ArrayList<>();
             for (Future<List<SessionMeta>> future : futures) {
@@ -83,6 +84,7 @@ public final class SessionScannerService {
                 case "opencode" -> loadOpenCodeMessages(Path.of(sourcePath));
                 case "agy", "antigravity" -> loadAntigravityMessages(Path.of(sourcePath));
                 case "grok" -> loadGrokMessages(Path.of(sourcePath));
+                case "pi" -> loadPiMessages(Path.of(sourcePath));
                 default -> {
                     LOG.warn("Unsupported provider: " + providerId);
                     yield Collections.emptyList();
@@ -103,7 +105,7 @@ public final class SessionScannerService {
             return false;
         }
         return switch (session.getProviderId()) {
-            case "claude", "codex", "opencode", "agy", "antigravity", "grok" -> true;
+            case "claude", "codex", "opencode", "agy", "antigravity", "grok", "pi" -> true;
             default -> false;
         };
     }
@@ -119,7 +121,7 @@ public final class SessionScannerService {
             throw new UnsupportedOperationException("当前 CLI 暂不支持删除会话");
         }
         switch (session.getProviderId()) {
-            case "claude", "codex", "agy", "antigravity", "grok" -> {
+            case "claude", "codex", "agy", "antigravity", "grok", "pi" -> {
                 String deletePath = session.getDeletePath();
                 if (deletePath == null || deletePath.isBlank()) {
                     throw new IOException("缺少会话删除路径");
@@ -835,6 +837,161 @@ public final class SessionScannerService {
             return "user";
         }
         return "assistant";
+    }
+
+    // =====================================================================
+    // Pi 会话扫描
+    // =====================================================================
+
+    private List<SessionMeta> scanPiSessions() {
+        ConfigFileService cfs = ConfigFileService.getInstance();
+        Path sessionsDir = cfs.getPiSessionsDir();
+        if (!Files.isDirectory(sessionsDir)) {
+            return Collections.emptyList();
+        }
+        List<SessionMeta> sessions = new ArrayList<>();
+        for (Path file : collectFiles(sessionsDir, "jsonl")) {
+            SessionMeta meta = parsePiSession(file);
+            if (meta != null) {
+                sessions.add(meta);
+            }
+        }
+        return sessions;
+    }
+
+    private SessionMeta parsePiSession(Path file) {
+        try {
+            String sessionId = null;
+            String cwd = null;
+            String name = null;
+            String firstUser = null;
+            Long createdAt = null;
+            Long lastActiveAt = null;
+            try (BufferedReader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    JsonObject obj = parseJsonLine(line);
+                    if (obj == null) {
+                        continue;
+                    }
+                    String type = getStr(obj, "type", "");
+                    Long ts = firstTimestamp(obj, "timestamp");
+                    if (ts != null) {
+                        lastActiveAt = ts;
+                    }
+                    if ("session".equals(type)) {
+                        sessionId = firstNonBlank(getStr(obj, "id", null), sessionId);
+                        cwd = firstNonBlank(getStr(obj, "cwd", null), cwd);
+                        createdAt = createdAt != null ? createdAt : ts;
+                    } else if ("session_info".equals(type)) {
+                        name = firstNonBlank(getStr(obj, "name", null), name);
+                    } else if ("message".equals(type) && firstUser == null) {
+                        JsonObject message = obj.has("message") && obj.get("message").isJsonObject()
+                                ? obj.getAsJsonObject("message")
+                                : obj;
+                        if ("user".equalsIgnoreCase(getStr(message, "role", ""))) {
+                            firstUser = extractPiText(message);
+                        }
+                    }
+                }
+            }
+            if (sessionId == null || sessionId.isBlank()) {
+                String fileName = file.getFileName().toString();
+                int underscore = fileName.lastIndexOf('_');
+                sessionId = underscore >= 0
+                        ? fileName.substring(underscore + 1).replace(".jsonl", "")
+                        : fileName.replace(".jsonl", "");
+            }
+            if (createdAt == null) {
+                createdAt = Files.getLastModifiedTime(file).toMillis();
+            }
+            if (lastActiveAt == null) {
+                lastActiveAt = Files.getLastModifiedTime(file).toMillis();
+            }
+            String title = firstNonBlank(name, firstUser, sessionId);
+            SessionMeta meta = new SessionMeta("pi", sessionId);
+            meta.setTitle(title);
+            meta.setSummary(firstUser != null ? truncate(firstUser, 160) : null);
+            meta.setProjectDir(cwd);
+            meta.setCreatedAt(createdAt);
+            meta.setLastActiveAt(lastActiveAt);
+            meta.setSourcePath(file.toAbsolutePath().toString());
+            meta.setDeletePath(file.toAbsolutePath().toString());
+            meta.setResumeCommand("pi --session " + sessionId);
+            return meta;
+        } catch (Exception e) {
+            LOG.debug("Failed to parse Pi session: " + file, e);
+            return null;
+        }
+    }
+
+    private List<SessionMessage> loadPiMessages(Path file) {
+        List<SessionMessage> messages = new ArrayList<>();
+        if (file == null || !Files.isRegularFile(file)) {
+            return messages;
+        }
+        try (BufferedReader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                JsonObject obj = parseJsonLine(line);
+                if (obj == null || !"message".equals(getStr(obj, "type", ""))) {
+                    continue;
+                }
+                JsonObject message = obj.has("message") && obj.get("message").isJsonObject()
+                        ? obj.getAsJsonObject("message")
+                        : obj;
+                String role = getStr(message, "role", "assistant");
+                if (!"user".equalsIgnoreCase(role) && !"assistant".equalsIgnoreCase(role)) {
+                    continue;
+                }
+                String content = extractPiText(message);
+                if (content == null || content.isBlank()) {
+                    continue;
+                }
+                Long ts = firstTimestamp(message, "timestamp");
+                if (ts == null) {
+                    ts = firstTimestamp(obj, "timestamp");
+                }
+                messages.add(new SessionMessage("user".equalsIgnoreCase(role) ? "user" : "assistant", content, ts));
+            }
+        } catch (IOException e) {
+            LOG.warn("Failed to load Pi messages: " + file, e);
+        }
+        return messages;
+    }
+
+    private String extractPiText(JsonObject obj) {
+        if (obj == null) {
+            return null;
+        }
+        if (!obj.has("content")) {
+            return firstNonBlank(getStr(obj, "text", null));
+        }
+        JsonElement content = obj.get("content");
+        if (content.isJsonPrimitive()) {
+            return content.getAsString();
+        }
+        if (!content.isJsonArray()) {
+            return null;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (JsonElement part : content.getAsJsonArray()) {
+            if (part.isJsonPrimitive()) {
+                sb.append(part.getAsString());
+            } else if (part.isJsonObject()) {
+                JsonObject block = part.getAsJsonObject();
+                String text = firstNonBlank(
+                        getStr(block, "text", null),
+                        getStr(block, "thinking", null));
+                if (text != null) {
+                    if (sb.length() > 0) {
+                        sb.append("\n");
+                    }
+                    sb.append(text);
+                }
+            }
+        }
+        return sb.toString();
     }
 
     private Long firstTimestamp(JsonObject obj, String... keys) {

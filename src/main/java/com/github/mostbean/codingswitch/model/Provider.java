@@ -211,6 +211,28 @@ public class Provider {
                                 && !config.contains("api_key ="));
                 yield authEmpty && officialManagedConfig ? AuthMode.OFFICIAL_LOGIN : AuthMode.API_KEY;
             }
+            case PI -> {
+                JsonObject auth = safeConfig.has("auth") && safeConfig.get("auth").isJsonObject()
+                        ? safeConfig.getAsJsonObject("auth")
+                        : null;
+                JsonObject settings = safeConfig.has("settings") && safeConfig.get("settings").isJsonObject()
+                        ? safeConfig.getAsJsonObject("settings")
+                        : null;
+                JsonObject models = safeConfig.has("models") && safeConfig.get("models").isJsonObject()
+                        ? safeConfig.getAsJsonObject("models")
+                        : null;
+                boolean authEmpty = auth == null || auth.keySet().isEmpty();
+                boolean settingsEmpty = settings == null || settings.keySet().isEmpty()
+                        || ((!settings.has("defaultProvider") || settings.get("defaultProvider").isJsonNull()
+                                || settings.get("defaultProvider").getAsString().isBlank())
+                                && (!settings.has("defaultModel") || settings.get("defaultModel").isJsonNull()
+                                        || settings.get("defaultModel").getAsString().isBlank()));
+                boolean modelsEmpty = models == null || models.keySet().isEmpty();
+                if (!modelsEmpty && models.has("providers") && models.get("providers").isJsonObject()) {
+                    modelsEmpty = models.getAsJsonObject("providers").keySet().isEmpty();
+                }
+                yield authEmpty && settingsEmpty && modelsEmpty ? AuthMode.OFFICIAL_LOGIN : AuthMode.API_KEY;
+            }
         };
     }
 

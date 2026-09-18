@@ -40,7 +40,9 @@ public class McpServerDialog extends DialogWrapper {
     private final JTextField argsField = new JTextField(30);
     private final JTextField urlField = new JTextField(30);
     private final Map<CliType, JBCheckBox> syncChecks = new HashMap<>();
-    private final List<CliType> visibleCliTypes = PluginSettings.getInstance().getVisibleManagedCliTypes();
+    private final List<CliType> visibleCliTypes = PluginSettings.getInstance().getVisibleManagedCliTypes().stream()
+            .filter(CliType::supportsMcp)
+            .toList();
 
     // JSON 导入字段
     private final JTextArea jsonInput = new JTextArea(12, 40);

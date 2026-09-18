@@ -5,6 +5,8 @@ import com.github.mostbean.codingswitch.model.Provider;
 import com.github.mostbean.codingswitch.service.AntigravityAuthSnapshotService;
 import com.github.mostbean.codingswitch.service.CodexActivationResult;
 import com.github.mostbean.codingswitch.service.GrokActivationResult;
+import com.github.mostbean.codingswitch.service.PiActivationResult;
+import com.github.mostbean.codingswitch.service.PiConfigSupport;
 import com.github.mostbean.codingswitch.service.GrokConfigSupport;
 import com.github.mostbean.codingswitch.service.ClaudeTemporaryLaunchService;
 import com.github.mostbean.codingswitch.service.I18n;
@@ -296,12 +298,13 @@ public class ProviderPanel extends JPanel {
             ProviderService.getInstance().activateProvider(selected.getId());
             CodexActivationResult codexResult = ProviderService.getInstance().getLastCodexActivationResult();
             GrokActivationResult grokResult = ProviderService.getInstance().getLastGrokActivationResult();
+            PiActivationResult piResult = ProviderService.getInstance().getLastPiActivationResult();
             AntigravityAuthSnapshotService.RestoreResult antigravityResult =
                     ProviderService.getInstance().getLastAntigravityActivationResult();
             refreshTable();
             restoreSelection(selected.getId());
             Messages.showInfoMessage(
-                    buildActivationMessage(selected, codexResult, grokResult, antigravityResult),
+                    buildActivationMessage(selected, codexResult, grokResult, piResult, antigravityResult),
                     selected.getCliType() == CliType.OPENCODE
                             ? I18n.t("provider.status.added")
                             : I18n.t("provider.status.active"));
@@ -426,6 +429,7 @@ public class ProviderPanel extends JPanel {
             Provider provider,
             CodexActivationResult codexResult,
             GrokActivationResult grokResult,
+            PiActivationResult piResult,
             AntigravityAuthSnapshotService.RestoreResult antigravityResult) {
         String base = I18n.t("provider.dialog.activateSuccess", provider.getName(),
                 provider.getCliType().getDisplayName());
@@ -454,6 +458,20 @@ public class ProviderPanel extends JPanel {
                 case SNAPSHOT_RESTORED -> I18n.t("provider.dialog.grokAuth.restored");
                 case LOGIN_REQUIRED -> I18n.t("provider.dialog.grokAuth.loginRequired");
                 case SNAPSHOT_INVALID -> I18n.t("provider.dialog.grokAuth.snapshotInvalid");
+                case NOT_APPLICABLE -> "";
+            };
+            if (!extra.isBlank()) {
+                return base + "\n" + extra;
+            }
+        }
+
+        if (provider.getCliType() == CliType.PI
+                && provider.getAuthMode() == Provider.AuthMode.OFFICIAL_LOGIN
+                && piResult != null) {
+            String extra = switch (piResult.getAuthSwitchState()) {
+                case SNAPSHOT_RESTORED -> I18n.t("provider.dialog.piAuth.restored");
+                case LOGIN_REQUIRED -> I18n.t("provider.dialog.piAuth.loginRequired");
+                case SNAPSHOT_INVALID -> I18n.t("provider.dialog.piAuth.snapshotInvalid");
                 case NOT_APPLICABLE -> "";
             };
             if (!extra.isBlank()) {
@@ -559,10 +577,16 @@ public class ProviderPanel extends JPanel {
                             ? String.join(", ", config.getAsJsonObject("models").keySet())
                             : "N/A";
                     case GROK -> extractGrokModelName(config);
+                    case PI -> extractPiModelName(config);
                 };
             } catch (Exception e) {
                 return "Parsing Error";
             }
+        }
+
+        private String extractPiModelName(JsonObject config) {
+            PiConfigSupport.ParsedConfig parsed = PiConfigSupport.parse(config);
+            return parsed.model().isBlank() ? "N/A" : parsed.model();
         }
 
         private String extractGrokModelName(JsonObject config) {

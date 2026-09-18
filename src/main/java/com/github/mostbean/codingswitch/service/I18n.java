@@ -635,6 +635,9 @@ public final class I18n {
                 m.put("providerDialog.border.opencode", "OpenCode 配置");
                 m.put("providerDialog.border.antigravity", "Antigravity CLI 配置");
                 m.put("providerDialog.border.grok", "Grok 配置");
+        m.put("providerDialog.border.pi", "Pi 配置");
+        m.put("providerDialog.label.piProvider", "Provider:");
+        m.put("providerDialog.pi.provider.custom", "自定义");
                 m.put("providerDialog.label.apiBackend", "API 协议:");
                 m.put("providerDialog.validate.nameRequired", "请填写配置名称");
                 m.put("providerDialog.validate.cliTypeRequired", "请选择 CLI 类型");
@@ -698,6 +701,12 @@ public final class I18n {
                                 "当前配置尚无已绑定登录状态，下次进入 Grok 需要重新登录。");
                 m.put("provider.dialog.grokAuth.snapshotInvalid",
                                 "历史登录快照已失效，已清空为未登录状态，下次进入 Grok 需要重新登录。");
+                m.put("provider.dialog.piAuth.restored",
+                                "已恢复该 Pi 官方登录配置的登录状态。");
+                m.put("provider.dialog.piAuth.loginRequired",
+                                "当前配置尚无已绑定登录状态，下次进入 Pi 需要在终端执行 /login。");
+                m.put("provider.dialog.piAuth.snapshotInvalid",
+                                "历史登录快照已失效，已清空为未登录状态，下次进入 Pi 需要重新登录。");
 
                 // ── CLI Quick Launch ──
                 m.put("settings.section.cliQuickLaunch", "CLI 快速启动");
@@ -1326,6 +1335,9 @@ public final class I18n {
                 m.put("providerDialog.border.opencode", "OpenCode Config");
                 m.put("providerDialog.border.antigravity", "Antigravity CLI Config");
                 m.put("providerDialog.border.grok", "Grok Config");
+        m.put("providerDialog.border.pi", "Pi Config");
+        m.put("providerDialog.label.piProvider", "Provider:");
+        m.put("providerDialog.pi.provider.custom", "Custom");
                 m.put("providerDialog.label.apiBackend", "API Backend:");
                 m.put("providerDialog.validate.nameRequired", "Config name is required");
                 m.put("providerDialog.validate.cliTypeRequired", "CLI type is required");
@@ -1393,6 +1405,12 @@ public final class I18n {
                                 "This config has no saved login state yet. Grok will ask you to sign in the next time it starts.");
                 m.put("provider.dialog.grokAuth.snapshotInvalid",
                                 "The saved login snapshot is no longer valid. It was cleared, and Grok will ask you to sign in next time.");
+                m.put("provider.dialog.piAuth.restored",
+                                "Restored the saved login state for this Pi official login config.");
+                m.put("provider.dialog.piAuth.loginRequired",
+                                "This config has no saved login state yet. Run /login in Pi the next time it starts.");
+                m.put("provider.dialog.piAuth.snapshotInvalid",
+                                "The saved login snapshot is no longer valid. It was cleared, and Pi will ask you to sign in next time.");
 
                 // ── CLI Quick Launch ──
                 m.put("settings.section.cliQuickLaunch", "CLI Quick Launch");

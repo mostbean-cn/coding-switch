@@ -288,6 +288,7 @@ public final class CliVersionService {
             case KIMI -> "uv tool upgrade kimi-cli --no-cache";
             case ANTIGRAVITY -> getAntigravityUpdateCommand();
             case GROK -> "grok update";
+            case PI -> "pi update";
         };
     }
 
@@ -298,6 +299,7 @@ public final class CliVersionService {
             case KIMI -> getKimiInstallCommand();
             case ANTIGRAVITY -> getAntigravityInstallCommand();
             case GROK -> getGrokInstallCommand();
+            case PI -> getPiInstallCommand();
             default -> getUpdateCommand(cliType);
         };
     }
@@ -309,6 +311,7 @@ public final class CliVersionService {
             case OPENCODE -> "npm i -g opencode-ai@latest";
             case ANTIGRAVITY -> getAntigravityUpdateCommand();
             case GROK -> "grok update";
+            case PI -> "pi update";
         };
     }
 
@@ -317,6 +320,7 @@ public final class CliVersionService {
             case CLAUDE -> "npm install -g @anthropic-ai/claude-code";
             case ANTIGRAVITY -> getAntigravityInstallCommand();
             case GROK -> getGrokInstallCommand();
+            case PI -> getPiInstallCommand();
             default -> getUpdateCommand(cliType);
         };
     }
@@ -349,6 +353,7 @@ public final class CliVersionService {
             case KIMI -> new String[]{"kimi --version"};
             case ANTIGRAVITY -> new String[]{"agy --version", "agy -v"};
             case GROK -> grokVersionCommands();
+            case PI -> new String[]{"pi --version", "pi -v"};
         };
     }
 
@@ -359,6 +364,7 @@ public final class CliVersionService {
             case OPENCODE -> new String[]{"opencode --version", "opencode -v"};
             case ANTIGRAVITY -> new String[]{"agy --version", "agy -v"};
             case GROK -> grokVersionCommands();
+            case PI -> new String[]{"pi --version", "pi -v"};
         };
     }
 
@@ -384,6 +390,7 @@ public final class CliVersionService {
             case KIMI -> "kimi";
             case ANTIGRAVITY -> "agy";
             case GROK -> "grok";
+            case PI -> "pi";
         };
     }
 
@@ -394,6 +401,7 @@ public final class CliVersionService {
             case OPENCODE -> "opencode";
             case ANTIGRAVITY -> "agy";
             case GROK -> "grok";
+            case PI -> "pi";
         };
     }
 
@@ -411,6 +419,7 @@ public final class CliVersionService {
             case KIMI -> null;
             case ANTIGRAVITY -> null;
             case GROK -> null;
+            case PI -> "@earendil-works/pi-coding-agent";
         };
     }
 
@@ -421,6 +430,7 @@ public final class CliVersionService {
             case OPENCODE -> "opencode-ai";
             case ANTIGRAVITY -> null;
             case GROK -> null;
+            case PI -> "@earendil-works/pi-coding-agent";
         };
     }
 
@@ -670,6 +680,10 @@ public final class CliVersionService {
         return isWindows()
             ? "irm https://x.ai/cli/install.ps1 | iex"
             : "curl -fsSL https://x.ai/cli/install.sh | bash";
+    }
+
+    private String getPiInstallCommand() {
+        return "npm install -g --ignore-scripts @earendil-works/pi-coding-agent";
     }
 
     private String getLatestGrokVersion() {

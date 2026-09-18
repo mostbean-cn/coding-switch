@@ -75,7 +75,7 @@ public final class SkillService implements PersistentStateComponent<SkillService
     private static final String SKILL_BRIDGE_MANIFEST = ".coding-switch-managed.json";
     private static final String SKILL_TEMP_ROOT_DIR = ".coding-switch-tmp";
     private static final String REPOSITORY_PACKAGE_PATH_MARKER = "#coding-switch-repository-package=";
-    private static final List<CliType> SKILL_SYNC_TARGET_CLIS = List.of(CliType.CLAUDE, CliType.CODEX, CliType.OPENCODE, CliType.ANTIGRAVITY, CliType.GROK);
+    private static final List<CliType> SKILL_SYNC_TARGET_CLIS = List.of(CliType.CLAUDE, CliType.CODEX, CliType.OPENCODE, CliType.ANTIGRAVITY, CliType.GROK, CliType.PI);
 
     /** 内置推荐的 Skills 仓库列表 */
     public static final List<String> DEFAULT_REPOS = List.of(
@@ -1911,6 +1911,7 @@ public final class SkillService implements PersistentStateComponent<SkillService
             case CODEX -> syncCodexSkillsDirectory(configService, selectedSkills);
             case OPENCODE -> syncOpenCodeSkillBridge(configService, selectedSkills);
             case GROK -> syncGrokSkillsDirectory(configService, selectedSkills);
+            case PI -> syncPiSkillsDirectory(configService, selectedSkills);
         }
     }
 
@@ -1936,6 +1937,11 @@ public final class SkillService implements PersistentStateComponent<SkillService
     private void syncGrokSkillsDirectory(ConfigFileService configService, List<Skill> selectedSkills)
             throws IOException {
         syncManagedSkillsDirectory(configService, configService.getGrokSkillsDir(), selectedSkills);
+    }
+
+    private void syncPiSkillsDirectory(ConfigFileService configService, List<Skill> selectedSkills)
+            throws IOException {
+        syncManagedSkillsDirectory(configService, configService.getPiSkillsDir(), selectedSkills);
     }
 
     private void syncManagedSkillsDirectory(ConfigFileService configService, Path targetSkillsDir,
@@ -2506,6 +2512,7 @@ public final class SkillService implements PersistentStateComponent<SkillService
         changed = putDefaultIfMissing(syncTargets, CliType.CODEX, false) || changed;
         changed = putDefaultIfMissing(syncTargets, CliType.OPENCODE, false) || changed;
         changed = putDefaultIfMissing(syncTargets, CliType.GROK, false) || changed;
+        changed = putDefaultIfMissing(syncTargets, CliType.PI, false) || changed;
         return changed;
     }
 
@@ -2522,6 +2529,7 @@ public final class SkillService implements PersistentStateComponent<SkillService
         changed = putDefaultIfMissing(syncTargets, CliType.CODEX, false) || changed;
         changed = putDefaultIfMissing(syncTargets, CliType.OPENCODE, false) || changed;
         changed = putDefaultIfMissing(syncTargets, CliType.GROK, false) || changed;
+        changed = putDefaultIfMissing(syncTargets, CliType.PI, false) || changed;
         return changed;
     }
 

@@ -35,7 +35,9 @@ import java.util.List;
  */
 public class McpPanel extends JPanel {
 
-    private final CliType[] cliTypes = PluginSettings.getInstance().getVisibleManagedCliTypes().toArray(CliType[]::new);
+    private final CliType[] cliTypes = PluginSettings.getInstance().getVisibleManagedCliTypes().stream()
+            .filter(CliType::supportsMcp)
+            .toArray(CliType[]::new);
     private final McpTableModel tableModel = new McpTableModel(cliTypes, this::markDirty);
     private final JBTable serverTable = new JBTable(tableModel);
     private final Path projectRoot;
