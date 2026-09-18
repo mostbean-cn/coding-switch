@@ -36,6 +36,8 @@ DeepSeek、智谱 GLM、Kimi、MiniMax、阿里 Plan、MiMo Plan 走 Pi 内置�
 - `openai-responses`
 - `anthropic-messages`
 
+`anthropic-messages` 由 Pi 运行时再拼接 `/v1/messages`。填写 Base URL 时不要带 `/v1` 或 `/v1/messages`；如果带了，插件会自动去掉，避免请求变成 `/v1/v1/messages` 而 404。
+
 ## 安装与更新
 
 - 安装：`npm install -g --ignore-scripts @earendil-works/pi-coding-agent`

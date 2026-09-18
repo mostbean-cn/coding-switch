@@ -530,13 +530,20 @@ public final class ProviderConnectionTestService {
             throw new IllegalArgumentException("Missing Pi base URL");
         }
         if (PiConfigSupport.API_ANTHROPIC_MESSAGES.equals(parsed.api())) {
-            return List.of(postJson(
-                    ensurePath(baseUrl, "/messages"),
-                    List.of(
-                            new Header("x-api-key", parsed.apiKey()),
-                            new Header("anthropic-version", "2023-06-01")),
-                    claudeMessagesBody(parsed.model()),
-                    "Pi Anthropic Messages"));
+            List<Header> headers = List.of(
+                    new Header("x-api-key", parsed.apiKey()),
+                    new Header("anthropic-version", "2023-06-01"));
+            return List.of(
+                    postJson(
+                            ensurePath(baseUrl, "/v1/messages"),
+                            headers,
+                            claudeMessagesBody(parsed.model()),
+                            "Pi Anthropic Messages"),
+                    postJson(
+                            ensurePath(baseUrl, "/messages"),
+                            headers,
+                            claudeMessagesBody(parsed.model()),
+                            "Pi Anthropic Messages"));
         }
         if (PiConfigSupport.API_OPENAI_RESPONSES.equals(parsed.api())) {
             return List.of(postJson(
@@ -562,13 +569,12 @@ public final class ProviderConnectionTestService {
             throw new IllegalArgumentException("Missing Pi base URL");
         }
         if (PiConfigSupport.API_ANTHROPIC_MESSAGES.equals(parsed.api())) {
+            List<Header> headers = List.of(
+                    new Header("x-api-key", parsed.apiKey()),
+                    new Header("anthropic-version", "2023-06-01"));
             return List.of(
-                    get(
-                            ensurePath(baseUrl, "/models"),
-                            List.of(
-                                    new Header("x-api-key", parsed.apiKey()),
-                                    new Header("anthropic-version", "2023-06-01")),
-                            "Pi Anthropic Models"));
+                    get(ensurePath(baseUrl, "/v1/models"), headers, "Pi Anthropic Models"),
+                    get(ensurePath(baseUrl, "/models"), headers, "Pi Anthropic Models"));
         }
         return List.of(get(
                 ensurePath(baseUrl, "/models"),

@@ -53,4 +53,20 @@ public class PiConfigSupportTest {
         assertEquals(PiConfigSupport.API_OPENAI_RESPONSES, PiConfigSupport.normalizeApi("responses"));
         assertEquals(PiConfigSupport.API_ANTHROPIC_MESSAGES, PiConfigSupport.normalizeApi("anthropic"));
     }
+
+    @Test
+    public void shouldStripV1SuffixForAnthropicMessages() {
+        assertEquals(
+                "https://api.example.com",
+                PiConfigSupport.normalizeBaseUrl("https://api.example.com/v1", PiConfigSupport.API_ANTHROPIC_MESSAGES));
+        assertEquals(
+                "https://api.example.com",
+                PiConfigSupport.normalizeBaseUrl("https://api.example.com/v1/messages", PiConfigSupport.API_ANTHROPIC_MESSAGES));
+        assertEquals(
+                "https://api.example.com/anthropic",
+                PiConfigSupport.normalizeBaseUrl("https://api.example.com/anthropic/v1", PiConfigSupport.API_ANTHROPIC_MESSAGES));
+        assertEquals(
+                "https://api.deepseek.com/v1",
+                PiConfigSupport.normalizeBaseUrl("https://api.deepseek.com/v1", PiConfigSupport.API_OPENAI_COMPLETIONS));
+    }
 }

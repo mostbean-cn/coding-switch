@@ -45,8 +45,8 @@ public final class PiConfigSupport {
         public ParsedConfig {
             providerId = providerId == null || providerId.isBlank() ? CUSTOM_PROVIDER_ID : providerId.trim();
             apiKey = apiKey == null ? "" : apiKey.trim();
-            baseUrl = normalizeBaseUrl(baseUrl);
             api = normalizeApi(api);
+            baseUrl = normalizeBaseUrl(baseUrl, api);
             model = model == null ? "" : model.trim();
         }
     }
@@ -194,7 +194,7 @@ public final class PiConfigSupport {
         JsonObject root = new JsonObject();
         JsonObject providers = new JsonObject();
         JsonObject provider = new JsonObject();
-        String safeBaseUrl = normalizeBaseUrl(baseUrl);
+        String safeBaseUrl = normalizeBaseUrl(baseUrl, api);
         if (!safeBaseUrl.isBlank()) {
             provider.addProperty("baseUrl", safeBaseUrl);
         }
@@ -272,10 +272,38 @@ public final class PiConfigSupport {
     }
 
     public static String normalizeBaseUrl(String baseUrl) {
+        return normalizeBaseUrl(baseUrl, null);
+    }
+
+    /**
+     * Anthropic Messages 由 SDK 再拼接 /v1/messages。
+     * 用户若把 Base URL 写成 .../v1 或 .../v1/messages，运行时会变成 /v1/v1/messages 导致 404。
+     */
+    public static String normalizeBaseUrl(String baseUrl, String api) {
         if (baseUrl == null || baseUrl.isBlank()) {
             return "";
         }
-        return baseUrl.trim().replaceAll("/+$", "");
+        String trimmed = baseUrl.trim().replaceAll("/+$", "");
+        if (API_ANTHROPIC_MESSAGES.equals(normalizeApi(api))) {
+            return stripAnthropicEndpointSuffix(trimmed);
+        }
+        return trimmed;
+    }
+
+    static String stripAnthropicEndpointSuffix(String baseUrl) {
+        if (baseUrl == null || baseUrl.isBlank()) {
+            return "";
+        }
+        String current = baseUrl.trim().replaceAll("/+$", "");
+        String lower = current.toLowerCase(Locale.ROOT);
+        if (lower.endsWith("/v1/messages")) {
+            current = current.substring(0, current.length() - "/v1/messages".length());
+        } else if (lower.endsWith("/messages")) {
+            current = current.substring(0, current.length() - "/messages".length());
+        } else if (lower.endsWith("/v1")) {
+            current = current.substring(0, current.length() - "/v1".length());
+        }
+        return current.replaceAll("/+$", "");
     }
 
     public static String sanitizeProviderId(String raw) {
